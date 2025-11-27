@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Calendar from 'react-calendar';
-import { supabase } from '@/lib/supabase'; // 지난번에 만든 연결 파일 불러오기
+import { supabase } from '@/lib/supabase';
+import { User } from '@supabase/supabase-js';
+import Link from 'next/link';
 import './calendar-style.css';
 
 // --- [가짜 데이터] ---
@@ -11,7 +13,13 @@ const STOCK_LIST = [
   "기아", "셀트리온", "POSCO홀딩스", "NAVER", "카카오"
 ];
 
-// --- [타입 정의] DB 컬럼명과 일치시킴 (snake_case) ---
+// --- [타입 정의] ---
+type Participant = {
+  id: number;
+  user_email: string;
+  user_id: string;
+};
+
 type Schedule = {
   id: number;
   date_str: string;
@@ -21,8 +29,9 @@ type Schedule = {
   end_time: string;
   location: string;
   max_participants: string; 
-  current_participants: number;
   memo: string;
+  author_email: string; // ★ 작성자 추가
+  participants?: Participant[]; // ★ 참가자 명단 추가
 };
 
 const hours = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -40,6 +49,7 @@ export default function Home() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // 입력 폼 상태
   const [inputCompany, setInputCompany] = useState('');
@@ -56,23 +66,53 @@ export default function Home() {
   const [maxParticipants, setMaxParticipants] = useState('1명');
   const [inputMemo, setInputMemo] = useState('');
 
-  // ★ 1. 데이터 불러오기 함수 (Read)
+  // ★ 데이터 불러오기 (참가자 명단까지 조인해서 가져옴)
   const fetchSchedules = async () => {
-    const { data, error } = await supabase
+    // 1. 일정 가져오기
+    const { data: scheduleData, error: sError } = await supabase
       .from('schedules')
       .select('*')
-      .order('id', { ascending: true }); // 등록순 정렬
+      .order('id', { ascending: true });
+    
+    if (sError || !scheduleData) return;
 
-    if (error) console.error('Error fetching:', error);
-    else setSchedules(data || []);
+    // 2. 참가자 명단 가져오기
+    const { data: partData, error: pError } = await supabase
+      .from('participants')
+      .select('*');
+      
+    if (pError) return;
+
+    // 3. 데이터 합치기 (일정 + 참가자)
+    const combinedData = scheduleData.map(sch => ({
+      ...sch,
+      participants: partData?.filter(p => p.schedule_id === sch.id) || []
+    }));
+
+    setSchedules(combinedData);
   };
 
-  // 앱이 처음 켜질 때 한번 실행
   useEffect(() => {
-    fetchSchedules();
+    // 세션 체크
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if(session?.user) fetchSchedules(); // 로그인 된 경우만 데이터 로드
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if(session?.user) fetchSchedules();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // 패널이 열리거나 수정 모드일 때 폼 채우기
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload(); // 미들웨어가 로그인 페이지로 보냄
+  };
+
+  // 폼 채우기 로직
   useEffect(() => {
     if (editingId) {
       const target = schedules.find(s => s.id === editingId);
@@ -83,26 +123,18 @@ export default function Home() {
         setInputLocation(target.location);
         setMaxParticipants(target.max_participants);
         setInputMemo(target.memo);
-
         const [sAmpm, sTime] = target.start_time.split(' ');
         const [sHr, sMin] = sTime.split(':');
         setStartAmPm(sAmpm); setStartHour(sHr); setStartMin(sMin);
-
         const [eAmpm, eTime] = target.end_time.split(' ');
         const [eHr, eMin] = eTime.split(':');
         setEndAmPm(eAmpm); setEndHour(eHr); setEndMin(eMin);
       }
     } else {
-      // 초기화
-      setInputCompany('');
-      setIsUnlisted(false);
-      setFilteredCompanies([]);
-      setShowDropdown(false);
+      setInputCompany(''); setIsUnlisted(false); setFilteredCompanies([]); setShowDropdown(false);
       setStartAmPm('오전'); setStartHour('10'); setStartMin('00');
       setEndAmPm('오전'); setEndHour('11'); setEndMin('00');
-      setInputLocation('');
-      setMaxParticipants('1명');
-      setInputMemo('');
+      setInputLocation(''); setMaxParticipants('1명'); setInputMemo('');
     }
   }, [editingId, isPanelOpen]);
 
@@ -129,20 +161,13 @@ export default function Home() {
       setShowDropdown(false);
     }
   };
+  const selectCompany = (name: string) => { setInputCompany(name); setShowDropdown(false); };
 
-  const selectCompany = (name: string) => {
-    setInputCompany(name);
-    setShowDropdown(false);
-  };
-
-  // ★ 2. 저장 및 수정 (Create & Update)
+  // ★ 저장 (Create/Update) - 작성자 이메일 포함
   const handleSave = async () => {
-    if (!selectedDate) return;
-    if (!isUnlisted && !STOCK_LIST.includes(inputCompany)) {
-      alert("목록에 있는 기업을 선택하거나, '비상장'을 체크해주세요.");
-      return;
-    }
-    if (!inputCompany) { alert("기업명을 입력해주세요."); return; }
+    if (!user || !selectedDate) return;
+    if (!isUnlisted && !STOCK_LIST.includes(inputCompany)) { alert("목록 선택 또는 비상장 체크 필요"); return; }
+    if (!inputCompany) { alert("기업명 입력 필요"); return; }
 
     const scheduleData = {
       date_str: formatDateToKey(selectedDate),
@@ -153,39 +178,26 @@ export default function Home() {
       location: inputLocation,
       max_participants: maxParticipants,
       memo: inputMemo,
+      author_email: user.email, // ★ 작성자 정보 저장
     };
 
     if (editingId) {
-      // 수정 (Update)
-      const { error } = await supabase
-        .from('schedules')
-        .update(scheduleData)
-        .eq('id', editingId);
-      
-      if (error) alert('수정 중 에러가 발생했습니다.');
+      const { error } = await supabase.from('schedules').update(scheduleData).eq('id', editingId);
+      if (error) alert('수정 실패');
     } else {
-      // 생성 (Insert)
-      const { error } = await supabase
-        .from('schedules')
-        .insert([{ ...scheduleData, current_participants: 0 }]);
-
-      if (error) alert('저장 중 에러가 발생했습니다.');
+      const { error } = await supabase.from('schedules').insert([scheduleData]);
+      if (error) alert('저장 실패');
     }
 
-    await fetchSchedules(); // 목록 새로고침
+    await fetchSchedules();
     setIsPanelOpen(false);
     setEditingId(null);
   };
 
-  // ★ 3. 삭제 (Delete)
   const handleDelete = async () => {
-    if (!editingId) return;
-    if (confirm("정말 이 일정을 삭제하시겠습니까?")) {
-      const { error } = await supabase
-        .from('schedules')
-        .delete()
-        .eq('id', editingId);
-
+    if (!user || !editingId) return;
+    if (confirm("삭제하시겠습니까?")) {
+      const { error } = await supabase.from('schedules').delete().eq('id', editingId);
       if (!error) {
         await fetchSchedules();
         setIsPanelOpen(false);
@@ -194,41 +206,75 @@ export default function Home() {
     }
   };
 
-  // ★ 4. 참가 신청 (Update Count)
-  const handleJoin = async () => {
-    if (!editingId) return;
-    
+  // ★ 참가 / 취소 토글 로직
+  const handleToggleJoin = async () => {
+    if (!editingId || !user) return;
     const target = schedules.find(s => s.id === editingId);
     if (!target) return;
 
-    // 인원 체크 로직
-    const maxNum = target.max_participants === "참석불가" ? 0 : 
-                   target.max_participants === "5명 이상" ? 99 : 
-                   parseInt(target.max_participants.replace('명', ''));
-    
-    if (target.current_participants >= maxNum) {
-      alert("모집 인원이 꽉 찼습니다!");
-      return;
-    }
+    // 이미 참가했는지 확인
+    const myParticipation = target.participants?.find(p => p.user_id === user.id);
 
-    const { error } = await supabase
-      .from('schedules')
-      .update({ current_participants: target.current_participants + 1 })
-      .eq('id', editingId);
+    if (myParticipation) {
+      // [취소 로직] 이미 참가자 명단에 있다면 -> 삭제
+      if (confirm("참가를 취소하시겠습니까?")) {
+        const { error } = await supabase.from('participants').delete().eq('id', myParticipation.id);
+        if (!error) {
+           alert("취소되었습니다.");
+           await fetchSchedules();
+        }
+      }
+    } else {
+      // [참가 로직] 명단에 없다면 -> 추가
+      // 인원 체크
+      const maxNum = target.max_participants === "참석불가" ? 0 : 
+                     target.max_participants === "5명 이상" ? 99 : 
+                     parseInt(target.max_participants.replace('명', ''));
+      const currentCount = target.participants?.length || 0;
 
-    if (!error) {
-      alert("참가 신청이 완료되었습니다!");
-      await fetchSchedules();
+      if (currentCount >= maxNum) {
+        alert("모집 인원이 꽉 찼습니다!");
+        return;
+      }
+
+      const { error } = await supabase.from('participants').insert([{
+        schedule_id: editingId,
+        user_email: user.email,
+        user_id: user.id
+      }]);
+
+      if (!error) {
+        alert("참가 신청 완료!");
+        await fetchSchedules();
+      }
     }
   };
+
+  // 현재 선택된 일정의 내 참가 여부 확인
+  const isJoined = editingId && user 
+    ? schedules.find(s => s.id === editingId)?.participants?.some(p => p.user_id === user.id)
+    : false;
 
   return (
     <main className="flex h-screen bg-gray-50 overflow-hidden">
       
+      {/* 왼쪽 달력 영역 */}
       <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 transition-all duration-300">
-        <h1 className="text-3xl font-bold text-blue-800 mb-6">
-          📈 기업 탐방 스케줄러
-        </h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-blue-800">
+            📈 기업 탐방 스케줄러
+          </h1>
+          {user && (
+             <div className="flex items-center gap-3">
+               <span className="text-sm text-gray-600">
+                 <b>{user.email?.split('@')[0]}</b>님 환영합니다
+               </span>
+               <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">
+                 로그아웃
+               </button>
+             </div>
+          )}
+        </div>
 
         <div className="bg-white p-6 rounded-xl shadow-md h-full">
           <Calendar 
@@ -243,21 +289,29 @@ export default function Home() {
 
               return (
                 <div className="w-full mt-1 flex flex-col gap-1">
-                  {daysSchedules.map(schedule => (
-                    <div 
-                      key={schedule.id} 
-                      onClick={(e) => handleScheduleClick(e, schedule)}
-                      className="schedule-bar flex items-center gap-1 bg-blue-50 text-blue-800 cursor-pointer hover:bg-blue-100 transition-colors"
-                    >
-                      <span className="text-[10px] font-bold opacity-75">
-                        {schedule.start_time.split(' ')[1]}
-                      </span>
-                      <span className="truncate">{schedule.company}</span>
-                      <span className="ml-auto text-[9px] bg-blue-200 px-1 rounded-sm">
-                        {schedule.current_participants}/{schedule.max_participants.replace('명', '')}
-                      </span>
-                    </div>
-                  ))}
+                  {daysSchedules.map(schedule => {
+                    const count = schedule.participants?.length || 0;
+                    const max = schedule.max_participants.replace('명', '');
+                    // 내가 참가했는지 확인하여 색상 변경
+                    const amIJoined = schedule.participants?.some(p => p.user_id === user?.id);
+                    const barColor = amIJoined ? "bg-blue-100 border-blue-300" : "bg-gray-50";
+
+                    return (
+                      <div 
+                        key={schedule.id} 
+                        onClick={(e) => handleScheduleClick(e, schedule)}
+                        className={`schedule-bar flex items-center gap-1 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors border ${barColor}`}
+                      >
+                        <span className="text-[10px] font-bold opacity-75">
+                          {schedule.start_time.split(' ')[1]}
+                        </span>
+                        <span className="truncate">{schedule.company}</span>
+                        <span className="ml-auto text-[9px] bg-white px-1 rounded-sm border">
+                          {count}/{max}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             }}
@@ -265,13 +319,14 @@ export default function Home() {
         </div>
       </div>
 
+      {/* 우측 패널 */}
       {isPanelOpen && (
         <div className="w-[450px] bg-white border-l shadow-2xl h-full p-8 overflow-y-auto flex flex-col animate-slide-in">
           
           <div className="flex justify-between items-center mb-6 border-b pb-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-800">
-                {editingId ? "일정 상세 / 수정" : "새 일정 등록"}
+                {editingId ? "일정 상세" : "새 일정 등록"}
               </h2>
               <p className="text-gray-500 text-sm mt-1">
                 {selectedDate && formatDateToKey(selectedDate)}
@@ -282,75 +337,96 @@ export default function Home() {
 
           <div className="flex flex-col gap-6 flex-1">
             
+            {/* ★ 참가 현황 및 버튼 (기존 일정일 때만 표시) */}
             {editingId && (
-              <div className="bg-blue-50 p-4 rounded-lg flex items-center justify-between border border-blue-100">
-                <div>
-                  <p className="text-sm font-bold text-blue-900">참가 현황</p>
-                  <p className="text-xs text-blue-600">
-                    현재 {schedules.find(s=>s.id === editingId)?.current_participants}명 신청 중 
-                    (정원: {maxParticipants})
-                  </p>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm font-bold text-blue-900">참가 현황</p>
+                    <p className="text-xs text-blue-600">
+                      현재 {schedules.find(s=>s.id === editingId)?.participants?.length}명 
+                      (정원: {maxParticipants})
+                    </p>
+                  </div>
+                  <button 
+                    onClick={handleToggleJoin}
+                    className={`text-sm font-bold px-4 py-2 rounded shadow-sm transition-transform active:scale-95 text-white ${isJoined ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  >
+                    {isJoined ? "불참하기(취소) 🚫" : "참가하기 ✋"}
+                  </button>
                 </div>
-                <button onClick={handleJoin} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-4 py-2 rounded shadow-sm transition-transform active:scale-95">참가하기 ✋</button>
+                
+                {/* 작성자 & 참가자 리스트 표시 */}
+                <div className="text-xs text-gray-600 bg-white p-2 rounded border">
+                   <p className="mb-1">✍️ <b>작성자:</b> {schedules.find(s=>s.id === editingId)?.author_email}</p>
+                   <hr className="my-1"/>
+                   <p className="font-bold mb-1">🏃 참가자 명단:</p>
+                   <ul className="list-disc pl-4 space-y-1">
+                     {schedules.find(s=>s.id === editingId)?.participants?.map(p => (
+                       <li key={p.id}>{p.user_email} {p.user_email === user?.email && "(나)"}</li>
+                     ))}
+                     {(!schedules.find(s=>s.id === editingId)?.participants?.length) && (
+                       <span className="text-gray-400">참가자가 없습니다.</span>
+                     )}
+                   </ul>
+                </div>
               </div>
             )}
 
+            {/* 입력 폼들 */}
             <div className="relative">
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-gray-700">기업명</label>
-                <label className="flex items-center gap-1 text-xs cursor-pointer select-none text-gray-500">
-                  <input type="checkbox" checked={isUnlisted} onChange={(e) => { setIsUnlisted(e.target.checked); setShowDropdown(false); }} className="accent-blue-600" />
-                  비상장
-                </label>
+              <label className="block text-sm font-bold text-gray-700 mb-2">기업명</label>
+              <div className="flex items-center gap-2 mb-2">
+                 <input type="checkbox" checked={isUnlisted} onChange={(e) => { setIsUnlisted(e.target.checked); setShowDropdown(false); }} className="accent-blue-600" />
+                 <span className="text-xs text-gray-500">비상장</span>
               </div>
-              <input type="text" placeholder={isUnlisted ? "기업명 직접 입력" : "기업명 검색 (예: 삼성)"} className={`w-full border p-3 rounded-lg outline-none focus:ring-2 ${isUnlisted ? 'bg-gray-50' : 'bg-white focus:ring-blue-500'}`} value={inputCompany} onChange={handleCompanyChange} onFocus={() => !isUnlisted && inputCompany && setShowDropdown(true)} />
+              <input type="text" placeholder="기업명" className="w-full border p-3 rounded-lg outline-none" value={inputCompany} onChange={handleCompanyChange} />
               {showDropdown && filteredCompanies.length > 0 && (
                 <ul className="absolute z-10 w-full bg-white border mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto">
                   {filteredCompanies.map((stock) => (
-                    <li key={stock} onClick={() => selectCompany(stock)} className="p-3 hover:bg-blue-50 cursor-pointer text-sm border-b">{stock}</li>
+                     <li key={stock} onClick={() => selectCompany(stock)} className="p-3 hover:bg-blue-50 cursor-pointer text-sm border-b">{stock}</li>
                   ))}
                 </ul>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">시작 시간</label>
-                <div className="flex gap-1">
-                  <select className="border rounded p-2 text-sm w-full" value={startAmPm} onChange={e=>setStartAmPm(e.target.value)}><option>오전</option><option>오후</option></select>
-                  <select className="border rounded p-2 text-sm w-full" value={startHour} onChange={e=>setStartHour(e.target.value)}>{hours.map(h => <option key={h}>{h}</option>)}</select>
-                  <select className="border rounded p-2 text-sm w-full" value={startMin} onChange={e=>setStartMin(e.target.value)}>{minutes.map(m => <option key={m}>{m}</option>)}</select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">종료 시간</label>
-                <div className="flex gap-1">
-                  <select className="border rounded p-2 text-sm w-full" value={endAmPm} onChange={e=>setEndAmPm(e.target.value)}><option>오전</option><option>오후</option></select>
-                  <select className="border rounded p-2 text-sm w-full" value={endHour} onChange={e=>setEndHour(e.target.value)}>{hours.map(h => <option key={h}>{h}</option>)}</select>
-                  <select className="border rounded p-2 text-sm w-full" value={endMin} onChange={e=>setEndMin(e.target.value)}>{minutes.map(m => <option key={m}>{m}</option>)}</select>
-                </div>
-              </div>
+               <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">시작 시간</label>
+                  <div className="flex gap-1">
+                     <select className="border rounded p-2 text-sm w-full" value={startAmPm} onChange={e=>setStartAmPm(e.target.value)}><option>오전</option><option>오후</option></select>
+                     <select className="border rounded p-2 text-sm w-full" value={startHour} onChange={e=>setStartHour(e.target.value)}>{hours.map(h => <option key={h}>{h}</option>)}</select>
+                     <select className="border rounded p-2 text-sm w-full" value={startMin} onChange={e=>setStartMin(e.target.value)}>{minutes.map(m => <option key={m}>{m}</option>)}</select>
+                  </div>
+               </div>
+               <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">종료 시간</label>
+                  <div className="flex gap-1">
+                     <select className="border rounded p-2 text-sm w-full" value={endAmPm} onChange={e=>setEndAmPm(e.target.value)}><option>오전</option><option>오후</option></select>
+                     <select className="border rounded p-2 text-sm w-full" value={endHour} onChange={e=>setEndHour(e.target.value)}>{hours.map(h => <option key={h}>{h}</option>)}</select>
+                     <select className="border rounded p-2 text-sm w-full" value={endMin} onChange={e=>setEndMin(e.target.value)}>{minutes.map(m => <option key={m}>{m}</option>)}</select>
+                  </div>
+               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">장소</label>
-              <input type="text" className="w-full border p-3 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={inputLocation} onChange={(e) => setInputLocation(e.target.value)} />
+               <label className="block text-sm font-bold text-gray-700 mb-2">장소</label>
+               <input type="text" className="w-full border p-3 rounded-lg" value={inputLocation} onChange={(e) => setInputLocation(e.target.value)} />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">참가 가능 인원</label>
-              <select className="w-full border p-3 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none" value={maxParticipants} onChange={(e) => setMaxParticipants(e.target.value)}>
-                <option value="참석불가">❌ 참석 불가</option>
-                <option value="1명">1명</option>
-                <option value="2명">2명</option>
-                <option value="3명">3명</option>
-                <option value="4명">4명</option>
-                <option value="5명 이상">5명 이상</option>
-              </select>
+               <label className="block text-sm font-bold text-gray-700 mb-2">참가 가능 인원</label>
+               <select className="w-full border p-3 rounded-lg bg-white" value={maxParticipants} onChange={(e) => setMaxParticipants(e.target.value)}>
+                  <option value="참석불가">❌ 참석 불가</option>
+                  <option value="1명">1명</option>
+                  <option value="2명">2명</option>
+                  <option value="3명">3명</option>
+                  <option value="4명">4명</option>
+                  <option value="5명 이상">5명 이상</option>
+               </select>
             </div>
-
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">비고</label>
-              <textarea className="w-full border p-3 rounded-lg bg-white h-24 resize-none focus:ring-2 focus:ring-blue-500 outline-none" value={inputMemo} onChange={(e) => setInputMemo(e.target.value)} />
+               <label className="block text-sm font-bold text-gray-700 mb-2">비고</label>
+               <textarea className="w-full border p-3 rounded-lg h-24 resize-none" value={inputMemo} onChange={(e) => setInputMemo(e.target.value)} />
             </div>
 
             <div className="mt-auto pt-6 flex gap-3">
@@ -366,6 +442,7 @@ export default function Home() {
                 </>
               )}
             </div>
+
           </div>
         </div>
       )}
