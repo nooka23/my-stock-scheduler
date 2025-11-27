@@ -1,22 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Calendar from 'react-calendar';
-import { supabase } from '@/lib/supabase';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User } from '@supabase/supabase-js';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import './calendar-style.css';
 
-// --- [가짜 데이터] ---
 const STOCK_LIST = [
   "삼성전자", "SK하이닉스", "LG에너지솔루션", "삼성바이오로직스", "현대차",
   "기아", "셀트리온", "POSCO홀딩스", "NAVER", "카카오"
 ];
 
-// --- [타입 정의] ---
 type Participant = {
   id: number;
   user_email: string;
+  user_name: string;
   user_id: string;
 };
 
@@ -30,8 +29,14 @@ type Schedule = {
   location: string;
   max_participants: string; 
   memo: string;
-  author_email: string; // ★ 작성자 추가
-  participants?: Participant[]; // ★ 참가자 명단 추가
+  author_email: string;
+  author_name: string;
+  participants?: Participant[];
+};
+
+type MyProfile = {
+  nickname: string;
+  is_admin: boolean;
 };
 
 const hours = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -45,11 +50,15 @@ const formatDateToKey = (date: Date) => {
 };
 
 export default function Home() {
+  const supabase = createClientComponentClient();
+  const router = useRouter();
+
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
 
   // 입력 폼 상태
   const [inputCompany, setInputCompany] = useState('');
@@ -66,9 +75,10 @@ export default function Home() {
   const [maxParticipants, setMaxParticipants] = useState('1명');
   const [inputMemo, setInputMemo] = useState('');
 
-  // ★ 데이터 불러오기 (참가자 명단까지 조인해서 가져옴)
-  const fetchSchedules = async () => {
-    // 1. 일정 가져오기
+  // 자동 참석 체크박스 상태
+  const [autoJoin, setAutoJoin] = useState(false);
+
+  const fetchSchedules = useCallback(async () => {
     const { data: scheduleData, error: sError } = await supabase
       .from('schedules')
       .select('*')
@@ -76,43 +86,69 @@ export default function Home() {
     
     if (sError || !scheduleData) return;
 
-    // 2. 참가자 명단 가져오기
     const { data: partData, error: pError } = await supabase
       .from('participants')
       .select('*');
       
     if (pError) return;
 
-    // 3. 데이터 합치기 (일정 + 참가자)
     const combinedData = scheduleData.map(sch => ({
       ...sch,
       participants: partData?.filter(p => p.schedule_id === sch.id) || []
     }));
 
     setSchedules(combinedData);
-  };
+  }, [supabase]);
+
+  const fetchMyProfile = useCallback(async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('nickname, is_admin')
+      .eq('id', userId)
+      .single();
+    if (data) setMyProfile(data as MyProfile);
+  }, [supabase]);
 
   useEffect(() => {
-    // 세션 체크
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if(session?.user) fetchSchedules(); // 로그인 된 경우만 데이터 로드
+      if(session?.user) {
+        fetchSchedules();
+        fetchMyProfile(session.user.id);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if(session?.user) fetchSchedules();
+      if(session?.user) {
+        fetchSchedules();
+        fetchMyProfile(session.user.id);
+      } else {
+        setSchedules([]);
+        setMyProfile(null);
+      }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase, fetchSchedules, fetchMyProfile]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    window.location.reload(); // 미들웨어가 로그인 페이지로 보냄
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+    }
+    localStorage.clear();
+    sessionStorage.clear();
+    setUser(null);
+    setSchedules([]);
+    alert("로그아웃 되었습니다.");
+    window.location.href = '/login?t=' + Date.now(); 
   };
 
-  // 폼 채우기 로직
   useEffect(() => {
     if (editingId) {
       const target = schedules.find(s => s.id === editingId);
@@ -135,8 +171,9 @@ export default function Home() {
       setStartAmPm('오전'); setStartHour('10'); setStartMin('00');
       setEndAmPm('오전'); setEndHour('11'); setEndMin('00');
       setInputLocation(''); setMaxParticipants('1명'); setInputMemo('');
+      setAutoJoin(true); 
     }
-  }, [editingId, isPanelOpen]);
+  }, [editingId, isPanelOpen, schedules]);
 
   const handleDayClick = (value: Date) => {
     setEditingId(null);
@@ -163,11 +200,12 @@ export default function Home() {
   };
   const selectCompany = (name: string) => { setInputCompany(name); setShowDropdown(false); };
 
-  // ★ 저장 (Create/Update) - 작성자 이메일 포함
   const handleSave = async () => {
     if (!user || !selectedDate) return;
     if (!isUnlisted && !STOCK_LIST.includes(inputCompany)) { alert("목록 선택 또는 비상장 체크 필요"); return; }
     if (!inputCompany) { alert("기업명 입력 필요"); return; }
+
+    const myName = myProfile?.nickname || user.email?.split('@')[0] || "익명";
 
     const scheduleData = {
       date_str: formatDateToKey(selectedDate),
@@ -178,15 +216,32 @@ export default function Home() {
       location: inputLocation,
       max_participants: maxParticipants,
       memo: inputMemo,
-      author_email: user.email, // ★ 작성자 정보 저장
+      author_email: user.email,
+      author_name: myName,
     };
 
     if (editingId) {
       const { error } = await supabase.from('schedules').update(scheduleData).eq('id', editingId);
       if (error) alert('수정 실패');
     } else {
-      const { error } = await supabase.from('schedules').insert([scheduleData]);
-      if (error) alert('저장 실패');
+      const { data: newSchedules, error } = await supabase
+        .from('schedules')
+        .insert([scheduleData])
+        .select();
+
+      if (error) {
+        alert('저장 실패');
+      } else if (newSchedules && newSchedules.length > 0) {
+        if (autoJoin) {
+          const newId = newSchedules[0].id;
+          await supabase.from('participants').insert([{
+            schedule_id: newId,
+            user_email: user.email,
+            user_name: myName,
+            user_id: user.id
+          }]);
+        }
+      }
     }
 
     await fetchSchedules();
@@ -206,17 +261,15 @@ export default function Home() {
     }
   };
 
-  // ★ 참가 / 취소 토글 로직
   const handleToggleJoin = async () => {
     if (!editingId || !user) return;
     const target = schedules.find(s => s.id === editingId);
     if (!target) return;
 
-    // 이미 참가했는지 확인
     const myParticipation = target.participants?.find(p => p.user_id === user.id);
+    const myName = myProfile?.nickname || user.email?.split('@')[0] || "익명";
 
     if (myParticipation) {
-      // [취소 로직] 이미 참가자 명단에 있다면 -> 삭제
       if (confirm("참가를 취소하시겠습니까?")) {
         const { error } = await supabase.from('participants').delete().eq('id', myParticipation.id);
         if (!error) {
@@ -225,8 +278,6 @@ export default function Home() {
         }
       }
     } else {
-      // [참가 로직] 명단에 없다면 -> 추가
-      // 인원 체크
       const maxNum = target.max_participants === "참석불가" ? 0 : 
                      target.max_participants === "5명 이상" ? 99 : 
                      parseInt(target.max_participants.replace('명', ''));
@@ -240,6 +291,7 @@ export default function Home() {
       const { error } = await supabase.from('participants').insert([{
         schedule_id: editingId,
         user_email: user.email,
+        user_name: myName,
         user_id: user.id
       }]);
 
@@ -250,15 +302,16 @@ export default function Home() {
     }
   };
 
-  // 현재 선택된 일정의 내 참가 여부 확인
   const isJoined = editingId && user 
     ? schedules.find(s => s.id === editingId)?.participants?.some(p => p.user_id === user.id)
     : false;
 
+  const canDelete = editingId && user 
+    ? (myProfile?.is_admin || schedules.find(s => s.id === editingId)?.author_email === user.email)
+    : false;
+
   return (
     <main className="flex h-screen bg-gray-50 overflow-hidden">
-      
-      {/* 왼쪽 달력 영역 */}
       <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 transition-all duration-300">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-blue-800">
@@ -267,11 +320,13 @@ export default function Home() {
           {user && (
              <div className="flex items-center gap-3">
                <span className="text-sm text-gray-600">
-                 <b>{user.email?.split('@')[0]}</b>님 환영합니다
+                 <b>{myProfile?.nickname || user.email?.split('@')[0]}</b>님
+                 {myProfile?.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
                </span>
-               <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">
-                 로그아웃
-               </button>
+               {myProfile?.is_admin && (
+                 <button onClick={() => router.push('/admin')} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">관리자</button>
+               )}
+               <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
              </div>
           )}
         </div>
@@ -292,7 +347,6 @@ export default function Home() {
                   {daysSchedules.map(schedule => {
                     const count = schedule.participants?.length || 0;
                     const max = schedule.max_participants.replace('명', '');
-                    // 내가 참가했는지 확인하여 색상 변경
                     const amIJoined = schedule.participants?.some(p => p.user_id === user?.id);
                     const barColor = amIJoined ? "bg-blue-100 border-blue-300" : "bg-gray-50";
 
@@ -319,10 +373,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 우측 패널 */}
       {isPanelOpen && (
         <div className="w-[450px] bg-white border-l shadow-2xl h-full p-8 overflow-y-auto flex flex-col animate-slide-in">
-          
           <div className="flex justify-between items-center mb-6 border-b pb-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-800">
@@ -336,8 +388,6 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-6 flex-1">
-            
-            {/* ★ 참가 현황 및 버튼 (기존 일정일 때만 표시) */}
             {editingId && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                 <div className="flex items-center justify-between mb-3">
@@ -356,24 +406,22 @@ export default function Home() {
                   </button>
                 </div>
                 
-                {/* 작성자 & 참가자 리스트 표시 */}
                 <div className="text-xs text-gray-600 bg-white p-2 rounded border">
-                   <p className="mb-1">✍️ <b>작성자:</b> {schedules.find(s=>s.id === editingId)?.author_email}</p>
+                   <p className="mb-1">✍️ <b>작성자:</b> {schedules.find(s=>s.id === editingId)?.author_name || schedules.find(s=>s.id === editingId)?.author_email}</p>
                    <hr className="my-1"/>
                    <p className="font-bold mb-1">🏃 참가자 명단:</p>
                    <ul className="list-disc pl-4 space-y-1">
                      {schedules.find(s=>s.id === editingId)?.participants?.map(p => (
-                       <li key={p.id}>{p.user_email} {p.user_email === user?.email && "(나)"}</li>
+                       <li key={p.id}>
+                         {p.user_name || p.user_email} 
+                         {p.user_email === user?.email && " (나)"}
+                       </li>
                      ))}
-                     {(!schedules.find(s=>s.id === editingId)?.participants?.length) && (
-                       <span className="text-gray-400">참가자가 없습니다.</span>
-                     )}
                    </ul>
                 </div>
               </div>
             )}
 
-            {/* 입력 폼들 */}
             <div className="relative">
               <label className="block text-sm font-bold text-gray-700 mb-2">기업명</label>
               <div className="flex items-center gap-2 mb-2">
@@ -429,18 +477,37 @@ export default function Home() {
                <textarea className="w-full border p-3 rounded-lg h-24 resize-none" value={inputMemo} onChange={(e) => setInputMemo(e.target.value)} />
             </div>
 
-            <div className="mt-auto pt-6 flex gap-3">
-              {editingId ? (
+            <div className="mt-auto pt-4 flex flex-col gap-3">
+              {/* 1. 새 글 작성 모드: 자동 참석 옵션 + 저장/취소 버튼 */}
+              {!editingId && (
                 <>
-                  <button onClick={handleDelete} className="flex-1 py-3 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold">삭제</button>
-                  <button onClick={handleSave} className="flex-[2] py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-md">수정 완료</button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => setIsPanelOpen(false)} className="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold">취소</button>
-                  <button onClick={handleSave} className="flex-[2] py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-md">일정 저장</button>
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="checkbox"
+                      id="autoJoin"
+                      checked={autoJoin}
+                      onChange={(e) => setAutoJoin(e.target.checked)}
+                      className="accent-blue-600 w-4 h-4 cursor-pointer"
+                    />
+                    <label htmlFor="autoJoin" className="text-sm text-gray-700 cursor-pointer select-none">
+                      이 일정에 <b>자동으로 참석</b>하기
+                    </label>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setIsPanelOpen(false)} className="flex-1 py-3 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold">취소</button>
+                    <button onClick={handleSave} className="flex-[2] py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-md">일정 저장</button>
+                  </div>
                 </>
               )}
+
+              {/* 2. 기존 글 보기 모드: 권한 있는 사람만 버튼 표시 */}
+              {editingId && canDelete && (
+                <div className="flex gap-3">
+                  <button onClick={handleDelete} className="flex-1 py-3 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold">삭제</button>
+                  <button onClick={handleSave} className="flex-[2] py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-md">수정 완료</button>
+                </div>
+              )}
+              {/* canDelete가 false(일반 회원, 남의 글)면 아무 버튼도 안 나옴 (자동 숨김) */}
             </div>
 
           </div>
