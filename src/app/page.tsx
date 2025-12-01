@@ -113,10 +113,24 @@ export default function Home() {
     if (data) setMyProfile(data as MyProfile);
   }, [supabase]);
 
+  // ... 기존 코드 ...
+
+  // ★ 종목 리스트 불러오기 (DB)
   const fetchCompanies = useCallback(async () => {
-    const { data, error } = await supabase.from('companies').select('*').order('name', { ascending: true });
-    if (!error && data) setCompanyList(data as Company[]);
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .order('name', { ascending: true })
+      // ★ [중요] 기본 1000개 제한을 풀고 10000개까지 가져오라고 명시
+      .range(0, 9999); 
+    
+    if (!error && data) {
+      console.log(`불러온 기업 수: ${data.length}`); // 확인용 로그
+      setCompanyList(data as Company[]);
+    }
   }, [supabase]);
+
+  // ... 기존 코드 ...
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
