@@ -1,85 +1,78 @@
-/* calendar-style.css 기존 내용 유지 */
+/* src/app/calendar-style.css */
+
 .react-calendar {
   width: 100% !important;
   border: none !important;
   font-family: sans-serif;
 }
 
-/* 날짜 칸 높이 유지 및 내용물 정렬 */
-.react-calendar__tile {
-  height: 120px !important;
-  display: flex !important;
-  flex-direction: column !important; /* 위에서 아래로 쌓이게 */
-  justify-content: flex-start !important;
-  align-items: flex-start !important;
-  padding: 8px !important;
-  border: 1px solid #f0f0f0 !important;
-  font-size: 14px;
-  font-weight: bold;
-  overflow: hidden; /* 내용이 넘치면 숨김 */
-}
-
-/* ... 기존 active, now 스타일 유지 ... */
-
-/* (새로 추가) 일정 바 스타일 */
-.schedule-bar {
-  width: 100%;
-  background-color: #eff6ff; /* 연한 파랑 */
-  color: #1e40af; /* 진한 파랑 글씨 */
-  font-size: 0.75rem; /* 작은 글씨 */
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-top: 4px;
-  white-space: nowrap; /* 줄바꿈 금지 */
-  overflow: hidden;
-  text-overflow: ellipsis; /* 글자가 길면 ... 표시 */
-  text-align: left;
-  font-weight: normal;
-}
-
-/* ... 기존 코드 아래에 추가하세요 ... */
-
-/* 1. 달력 상단 네비게이션 바 전체 크기 키우기 */
+/* 네비게이션(상단) 스타일 */
 .react-calendar__navigation {
-  height: 60px !important; /* 높이를 60px로 시원하게 */
-  margin-bottom: 20px !important; /* 달력과 제목 사이 간격 */
+  height: 60px !important;
+  margin-bottom: 20px !important;
 }
-
-/* 2. 화살표 및 년/월 제목 버튼 스타일 */
 .react-calendar__navigation button {
-  min-width: 50px !important; /* 버튼의 최소 너비 */
+  min-width: 50px !important;
   background: none !important;
-  font-size: 24px !important; /* 글자(화살표) 크기 키우기 */
-  color: #2563eb !important; /* 파란색으로 변경 */
-  border-radius: 10px !important; /* 둥근 모서리 */
+  font-size: 24px !important;
+  color: #2563eb !important;
+  border-radius: 10px !important;
 }
-
-/* 3. 마우스를 올렸을 때 효과 */
 .react-calendar__navigation button:enabled:hover,
 .react-calendar__navigation button:enabled:focus {
-  background-color: #eff6ff !important; /* 연한 파란색 배경 */
+  background-color: #eff6ff !important;
 }
-
-/* 4. 년/월 제목 (가운데 글씨) 더 굵게 */
 .react-calendar__navigation__label {
   font-weight: 800 !important;
   font-size: 20px !important;
-  pointer-events: none; /* 제목은 클릭 안 되게 막기 (선택사항) */
-}
-/* calendar-style.css 맨 아래에 추가 */
-
-/* 우측 패널이 스르륵 나오는 애니메이션 */
-@keyframes slideIn {
-  from {
-    transform: translateX(100%); /* 화면 밖 오른쪽에서 시작 */
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0); /* 제자리로 */
-    opacity: 1;
-  }
+  pointer-events: none;
 }
 
-.animate-slide-in {
-  animation: slideIn 0.3s ease-out forwards;
+/* ★ 날짜 칸(Tile) 스타일 수정: 스크롤 가능하게 변경 */
+.react-calendar__tile {
+  height: 140px !important; /* 높이를 조금 더 확보 */
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  padding: 5px !important; /* 여백 줄임 */
+  border: 1px solid #f0f0f0 !important;
+  font-size: 14px;
+  font-weight: bold;
+  overflow: hidden; /* 전체 칸은 넘치지 않게 */
 }
+
+/* ★ 스케줄들이 들어가는 내부 컨테이너 (스크롤 영역) */
+.tile-content-container {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto; /* 내용이 많으면 세로 스크롤 생성 */
+  margin-top: 4px;
+  padding-right: 2px; /* 스크롤바 공간 확보 */
+  
+  /* 스크롤바 숨기기 (선택사항 - 깔끔하게 보이려면 주석 해제) */
+  /* -ms-overflow-style: none; */ /* IE and Edge */
+  /* scrollbar-width: none; */  /* Firefox */
+}
+/* .tile-content-container::-webkit-scrollbar { display: none; } */ /* Chrome */
+
+.react-calendar__tile--active {
+  background: #2563eb !important;
+  color: white !important;
+}
+.react-calendar__tile--now {
+  background: #fffbeb !important;
+  color: #b45309 !important;
+}
+
+.react-calendar__month-view__weekdays {
+  text-align: center;
+  font-weight: bold;
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+.react-calendar__month-view__weekdays__weekday {
+  padding: 10px 0;
+  text-decoration: none !important;
+}
+abbr[title] { text-decoration: none !important; }
