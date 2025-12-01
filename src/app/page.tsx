@@ -7,10 +7,7 @@ import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import './calendar-style.css';
 
-const STOCK_LIST = [
-  "삼성전자", "SK하이닉스", "LG에너지솔루션", "삼성바이오로직스", "현대차",
-  "기아", "셀트리온", "POSCO홀딩스", "NAVER", "카카오"
-];
+// ★ 하드코딩된 리스트 제거! 이제 DB에서 가져옵니다.
 
 type Participant = {
   id: number;
@@ -39,6 +36,12 @@ type MyProfile = {
   is_admin: boolean;
 };
 
+// ★ 종목 타입 정의
+type Company = {
+  code: string;
+  name: string;
+};
+
 const hours = Array.from({ length: 12 }, (_, i) => i + 1);
 const minutes = ['00', '10', '20', '30', '40', '50'];
 
@@ -60,10 +63,14 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
 
+  // ★ 전체 종목 리스트 상태
+  const [companyList, setCompanyList] = useState<Company[]>([]);
+  // ★ 검색된 종목 리스트 상태
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+
   // 입력 폼 상태
   const [inputCompany, setInputCompany] = useState('');
   const [isUnlisted, setIsUnlisted] = useState(false);
-  const [filteredCompanies, setFilteredCompanies] = useState<string[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [startAmPm, setStartAmPm] = useState('오전');
   const [startHour, setStartHour] = useState('10');
@@ -74,8 +81,6 @@ export default function Home() {
   const [inputLocation, setInputLocation] = useState('');
   const [maxParticipants, setMaxParticipants] = useState('1명');
   const [inputMemo, setInputMemo] = useState('');
-
-  // 자동 참석 체크박스 상태
   const [autoJoin, setAutoJoin] = useState(false);
 
   const fetchSchedules = useCallback(async () => {
@@ -109,12 +114,25 @@ export default function Home() {
     if (data) setMyProfile(data as MyProfile);
   }, [supabase]);
 
+  // ★ 종목 리스트 불러오기 (DB)
+  const fetchCompanies = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('companies')
+      .select('*')
+      .order('name', { ascending: true }); // 이름순 정렬
+    
+    if (!error && data) {
+      setCompanyList(data as Company[]);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if(session?.user) {
         fetchSchedules();
         fetchMyProfile(session.user.id);
+        fetchCompanies(); // ★ 로그인 시 종목 리스트 로드
       }
     });
 
@@ -123,14 +141,16 @@ export default function Home() {
       if(session?.user) {
         fetchSchedules();
         fetchMyProfile(session.user.id);
+        fetchCompanies();
       } else {
         setSchedules([]);
         setMyProfile(null);
+        setCompanyList([]);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [supabase, fetchSchedules, fetchMyProfile]);
+  }, [supabase, fetchSchedules, fetchMyProfile, fetchCompanies]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -187,23 +207,45 @@ export default function Home() {
     setIsPanelOpen(true);
   };
 
+  // ★ 스마트 검색 로직 구현
   const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputCompany(value);
+    
     if (!isUnlisted && value.trim() !== '') {
-      const filtered = STOCK_LIST.filter(stock => stock.includes(value));
+      // 대소문자 무시를 위해 소문자로 변환
+      const lowerValue = value.toLowerCase();
+      
+      const filtered = companyList.filter(comp => 
+        // 1. 종목명에 검색어가 포함되거나 (대소문자 무시)
+        comp.name.toLowerCase().includes(lowerValue) ||
+        // 2. 종목코드에 검색어가 포함될 때
+        comp.code.includes(value)
+      );
+      
       setFilteredCompanies(filtered);
       setShowDropdown(true);
     } else {
       setShowDropdown(false);
     }
   };
-  const selectCompany = (name: string) => { setInputCompany(name); setShowDropdown(false); };
+
+  const selectCompany = (company: Company) => { 
+    setInputCompany(company.name); // 입력창에는 이름만 표시
+    setShowDropdown(false); 
+  };
 
   const handleSave = async () => {
     if (!user || !selectedDate) return;
-    if (!isUnlisted && !STOCK_LIST.includes(inputCompany)) { alert("목록 선택 또는 비상장 체크 필요"); return; }
-    if (!inputCompany) { alert("기업명 입력 필요"); return; }
+    
+    // DB에 있는 종목인지 확인 (이름으로 매칭)
+    const isValidCompany = companyList.some(c => c.name === inputCompany);
+    
+    if (!isUnlisted && !isValidCompany) { 
+      alert("목록에 있는 기업을 선택하거나, '비상장'을 체크해주세요."); 
+      return; 
+    }
+    if (!inputCompany) { alert("기업명을 입력해주세요."); return; }
 
     const myName = myProfile?.nickname || user.email?.split('@')[0] || "익명";
 
@@ -428,11 +470,16 @@ export default function Home() {
                  <input type="checkbox" checked={isUnlisted} onChange={(e) => { setIsUnlisted(e.target.checked); setShowDropdown(false); }} className="accent-blue-600" />
                  <span className="text-xs text-gray-500">비상장</span>
               </div>
-              <input type="text" placeholder="기업명" className="w-full border p-3 rounded-lg outline-none" value={inputCompany} onChange={handleCompanyChange} />
+              <input type="text" placeholder={isUnlisted ? "기업명 직접 입력" : "기업명 검색 (예: 삼성 or 005930)"} className="w-full border p-3 rounded-lg outline-none" value={inputCompany} onChange={handleCompanyChange} />
+              
+              {/* ★ 드롭다운: 종목 코드와 함께 표시 */}
               {showDropdown && filteredCompanies.length > 0 && (
                 <ul className="absolute z-10 w-full bg-white border mt-1 rounded-lg shadow-xl max-h-40 overflow-y-auto">
-                  {filteredCompanies.map((stock) => (
-                     <li key={stock} onClick={() => selectCompany(stock)} className="p-3 hover:bg-blue-50 cursor-pointer text-sm border-b">{stock}</li>
+                  {filteredCompanies.map((comp) => (
+                     <li key={comp.code} onClick={() => selectCompany(comp)} className="p-3 hover:bg-blue-50 cursor-pointer text-sm border-b flex justify-between">
+                        <span>{comp.name}</span>
+                        <span className="text-gray-400 text-xs ml-2">{comp.code}</span>
+                     </li>
                   ))}
                 </ul>
               )}
@@ -478,7 +525,6 @@ export default function Home() {
             </div>
 
             <div className="mt-auto pt-4 flex flex-col gap-3">
-              {/* 1. 새 글 작성 모드: 자동 참석 옵션 + 저장/취소 버튼 */}
               {!editingId && (
                 <>
                   <div className="flex items-center gap-2 mb-1">
@@ -500,14 +546,12 @@ export default function Home() {
                 </>
               )}
 
-              {/* 2. 기존 글 보기 모드: 권한 있는 사람만 버튼 표시 */}
               {editingId && canDelete && (
                 <div className="flex gap-3">
                   <button onClick={handleDelete} className="flex-1 py-3 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold">삭제</button>
                   <button onClick={handleSave} className="flex-[2] py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold shadow-md">수정 완료</button>
                 </div>
               )}
-              {/* canDelete가 false(일반 회원, 남의 글)면 아무 버튼도 안 나옴 (자동 숨김) */}
             </div>
 
           </div>
