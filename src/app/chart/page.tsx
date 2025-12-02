@@ -1,0 +1,225 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import StockChart from '@/components/StockChart';
+import Link from 'next/link';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { 
+  calculateEMA, 
+  calculateWMA, 
+  calculateKeltner, 
+  calculateMACD 
+} from '@/utils/indicators';
+
+// 1. 데이터 타입 정의 (StockChart.tsx와 동일하게 맞춤)
+type Company = {
+  code: string;
+  name: string;
+};
+
+type ChartData = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  rs?: number;
+  // 기술적 지표 필드 추가
+  ema20?: number;
+  wma150?: number;
+  keltner?: { upper: number; lower: number; middle: number };
+  macd?: { macd: number; signal: number; histogram: number };
+};
+
+export default function ChartPage() {
+  const supabase = createClientComponentClient();
+  
+  // 상태 관리
+  const [data, setData] = useState<ChartData[]>([]);
+  const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930' });
+  const [companyList, setCompanyList] = useState<Company[]>([]);
+  
+  // 검색 기능 관련 상태
+  const [inputCompany, setInputCompany] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+
+  // 2. 회사 목록 가져오기 (초기 1회)
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const { data } = await supabase
+        .from('companies')
+        .select('*')
+        .order('name', { ascending: true })
+        .range(0, 9999);
+        
+      if (data) setCompanyList(data as Company[]);
+    };
+    fetchCompanies();
+  }, [supabase]);
+
+  // 3. 주가 데이터 가져오기 및 지표 계산 (핵심 로직)
+  const fetchStockData = useCallback(async (code: string) => {
+    try {
+      console.log(`🔍 [${code}] 데이터 다운로드 및 분석 시작...`);
+      
+      // JSON 파일 다운로드 (캐시 방지용 타임스탬프 추가)
+      const { data: fileData, error } = await supabase.storage
+        .from('stocks')
+        .download(`${code}.json?t=${Date.now()}`);
+
+      if (error) {
+        throw error;
+      }
+
+      let chartData: any[] = [];
+
+      // JSON 파싱
+      if (fileData) {
+        const textData = await fileData.text();
+        chartData = JSON.parse(textData);
+      }
+
+      // -----------------------------------------------------------
+      // ★ 기술적 지표 계산 (요청하신 파라미터 적용)
+      // -----------------------------------------------------------
+      if (chartData.length > 0) {
+        
+        // 1. 이동평균선
+        // - 20일 지수이동평균 (EMA)
+        const ema20 = calculateEMA(chartData, 20);
+        // - 150일 가중이동평균 (WMA)
+        const wma150 = calculateWMA(chartData, 150);
+        
+        // 2. 켈트너 채널 (Keltner Channel)
+        // - 중앙: 20일 EMA
+        // - 밴드 폭: ATR * 2.25
+        const keltner = calculateKeltner(chartData, 20, 2.25);
+        
+        // 3. MACD
+        // - Short: 3, Long: 10, Signal: 16
+        const macd = calculateMACD(chartData, 3, 10, 16);
+
+        // 4. 데이터 병합 (원본 데이터에 계산된 지표 추가)
+        chartData = chartData.map((d, i) => ({
+          ...d,
+          ema20: ema20[i],
+          wma150: wma150[i],
+          keltner: keltner[i],
+          macd: macd[i],
+        }));
+        
+        console.log("✅ 지표 계산 완료. 최신 데이터:", chartData[chartData.length - 1]);
+      }
+
+      setData(chartData);
+
+    } catch (e) {
+      console.error("데이터 로딩 실패:", e);
+      // 에러 시 빈 데이터로 초기화하거나 에러 메시지 표시 가능
+      setData([]);
+    }
+  }, [supabase]);
+
+  // 종목 변경 시 데이터 새로고침
+  useEffect(() => {
+    fetchStockData(currentCompany.code);
+    setInputCompany(currentCompany.name);
+  }, [currentCompany, fetchStockData]);
+
+  // 검색어 입력 핸들러
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputCompany(value);
+    
+    if (value.trim() !== '') {
+      const lower = value.toLowerCase();
+      // 이름이나 코드로 검색
+      const filtered = companyList.filter(c => 
+        c.name.toLowerCase().includes(lower) || c.code.includes(value)
+      );
+      setFilteredCompanies(filtered);
+      setShowDropdown(true);
+    } else { 
+      setShowDropdown(false); 
+    }
+  };
+
+  // 종목 선택 핸들러
+  const selectCompany = (comp: Company) => {
+    setCurrentCompany(comp);
+    setShowDropdown(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* 헤더 */}
+      <header className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-6">
+          <h1 className="text-2xl font-bold text-blue-800">📊 차트 분석 (beta)</h1>
+          
+          {/* 검색창 */}
+          <div className="relative w-72">
+            <input 
+              type="text" 
+              className="w-full border border-gray-300 p-2 pl-3 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              value={inputCompany}
+              onChange={handleSearchChange}
+              onFocus={() => inputCompany && setShowDropdown(true)}
+              // onBlur를 넣으면 클릭 전에 닫힐 수 있으므로 주의 (보통 setTimeout 사용)
+              placeholder="종목명 또는 코드 검색..."
+            />
+            
+            {/* 검색 드롭다운 */}
+            {showDropdown && filteredCompanies.length > 0 && (
+              <ul className="absolute z-20 w-full bg-white border mt-1 rounded-lg shadow-xl max-h-80 overflow-y-auto">
+                {filteredCompanies.map((comp) => (
+                  <li 
+                    key={comp.code} 
+                    onClick={() => selectCompany(comp)} 
+                    className="p-3 hover:bg-blue-50 cursor-pointer text-sm flex justify-between items-center border-b last:border-none"
+                  >
+                    <span className="font-bold text-gray-700">{comp.name}</span>
+                    <span className="text-gray-400 text-xs bg-gray-100 px-2 py-1 rounded">{comp.code}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* 네비게이션 */}
+        <div className="flex gap-6 text-lg">
+          <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">🗓️ 스케줄러</Link>
+          <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">📊 차트</span>
+        </div>
+      </header>
+
+      {/* 메인 컨텐츠 */}
+      <main className="flex-1 p-6 flex flex-col gap-4">
+        <div className="bg-white p-6 rounded-xl shadow-md border flex-1 min-h-[500px] relative flex flex-col">
+          
+          {/* 종목 정보 헤더 */}
+          <div className="mb-4 flex items-baseline gap-2">
+            <h2 className="text-2xl font-bold text-gray-800">{currentCompany.name}</h2>
+            <span className="text-lg text-gray-500 font-medium">({currentCompany.code})</span>
+          </div>
+          
+          {/* 차트 영역 */}
+          <div className="flex-1 w-full relative">
+            {data.length > 0 ? (
+              <StockChart data={data} />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50 rounded-lg">
+                <p className="text-lg font-bold mb-2">
+                  {inputCompany ? '데이터 로딩중...' : '종목을 검색해주세요'}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

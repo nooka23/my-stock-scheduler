@@ -5,6 +5,7 @@ import Calendar from 'react-calendar';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import './calendar-style.css';
 
 const STOCK_LIST = [
@@ -294,7 +295,20 @@ export default function Home() {
     <main className="flex h-screen bg-gray-50 overflow-hidden">
       <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 transition-all duration-300">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-blue-800">📈 기업 탐방 스케줄러</h1>
+          <div className="flex items-center gap-6">
+            <h1 className="text-3xl font-bold text-blue-800">
+              📈 기업 탐방 스케줄러
+            </h1>
+            {/* 네비게이션 링크 추가됨 */}
+            <nav className="flex gap-4 text-lg">
+              <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">
+                🗓️ 스케줄러
+              </span>
+              <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">
+                📊 차트
+              </Link>
+            </nav>
+          </div>
           {user && (
              <div className="flex items-center gap-3">
                <span className="text-sm text-gray-600">
