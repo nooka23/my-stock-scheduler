@@ -7,12 +7,21 @@ import BandChart, { BandSettings } from '@/components/BandChart';
 
 type Company = { code: string; name: string; };
 
-// ★ 재무 데이터 타입 정의
 export type FinancialData = {
   year: number;
+  net_income: number; // 당기순이익 (원)
+  equity: number;     // 자본총계 (원)
+  op_income: number;  // 영업이익 (원)
+  shares: number;     // 주식수
   eps: number;
   bps: number;
-  ops: number; // 계산된 값
+  ops: number;
+};
+
+// 기본 멀티플 반환 함수
+const getDefaultMultipliers = (type: 'PER' | 'PBR' | 'POR') => {
+  if (type === 'PBR') return ['0.5', '1.0', '2.0'];
+  return ['10', '15', '20'];
 };
 
 export default function BandChartPage() {
@@ -20,7 +29,6 @@ export default function BandChartPage() {
   
   // 데이터 상태
   const [stockData, setStockData] = useState<any[]>([]);
-  // ★ 수정: 단일 객체가 아니라 배열로 관리
   const [financialHistory, setFinancialHistory] = useState<FinancialData[]>([]); 
   
   // UI 상태
@@ -32,7 +40,11 @@ export default function BandChartPage() {
 
   // 밴드 설정 상태
   const [bandType, setBandType] = useState<'PER' | 'PBR' | 'POR'>('PER');
-  const [multipliers, setMultipliers] = useState<string[]>(['10', '15', '20']);
+  
+  // ★ [변경] isUserMode를 false로 고정 (서버 원본 보기 전용)
+  const isUserMode = false; 
+  
+  const [multipliers, setMultipliers] = useState<string[]>(getDefaultMultipliers('PER'));
 
   // 1. 초기 종목 목록 로드
   useEffect(() => {
@@ -43,72 +55,96 @@ export default function BandChartPage() {
     fetchCompanies();
   }, [supabase]);
 
-  // 2. 종목 데이터 및 재무 데이터 가져오기
+  // 2. 데이터 가져오기 (주가 + 재무 원본)
   const fetchDatAndFinancials = useCallback(async (code: string) => {
     try {
-      // (1) 주가 데이터 (JSON)
+      // (1) 주가 데이터
       const { data: fileData } = await supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
       if (fileData) {
-        const text = await fileData.text();
-        setStockData(JSON.parse(text));
+        setStockData(JSON.parse(await fileData.text()));
       } else {
         setStockData([]);
       }
 
-      // (2) 재무 데이터 (DB) - ★ 전체 기간 가져오기
+      // (2) 재무 데이터 (전체 기간)
       const { data: finData } = await supabase
         .from('company_financials')
         .select('*')
         .eq('company_code', code)
-        .order('year', { ascending: true }); // 과거부터 오름차순
+        .order('year', { ascending: true });
 
       if (finData && finData.length > 0) {
-        const history = finData.map((d: any) => ({
+        const history: FinancialData[] = finData.map((d: any) => ({
           year: d.year,
+          net_income: d.net_income || 0,
+          equity: d.equity || 0,
+          op_income: d.op_income || 0,
+          shares: d.shares_outstanding || 1,
+          
           eps: d.eps || 0,
           bps: d.bps || 0,
-          // OPS 계산: 영업이익(억) * 1억 / 주식수 (예외처리 포함)
           ops: (d.op_income && d.shares_outstanding) 
-               ? Math.floor(d.op_income * 100000000 / d.shares_outstanding) 
+               ? Math.floor(d.op_income / d.shares_outstanding)
                : 0
         }));
-        setFinancialHistory(history);
-      } else {
-        setFinancialHistory([]);
-      }
+        
+        // 데이터 보정
+        history.forEach(h => {
+           if (h.shares > 0) {
+             if (!h.eps) h.eps = Math.floor(h.net_income / h.shares);
+             if (!h.bps) h.bps = Math.floor(h.equity / h.shares);
+             if (!h.ops) h.ops = Math.floor(h.op_income / h.shares);
+           }
+        });
 
+        return history;
+      }
+      return [];
     } catch (e) {
       console.error(e);
       setStockData([]);
-      setFinancialHistory([]);
+      return [];
     }
   }, [supabase]);
 
+
+  // 3. 통합 로드 로직 (단순화됨: 무조건 원본 데이터 로드)
   useEffect(() => {
-    fetchDatAndFinancials(currentCompany.code);
-  }, [currentCompany, fetchDatAndFinancials]);
+    const loadAll = async () => {
+      // 서버 원본 데이터 로드
+      const originalData = await fetchDatAndFinancials(currentCompany.code);
+      setFinancialHistory(originalData);
+      
+      // 멀티플은 탭 바뀔 때마다 기본값으로 초기화 (사용자가 조절은 가능)
+      setMultipliers(getDefaultMultipliers(bandType));
+    };
+    loadAll();
+  }, [currentCompany, bandType, fetchDatAndFinancials]);
 
-  // 검색 로직
+
+  // 검색 핸들러
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setInputCompany(val);
-    if (val.trim()) {
-      setFilteredCompanies(companyList.filter(c => c.name.includes(val) || c.code.includes(val)));
-      setShowDropdown(true);
-    } else setShowDropdown(false);
+    const val = e.target.value; setInputCompany(val);
+    if (val.trim()) { setFilteredCompanies(companyList.filter(c => c.name.includes(val) || c.code.includes(val))); setShowDropdown(true); } else setShowDropdown(false);
   };
-  const selectCompany = (c: Company) => {
-    setCurrentCompany(c); setInputCompany(c.name); setShowDropdown(false);
-  };
+  const selectCompany = (c: Company) => { setCurrentCompany(c); setInputCompany(c.name); setShowDropdown(false); };
 
-  // 재무 데이터 수정 핸들러 (연도별 수정 기능은 복잡하므로, 여기서는 '가장 최근 데이터'를 수정하면 미래 추정치로 반영하는 식의 UI가 필요하나, 
-  // 일단 전체 데이터를 넘겨주는 구조로 변경함에 집중합니다.)
+  // 렌더링 준비
+  const getTabLabel = () => {
+    if (bandType === 'PER') return { input: '당기순이익', unit: '억원', output: 'EPS' };
+    if (bandType === 'PBR') return { input: '자본총계', unit: '억원', output: 'BPS' };
+    return { input: '영업이익', unit: '억원', output: 'OPS' };
+  };
+  const labels = getTabLabel();
 
   const bandSettings: BandSettings = {
     type: bandType,
-    financials: financialHistory, // ★ 전체 히스토리 전달
+    financials: financialHistory,
     multipliers: multipliers.map(m => parseFloat(m) || 0)
   };
+  
+  const latestData = financialHistory.length > 0 ? financialHistory[financialHistory.length - 1] : null;
+  const currentBaseValue = latestData ? (bandType === 'PER' ? latestData.eps : bandType === 'PBR' ? latestData.bps : latestData.ops) : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -132,13 +168,17 @@ export default function BandChartPage() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 flex gap-6">
-        {/* 왼쪽: 컨트롤 패널 */}
-        <div className="w-80 bg-white p-6 rounded-xl shadow border h-fit">
-          <h2 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2">🛠️ 밴드 설정</h2>
-          
+      <main className="flex-1 p-6 flex gap-6 overflow-hidden">
+        {/* 컨트롤 패널 */}
+        <div className="w-96 bg-white p-6 rounded-xl shadow border h-full flex flex-col relative transition-all overflow-y-auto">
+          <h2 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
+             <span>🛠️ 밴드 설정</span>
+             {/* ★ 현재 모드 표시 (고정) */}
+             <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">🏢 서버 원본 보기</span>
+          </h2>
+
+          {/* 지표 탭 */}
           <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-700 mb-2">지표 선택</label>
             <div className="flex bg-gray-100 p-1 rounded-lg">
               {['PER', 'PBR', 'POR'].map(type => (
                 <button
@@ -152,6 +192,50 @@ export default function BandChartPage() {
             </div>
           </div>
 
+          {/* 연도별 데이터 입력 (읽기 전용) */}
+          <div className="mb-6">
+             <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-bold text-gray-700">📅 연도별 {labels.input} (단위: {labels.unit})</label>
+             </div>
+             <div className="border rounded-lg overflow-hidden bg-gray-50">
+                <table className="w-full text-sm">
+                  <thead className="bg-blue-50 text-blue-800 font-bold">
+                    <tr><th className="p-2 border-r border-blue-100 w-16 text-center">연도</th><th className="p-2 text-center">{labels.input}</th></tr>
+                  </thead>
+                </table>
+                <div className="max-h-48 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {financialHistory.map((item) => {
+                        let valInWon = 0;
+                        if (bandType === 'PER') valInWon = item.net_income;
+                        else if (bandType === 'PBR') valInWon = item.equity;
+                        else if (bandType === 'POR') valInWon = item.op_income;
+                        
+                        const valInBillions = (valInWon / 100000000).toFixed(0); 
+
+                        return (
+                          <tr key={item.year} className="border-b last:border-none">
+                            <td className="p-2 border-r bg-gray-50 font-bold text-center w-16">{item.year}</td>
+                            <td className="p-1">
+                              {/* ★ 읽기 전용 입력창 */}
+                              <input 
+                                type="number" 
+                                readOnly={true} 
+                                className="w-full text-right p-1 outline-none font-mono bg-transparent text-gray-600 cursor-default"
+                                value={valInBillions}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+             </div>
+          </div>
+
+          {/* 멀티플 설정 (수정 가능) */}
           <div className="mb-6">
              <label className="block text-sm font-bold text-gray-700 mb-2">멀티플 (배수) 설정</label>
              <div className="flex flex-col gap-2">
@@ -161,7 +245,7 @@ export default function BandChartPage() {
                    <span className="text-sm w-12 text-gray-600 font-bold">Line {idx+1}</span>
                    <input 
                     type="number" 
-                    className="flex-1 border p-1.5 rounded text-center"
+                    className="flex-1 border p-1.5 rounded text-center font-medium outline-none focus:border-blue-500 bg-white"
                     value={m}
                     onChange={(e) => {
                       const newM = [...multipliers];
@@ -175,22 +259,24 @@ export default function BandChartPage() {
              </div>
           </div>
           
-          {/* 재무 데이터 테이블 (간략 보기) */}
-          <div className="mt-6 border-t pt-4">
-            <h3 className="text-sm font-bold text-gray-700 mb-2">📅 연도별 데이터 ({bandType})</h3>
-            <div className="max-h-60 overflow-y-auto text-xs border rounded bg-gray-50">
+          {/* ★ 저장 버튼 제거됨 */}
+          <div className="bg-blue-50 p-3 rounded text-xs text-blue-600 text-center font-medium mb-6">
+            💡 현재는 서버 데이터 조회만 가능합니다.
+          </div>
+
+          {/* 계산 결과 */}
+          <div className="border-t pt-4 flex-1 flex flex-col min-h-0">
+            <h3 className="text-sm font-bold text-gray-700 mb-2">📉 계산된 지표 ({bandType}, {labels.output})</h3>
+            <div className="overflow-y-auto text-xs border rounded bg-gray-50 flex-1">
               <table className="w-full text-center">
                 <thead className="bg-gray-100 font-bold text-gray-600 sticky top-0">
-                  <tr>
-                    <th className="p-2 border-b">연도</th>
-                    <th className="p-2 border-b">값 (원)</th>
-                  </tr>
+                  <tr><th className="p-2 border-b">연도</th><th className="p-2 border-b">{labels.output} (원)</th></tr>
                 </thead>
                 <tbody>
                   {financialHistory.length > 0 ? financialHistory.map((f) => (
-                    <tr key={f.year} className="border-b last:border-none">
+                    <tr key={f.year} className="border-b last:border-none hover:bg-white">
                       <td className="p-2">{f.year}</td>
-                      <td className="p-2 font-mono">
+                      <td className="p-2 font-mono font-bold text-blue-900">
                         {bandType === 'PER' ? f.eps.toLocaleString() : 
                          bandType === 'PBR' ? f.bps.toLocaleString() : 
                          f.ops.toLocaleString()}
@@ -205,15 +291,18 @@ export default function BandChartPage() {
           </div>
         </div>
 
-        {/* 오른쪽: 차트 영역 */}
+        {/* 차트 영역 */}
         <div className="flex-1 bg-white p-6 rounded-xl shadow border flex flex-col min-h-[600px]">
           <div className="mb-4 flex justify-between items-end">
              <div>
                <h2 className="text-3xl font-bold text-gray-800">{currentCompany.name} <span className="text-xl text-gray-400 font-normal">({currentCompany.code})</span></h2>
+               <p className="text-gray-500 text-sm mt-1">
+                 {financialHistory.length > 0 && `최신 ${labels.output}: ${currentBaseValue.toLocaleString()}원`} × [{multipliers.join(', ')}] 배
+               </p>
              </div>
              <div className="text-right">
-                <span className="text-sm font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">
-                   {bandType} Band Chart
+                <span className="text-sm font-bold px-2 py-1 rounded bg-gray-200 text-gray-600">
+                   🏢 Server {bandType} Band
                 </span>
              </div>
           </div>
