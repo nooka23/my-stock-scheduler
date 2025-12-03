@@ -64,21 +64,72 @@ export default function ChartPage() {
     try {
       console.log(`🔍 [${code}] 데이터 다운로드 및 분석 시작...`);
       
-      // JSON 파일 다운로드 (캐시 방지용 타임스탬프 추가)
-      const { data: fileData, error } = await supabase.storage
+      // JSON 파일 다운로드와 최신 DB 조회를 동시에 수행 (병렬 처리)
+      const jsonPromise = supabase.storage
         .from('stocks')
         .download(`${code}.json?t=${Date.now()}`);
 
-      if (error) {
-        throw error;
-      }
+      // 최근 60일치 데이터만 DB에서 가져옴 (JSON과 병합용)
+      const dbPromise = supabase
+        .from('daily_prices')
+        .select('date_str, open, high, low, close, volume, rs_rating')
+        .eq('code', code)
+        .order('date_str', { ascending: true }) // 오래된 것부터
+        .limit(60); // 최근 60개
+
+      // 병렬 실행
+      const [jsonResult, dbResult] = await Promise.all([jsonPromise, dbPromise]);
 
       let chartData: any[] = [];
 
-      // JSON 파싱
-      if (fileData) {
-        const textData = await fileData.text();
+      // JSON 파싱 (과거 데이터)
+      if (jsonResult.data) {
+        const textData = await jsonResult.data.text();
         chartData = JSON.parse(textData);
+      }
+
+      // DB 데이터 병합 (최신 데이터)
+      // DB에서 가져온 데이터 형식을 chartData 형식으로 변환
+      if (dbResult.data && dbResult.data.length > 0) {
+        const dbData = dbResult.data.map(row => ({
+          time: row.date_str,
+          open: Number(row.open) || 0,
+          high: Number(row.high) || 0,
+          low: Number(row.low) || 0,
+          close: Number(row.close) || 0,
+          volume: Number(row.volume) || 0,
+          rs: row.rs_rating !== null ? Number(row.rs_rating) : undefined
+        }));
+
+        // 중복 제거 로직: date_str(time) 기준
+        // 1. 기존 JSON 데이터를 Map에 넣음
+        const dataMap = new Map();
+        chartData.forEach(item => {
+            // JSON 데이터도 안전하게 변환
+            if (item.time) {
+                dataMap.set(item.time, {
+                    ...item,
+                    open: Number(item.open),
+                    high: Number(item.high),
+                    low: Number(item.low),
+                    close: Number(item.close),
+                    volume: Number(item.volume),
+                    rs: item.rs !== null ? Number(item.rs) : undefined
+                });
+            }
+        });
+
+        // 2. DB 데이터를 Map에 덮어씌움 (최신 데이터 우선)
+        dbData.forEach(item => {
+            if (item.time) {
+                dataMap.set(item.time, item);
+            }
+        });
+
+        // 3. Map을 다시 배열로 변환하고 날짜순 정렬
+        chartData = Array.from(dataMap.values()).sort((a: any, b: any) => {
+            return new Date(a.time).getTime() - new Date(b.time).getTime();
+        });
       }
 
       // -----------------------------------------------------------

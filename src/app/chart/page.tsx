@@ -58,13 +58,61 @@ export default function BandChartPage() {
   // 2. 데이터 가져오기 (주가 + 재무 원본)
   const fetchDatAndFinancials = useCallback(async (code: string) => {
     try {
-      // (1) 주가 데이터
-      const { data: fileData } = await supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
-      if (fileData) {
-        setStockData(JSON.parse(await fileData.text()));
-      } else {
-        setStockData([]);
+      // (1) 주가 데이터 (JSON + DB 병합)
+      const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
+      const dbPromise = supabase
+        .from('daily_prices')
+        .select('date_str, open, high, low, close, volume, rs_rating') // rs_rating도 가져옴
+        .eq('code', code)
+        .order('date_str', { ascending: true })
+        .limit(60); // 최근 60일치 데이터만 가져옴
+
+      const [jsonResult, dbResult] = await Promise.all([jsonPromise, dbPromise]);
+
+      let stockChartData: any[] = [];
+
+      // JSON 파싱 (과거 데이터)
+      if (jsonResult.data) {
+        const textData = await jsonResult.data.text();
+        const parsedJson = JSON.parse(textData);
+        stockChartData = parsedJson.map((item: any) => ({
+          time: item.time,
+          open: Number(item.open) || 0,
+          high: Number(item.high) || 0,
+          low: Number(item.low) || 0,
+          close: Number(item.close) || 0,
+          volume: Number(item.volume) || 0,
+          rs: item.rs !== null ? Number(item.rs) : undefined // rs도 안전하게 처리
+        }));
       }
+
+      // DB 데이터 병합 (최신 데이터)
+      if (dbResult.data && dbResult.data.length > 0) {
+        const dbData = dbResult.data.map(row => ({
+          time: row.date_str,
+          open: Number(row.open) || 0,
+          high: Number(row.high) || 0,
+          low: Number(row.low) || 0,
+          close: Number(row.close) || 0,
+          volume: Number(row.volume) || 0,
+          rs: row.rs_rating !== null ? Number(row.rs_rating) : undefined
+        }));
+
+        const dataMap = new Map();
+        stockChartData.forEach(item => {
+          if (item.time) dataMap.set(item.time, item);
+        });
+        dbData.forEach(item => {
+          if (item.time) dataMap.set(item.time, item);
+        });
+
+        stockChartData = Array.from(dataMap.values()).sort((a: any, b: any) => {
+          return new Date(a.time).getTime() - new Date(b.time).getTime();
+        });
+      }
+      
+      setStockData(stockChartData);
+
 
       // (2) 재무 데이터 (전체 기간)
       const { data: finData } = await supabase
