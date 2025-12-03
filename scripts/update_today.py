@@ -21,7 +21,7 @@ print("🚀 데일리 업데이트 (주가 + 가중 RS) 시작!")
 # ---------------------------------------------------------
 print("1. 종목 리스트 및 DB 동기화...")
 try:
-    df_krx = fdr.StockListing('KRX')
+    df_krx = fdr.StockListing('KRX-DESC')
     real_companies = df_krx[df_krx['Sector'].notnull()]
     
     # 이름 변경 등 최신 정보 업데이트
