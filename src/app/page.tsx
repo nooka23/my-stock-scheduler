@@ -308,6 +308,10 @@ export default function Home() {
               <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">
                 📊 밴드 차트 실험실 🏭️
               </Link>
+              {/* 여기에 새 링크 추가 */}
+              <Link href="/discovery" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">
+                🔍 종목 발굴
+              </Link>
             </nav>
           </div>
 

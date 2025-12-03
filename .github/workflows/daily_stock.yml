@@ -2,8 +2,8 @@ name: Daily Price Update
 
 on:
   schedule:
-    # 매일 한국 시간 오후 4시 (UTC 07:00)
-    - cron: '0 7 * * *'
+    # 매일 한국 시간 오후 5시 (UTC 08:00)
+    - cron: '0 8 * * *'
   workflow_dispatch:
 
 jobs:
@@ -26,5 +26,5 @@ jobs:
     - name: 주가 업데이트 스크립트 실행 (오늘 데이터만)
       env:
         NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: python scripts/update_today.py
