@@ -1,44 +1,30 @@
-# 이 작업의 이름입니다 (GitHub 화면에 이렇게 뜹니다)
-name: Daily Stock Update
+name: Daily Price Update
 
-# 로봇이 언제 일어날지 정합니다
 on:
   schedule:
-    # 여기가 시간 설정입니다! (전 세계 표준시 UTC 기준)
-    # UTC 21시는 한국 시간(KST)으로 다음 날 오전 6시입니다.
-    # '분 시 일 월 요일' 순서입니다.
-    - cron: '0 21 * * *'
-  
-  # "내가 버튼 누르면 지금 당장 실행해!" 라는 기능입니다
+    # 매일 한국 시간 오후 4시 (UTC 07:00)
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
-# 로봇이 해야 할 일 목록입니다
 jobs:
-  update-stocks:
-    # 로봇에게 "최신 리눅스 컴퓨터(ubuntu) 한 대 빌려줘"라고 요청합니다
+  update-prices:
     runs-on: ubuntu-latest
     
-    # 단계별 행동 지침
     steps:
-    # 1. 우리 저장소에 있는 코드들을 이 컴퓨터로 가져옵니다
     - name: 코드 가져오기
       uses: actions/checkout@v3
 
-    # 2. 파이썬 3.9 버전을 설치합니다
     - name: 파이썬 설정
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.12'
 
-    # 3. 필요한 도구(라이브러리)들을 설치합니다
     - name: 라이브러리 설치
       run: |
         pip install -r scripts/requirements.txt
 
-    # 4. 드디어! 우리가 짠 파이썬 코드를 실행합니다
-    - name: 주식 업데이트 스크립트 실행
+    - name: 주가 업데이트 스크립트 실행 (오늘 데이터만)
       env:
-        # 이때 Supabase 열쇠가 필요한데, GitHub 비밀금고(Secrets)에서 꺼내 씁니다
-        SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
         SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      run: python scripts/update_stocks.py
+      run: python scripts/update_today.py
