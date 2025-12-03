@@ -299,23 +299,38 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-blue-800">
               📈 기업 탐방 스케줄러
             </h1>
-            {/* 네비게이션 링크 추가됨 */}
+            {/* ★ 수정된 네비게이션 */}
             <nav className="flex gap-4 text-lg">
               <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">
                 🗓️ 스케줄러
               </span>
+              {/* 기존 '/chart' 링크는 이제 새로운 밴드 차트로 연결됨 */}
               <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">
-                📊 차트
+                📊 밴드 차트 실험실 🏭️
               </Link>
             </nav>
           </div>
+
           {user && (
              <div className="flex items-center gap-3">
                <span className="text-sm text-gray-600">
                  <b>{myProfile?.nickname || user.email?.split('@')[0]}</b>님
                  {myProfile?.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
                </span>
-               {myProfile?.is_admin && (<button onClick={() => router.push('/admin')} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">관리자</button>)}
+               
+               {/* ★ 관리자 전용 버튼 영역 수정 */}
+               {myProfile?.is_admin && (
+                 <div className="flex gap-2">
+                   {/* 기존 차트(전문가용)는 관리자만 접근 가능 */}
+                   <button onClick={() => router.push('/admin/chart')} className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold border border-purple-200">
+                     📈 분석(Admin)
+                   </button>
+                   <button onClick={() => router.push('/admin')} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">
+                     ⚙️ 관리자
+                   </button>
+                 </div>
+               )}
+               
                <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
              </div>
           )}
