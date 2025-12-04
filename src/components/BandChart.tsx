@@ -105,6 +105,10 @@ export default function BandChart({ data, settings }: Props) {
         // Start Value (작년 연말 기준 값 = 올해의 시작 값)
         let startBase = finMap.get(currentYear - 1);
 
+        // [수정] 음수 값은 0으로 처리하여 차트가 0 아래로 내려가지 않도록 함
+        if (targetBase !== undefined && targetBase < 0) targetBase = 0;
+        if (startBase !== undefined && startBase < 0) startBase = 0;
+
         // 예외 처리 1: 올해 데이터가 없으면? (미래 추정치 or 가장 최근 데이터 사용)
         if (targetBase === undefined) {
             if (currentYear > maxYear) targetBase = finMap.get(maxYear); // 미래는 최근 값 유지

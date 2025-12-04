@@ -362,6 +362,7 @@ export default function BandChartPage() {
       const newItem = { ...item };
       const shares = newItem.shares;
 
+      // 현재 탭 모드에 따라 값 업데이트
       if (bandType === 'PER') {
         newItem.net_income = newValInWon;
         if (shares > 0) newItem.eps = Math.floor(newItem.net_income / shares);
@@ -372,7 +373,6 @@ export default function BandChartPage() {
         newItem.op_income = newValInWon;
         if (shares > 0) newItem.ops = Math.floor(newItem.op_income / shares);
       }
-      
       return newItem;
     }));
   };
@@ -430,7 +430,13 @@ export default function BandChartPage() {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value; setInputCompany(val);
-    if (val.trim()) { setFilteredCompanies(companyList.filter(c => c.name.includes(val) || c.code.includes(val))); setShowDropdown(true); } else setShowDropdown(false);
+    if (val.trim()) { 
+      const lowerVal = val.toLowerCase();
+      setFilteredCompanies(companyList.filter(c => 
+        c.name.toLowerCase().includes(lowerVal) || c.code.toLowerCase().includes(lowerVal)
+      )); 
+      setShowDropdown(true); 
+    } else setShowDropdown(false);
   };
   const selectCompany = (c: Company) => { setCurrentCompany(c); setInputCompany(c.name); setShowDropdown(false); };
 
