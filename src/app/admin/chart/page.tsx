@@ -74,8 +74,8 @@ export default function ChartPage() {
         .from('daily_prices')
         .select('date_str, open, high, low, close, volume, rs_rating')
         .eq('code', code)
-        .order('date_str', { ascending: true }) // 오래된 것부터
-        .limit(60); // 최근 60개
+        .order('date_str', { ascending: false }) // 최신순으로 정렬하여
+        .limit(60); // 최근 60개를 가져옴
 
       // 병렬 실행
       const [jsonResult, dbResult] = await Promise.all([jsonPromise, dbPromise]);
@@ -91,17 +91,6 @@ export default function ChartPage() {
       // DB 데이터 병합 (최신 데이터)
       // DB에서 가져온 데이터 형식을 chartData 형식으로 변환
       if (dbResult.data && dbResult.data.length > 0) {
-        const dbData = dbResult.data.map(row => ({
-          time: row.date_str,
-          open: Number(row.open) || 0,
-          high: Number(row.high) || 0,
-          low: Number(row.low) || 0,
-          close: Number(row.close) || 0,
-          volume: Number(row.volume) || 0,
-          rs: row.rs_rating !== null ? Number(row.rs_rating) : undefined
-        }));
-
-        // 중복 제거 로직: date_str(time) 기준
         // 1. 기존 JSON 데이터를 Map에 넣음
         const dataMap = new Map();
         chartData.forEach(item => {
@@ -119,11 +108,35 @@ export default function ChartPage() {
             }
         });
 
-        // 2. DB 데이터를 Map에 덮어씌움 (최신 데이터 우선)
-        dbData.forEach(item => {
-            if (item.time) {
-                dataMap.set(item.time, item);
-            }
+        // 2. DB 데이터를 Map에 덮어씌움 (null 값 체크하여 보존)
+        dbResult.data.forEach(row => {
+            const time = row.date_str;
+            if (!time) return;
+
+            // 기존 데이터 가져오기 (없으면 빈 객체)
+            const existing = dataMap.get(time) || {};
+            const merged = { ...existing, time };
+
+            // DB 값이 null이 아니면 덮어쓰고, null이면 기존 값 유지 (기존 값도 없으면 0)
+            if (row.open !== null) merged.open = Number(row.open);
+            else if (merged.open === undefined) merged.open = 0;
+
+            if (row.high !== null) merged.high = Number(row.high);
+            else if (merged.high === undefined) merged.high = 0;
+
+            if (row.low !== null) merged.low = Number(row.low);
+            else if (merged.low === undefined) merged.low = 0;
+
+            if (row.close !== null) merged.close = Number(row.close);
+            else if (merged.close === undefined) merged.close = 0;
+
+            if (row.volume !== null) merged.volume = Number(row.volume);
+            else if (merged.volume === undefined) merged.volume = 0;
+
+            // RS rating은 선택적 필드
+            if (row.rs_rating !== null) merged.rs = Number(row.rs_rating);
+            
+            dataMap.set(time, merged);
         });
 
         // 3. Map을 다시 배열로 변환하고 날짜순 정렬

@@ -68,6 +68,76 @@ export default function BandChart({ data, settings }: Props) {
     const minYear = Math.min(...years);
     const maxYear = Math.max(...years);
 
+    // ★ [수정] 미래 날짜 데이터 생성 로직
+    // 주가 데이터의 마지막 날짜 이후부터 재무 데이터의 마지막 연도 말일까지 날짜 생성
+    const futureDates: string[] = [];
+    if (data.length > 0 && maxYear > 0) {
+        const lastData = data[data.length - 1];
+        const lastDate = new Date(lastData.time);
+        
+        // 마지막 데이터의 연도가 maxYear보다 작거나 같을 때만 미래 데이터 생성 필요
+        // (이미 주가 데이터가 maxYear보다 더 미래까지 있다면 굳이 생성 안 함 - 일반적이진 않음)
+        const endDate = new Date(maxYear, 11, 31); // 12월 31일
+
+        if (lastDate < endDate) {
+            let curr = new Date(lastDate);
+            curr.setDate(curr.getDate() + 1); // 다음날부터
+
+            while (curr <= endDate) {
+                const y = curr.getFullYear();
+                const m = String(curr.getMonth() + 1).padStart(2, '0');
+                const d = String(curr.getDate()).padStart(2, '0');
+                futureDates.push(`${y}-${m}-${d}`);
+                
+                // 하루 증가
+                curr.setDate(curr.getDate() + 1);
+            }
+        }
+    }
+
+    // 밴드 값 계산 함수 (공통 로직 분리)
+    const calculateBandValue = (dateStr: string, mult: number) => {
+        const dateObj = new Date(dateStr);
+        const currentYear = dateObj.getFullYear();
+
+        // Target Value (올해 연말 기준 값)
+        let targetBase = finMap.get(currentYear);
+        // Start Value (작년 연말 기준 값 = 올해의 시작 값)
+        let startBase = finMap.get(currentYear - 1);
+
+        // 예외 처리 1: 올해 데이터가 없으면? (미래 추정치 or 가장 최근 데이터 사용)
+        if (targetBase === undefined) {
+            if (currentYear > maxYear) targetBase = finMap.get(maxYear); // 미래는 최근 값 유지
+            else return NaN; // 과거 데이터 없으면 그리지 않음
+        }
+
+        // 예외 처리 2: 작년 데이터가 없으면? (데이터 시작점)
+        // -> 보간할 수 없으므로 올해 값으로 평행선 그리기 (Flat)
+        if (startBase === undefined) {
+            startBase = targetBase; 
+        }
+
+        // 보간(Interpolation) 비율 계산
+        const startOfYear = new Date(currentYear, 0, 1).getTime();
+        const endOfYear = new Date(currentYear, 11, 31).getTime();
+        const current = dateObj.getTime();
+
+        let ratio = (current - startOfYear) / (endOfYear - startOfYear);
+        if (ratio < 0) ratio = 0;
+        if (ratio > 1) ratio = 1;
+
+        const interpolatedBase = startBase! + (targetBase! - startBase!) * ratio;
+        
+        // [수정] 차트 라이브러리 한계값 방어 로직 (약 90조)
+        const MAX_VAL = 90000000000000; 
+        let result = Math.floor(interpolatedBase * mult);
+        
+        if (result > MAX_VAL) result = MAX_VAL;
+        if (result < -MAX_VAL) result = -MAX_VAL;
+
+        return result;
+    };
+
     settings.multipliers.forEach((mult, idx) => {
       const lineSeries = chart.addSeries(LineSeries, {
         color: bandColors[idx % bandColors.length],
@@ -78,54 +148,20 @@ export default function BandChart({ data, settings }: Props) {
         lastValueVisible: false,
       });
 
-      const lineData = data.map(d => {
-        // "2023-05-20" -> Date 객체 및 연도 추출
-        const dateStr = d.time; 
-        const dateObj = new Date(dateStr);
-        const currentYear = dateObj.getFullYear();
+      // 1. 기존 주가 데이터 구간의 밴드 값
+      const currentData = data.map(d => ({
+        time: d.time as any,
+        value: calculateBandValue(d.time, mult)
+      })).filter(d => !isNaN(d.value));
 
-        // ★ 핵심 로직: 대각선 그리기 (Linear Interpolation)
-        
-        // Target Value (올해 연말 기준 값)
-        let targetBase = finMap.get(currentYear);
-        // Start Value (작년 연말 기준 값 = 올해의 시작 값)
-        let startBase = finMap.get(currentYear - 1);
+      // 2. 미래 구간의 밴드 값
+      const futureLineData = futureDates.map(dateStr => ({
+        time: dateStr as any,
+        value: calculateBandValue(dateStr, mult)
+      })).filter(d => !isNaN(d.value));
 
-        // 예외 처리 1: 올해 데이터가 없으면? (미래 추정치 or 가장 최근 데이터 사용)
-        if (targetBase === undefined) {
-            if (currentYear > maxYear) targetBase = finMap.get(maxYear); // 미래는 최근 값 유지
-            else return { time: d.time as any, value: NaN }; // 과거 데이터 없으면 그리지 않음
-        }
-
-        // 예외 처리 2: 작년 데이터가 없으면? (데이터 시작점)
-        // -> 보간할 수 없으므로 올해 값으로 평행선 그리기 (Flat)
-        if (startBase === undefined) {
-            startBase = targetBase; 
-        }
-
-        // 보간(Interpolation) 비율 계산
-        // 해당 연도의 1월 1일 ~ 12월 31일 사이에서 오늘이 몇 퍼센트 지점인지 계산
-        const startOfYear = new Date(currentYear, 0, 1).getTime();
-        const endOfYear = new Date(currentYear, 11, 31).getTime();
-        const current = dateObj.getTime();
-
-        // 0.0 ~ 1.0 사이 값 (범위 벗어나면 클램핑)
-        let ratio = (current - startOfYear) / (endOfYear - startOfYear);
-        if (ratio < 0) ratio = 0;
-        if (ratio > 1) ratio = 1;
-
-        // ★ 공식: 시작값 + (변화량 * 진행률)
-        // 예: 작년 2000원, 올해 4000원, 진행률 50%(6월말) -> 2000 + (2000 * 0.5) = 3000원
-        const interpolatedBase = startBase! + (targetBase! - startBase!) * ratio;
-
-        return {
-          time: d.time as any,
-          value: Math.floor(interpolatedBase * mult) // 배수 적용
-        };
-      });
-      
-      // 유효한 데이터만 필터링해서 차트에 주입
-      lineSeries.setData(lineData.filter(ld => !isNaN(ld.value)));
+      // 3. 병합 및 설정
+      lineSeries.setData([...currentData, ...futureLineData]);
     });
 
     chart.timeScale().fitContent();
