@@ -149,6 +149,7 @@ export default function Home() {
   };
 
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if(session?.user) {
         fetchSchedules(); fetchMyProfile(session.user.id); fetchCompanies();
