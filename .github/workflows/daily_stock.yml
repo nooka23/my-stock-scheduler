@@ -1,13 +1,13 @@
-name: Daily Price Update
+name: Daily Stock Update & RS Calculation
 
 on:
   schedule:
-    # 매일 한국 시간 오후 5시 (UTC 08:00)
-    - cron: '0 8 * * *'
+    # 매일 한국 시간 오후 4시 (UTC 07:00)
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 jobs:
-  update-prices:
+  daily-job:
     runs-on: ubuntu-latest
     
     steps:
@@ -22,9 +22,17 @@ jobs:
     - name: 라이브러리 설치
       run: |
         pip install -r scripts/requirements.txt
+        pip install pykrx  # pykrx는 requirements.txt에 없을 수도 있어서 명시적으로 추가
 
-    - name: 주가 업데이트 스크립트 실행 (오늘 데이터만)
+    - name: [1단계] 주가 데이터 업데이트 (V2)
       env:
         NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      run: python scripts/update_today.py
+      run: python scripts/update_today_v2.py
+
+    - name: [2단계] RS 랭킹 계산 (V2)
+      if: success() # 앞 단계가 성공했을 때만 실행
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      run: python scripts/calculate_rs_v2.py
