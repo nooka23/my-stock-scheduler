@@ -13,6 +13,7 @@ type Company = { code: string; name: string; };
 type FavoriteStock = {
   code: string;
   name: string;
+  group_name: string;
 };
 
 export type FinancialData = {
@@ -59,8 +60,10 @@ export default function BandChartPage() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
 
-  // [신규] 즐겨찾기 상태
+  // [신규] 즐겨찾기 상태 확장
   const [favorites, setFavorites] = useState<FavoriteStock[]>([]);
+  const [groups, setGroups] = useState<string[]>(['기본 그룹']);
+  const [activeGroup, setActiveGroup] = useState<string>('기본 그룹');
 
   // 밴드 설정 상태
   const [bandType, setBandType] = useState<'PER' | 'PBR' | 'POR'>('PER');
@@ -99,22 +102,29 @@ export default function BandChartPage() {
     fetchCompanies();
   }, [supabase]);
 
-  // [신규] 즐겨찾기 목록 불러오기
+  // [수정] 즐겨찾기 목록 불러오기 (그룹명 포함)
   const loadFavorites = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     const { data } = await supabase
       .from('user_favorite_stocks')
-      .select('company_code, company_name')
+      .select('company_code, company_name, group_name')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (data) {
-      setFavorites(data.map(item => ({
+      const loadedFavs = data.map(item => ({
         code: item.company_code,
-        name: item.company_name
-      })));
+        name: item.company_name,
+        group_name: item.group_name || '기본 그룹'
+      }));
+      setFavorites(loadedFavs);
+      
+      // 그룹 목록 추출 (기본 그룹은 항상 포함)
+      const loadedGroups = Array.from(new Set(loadedFavs.map(f => f.group_name)));
+      if (!loadedGroups.includes('기본 그룹')) loadedGroups.unshift('기본 그룹');
+      setGroups(loadedGroups.sort());
     }
   }, [supabase]);
 
@@ -123,7 +133,16 @@ export default function BandChartPage() {
     loadFavorites();
   }, [loadFavorites]);
 
-  // [신규] 즐겨찾기 토글 핸들러
+  // [신규] 그룹 추가 핸들러
+  const handleAddGroup = () => {
+    const newGroup = prompt("새로운 그룹 이름을 입력하세요:");
+    if (newGroup && !groups.includes(newGroup)) {
+      setGroups([...groups, newGroup]);
+      setActiveGroup(newGroup);
+    }
+  };
+
+  // [수정] 즐겨찾기 토글 핸들러 (현재 활성화된 그룹 기준)
   const toggleFavorite = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -131,31 +150,38 @@ export default function BandChartPage() {
       return;
     }
 
-    const isFav = favorites.some(f => f.code === currentCompany.code);
+    // 현재 그룹에 이미 있는지 확인
+    const isFavInGroup = favorites.some(f => f.code === currentCompany.code && f.group_name === activeGroup);
 
-    if (isFav) {
-      // 삭제
+    if (isFavInGroup) {
+      // 현재 그룹에서 삭제
       const { error } = await supabase
         .from('user_favorite_stocks')
         .delete()
         .eq('user_id', user.id)
-        .eq('company_code', currentCompany.code);
+        .eq('company_code', currentCompany.code)
+        .eq('group_name', activeGroup); // 그룹명 조건 추가
       
       if (!error) {
-        setFavorites(prev => prev.filter(f => f.code !== currentCompany.code));
+        setFavorites(prev => prev.filter(f => !(f.code === currentCompany.code && f.group_name === activeGroup)));
       }
     } else {
-      // 추가
+      // 현재 그룹에 추가
       const { error } = await supabase
         .from('user_favorite_stocks')
         .insert({
           user_id: user.id,
           company_code: currentCompany.code,
-          company_name: currentCompany.name
+          company_name: currentCompany.name,
+          group_name: activeGroup // 현재 활성화된 그룹명 저장
         });
       
       if (!error) {
-        setFavorites(prev => [{ code: currentCompany.code, name: currentCompany.name }, ...prev]);
+        setFavorites(prev => [{ 
+            code: currentCompany.code, 
+            name: currentCompany.name, 
+            group_name: activeGroup 
+        }, ...prev]);
       }
     }
   };
@@ -436,7 +462,11 @@ export default function BandChartPage() {
   const latestData = financialHistory.length > 0 ? financialHistory[financialHistory.length - 1] : null;
   const currentBaseValue = latestData ? (bandType === 'PER' ? latestData.eps : bandType === 'PBR' ? latestData.bps : latestData.ops) : 0;
 
-  const isFavorite = favorites.some(f => f.code === currentCompany.code);
+  // 현재 종목이 활성화된 그룹에 있는지 여부
+  const isFavorite = favorites.some(f => f.code === currentCompany.code && f.group_name === activeGroup);
+
+  // 현재 그룹의 즐겨찾기 목록 필터링
+  const currentGroupFavorites = favorites.filter(f => f.group_name === activeGroup);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -647,7 +677,11 @@ export default function BandChartPage() {
                  <div className="flex items-center gap-3">
                    <h2 className="text-3xl font-bold text-gray-800">{currentCompany.name} <span className="text-xl text-gray-400 font-normal">({currentCompany.code})</span></h2>
                    {/* [신규] 즐겨찾기 별 버튼 */}
-                   <button onClick={toggleFavorite} className="text-xl focus:outline-none transition-transform hover:scale-110">
+                   <button 
+                     onClick={toggleFavorite} 
+                     className={`text-xl focus:outline-none transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                     title={`${activeGroup}에 ${isFavorite ? '삭제' : '추가'}`}
+                   >
                      {isFavorite ? '⭐' : '☆'}
                    </button>
                  </div>
@@ -670,17 +704,42 @@ export default function BandChartPage() {
               </div>
             </div>
 
-            {/* [신규] 즐겨찾기 섹션 */}
+            {/* [수정] 즐겨찾기 섹션 (그룹 탭 포함) */}
             <div className="bg-white p-6 rounded-xl shadow border">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span>⭐ 내 관심 종목</span>
-                    <span className="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500">{favorites.length}개</span>
-                </h3>
-                {favorites.length > 0 ? (
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <span>⭐ 내 관심 종목</span>
+                    </h3>
+                    
+                    {/* 그룹 탭 */}
+                    <div className="flex gap-2 items-center overflow-x-auto max-w-[600px]">
+                        {groups.map(group => (
+                            <button
+                                key={group}
+                                onClick={() => setActiveGroup(group)}
+                                className={`px-3 py-1 text-sm rounded-full font-bold whitespace-nowrap transition-all
+                                    ${activeGroup === group 
+                                        ? 'bg-blue-600 text-white shadow-md' 
+                                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                            >
+                                {group}
+                            </button>
+                        ))}
+                        <button 
+                            onClick={handleAddGroup}
+                            className="px-2 py-1 text-sm rounded-full bg-gray-100 text-gray-500 hover:bg-blue-100 hover:text-blue-600 transition-all font-bold"
+                            title="새 그룹 만들기"
+                        >
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                {currentGroupFavorites.length > 0 ? (
                     <div className="flex gap-3 overflow-x-auto pb-2">
-                        {favorites.map(fav => (
+                        {currentGroupFavorites.map(fav => (
                             <div 
-                                key={fav.code} 
+                                key={`${fav.code}-${fav.group_name}`} 
                                 onClick={() => selectCompany({ name: fav.name, code: fav.code })}
                                 className={`min-w-[120px] p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md flex flex-col items-center
                                     ${currentCompany.code === fav.code ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
@@ -692,7 +751,7 @@ export default function BandChartPage() {
                     </div>
                 ) : (
                     <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border border-dashed">
-                        관심 있는 종목의 ⭐ 버튼을 눌러 추가해보세요.
+                        '{activeGroup}' 그룹에 관심 종목을 추가해보세요. (상단 별 ⭐ 클릭)
                     </div>
                 )}
             </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
+import StockChartDiscovery from '@/components/StockChartDiscovery';
 
 type DailyPrice = {
   date_str: string;
@@ -25,57 +26,134 @@ type MyProfile = {
   is_admin: boolean;
 };
 
+type ChartData = {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  rs?: number;
+};
+
+// [신규] 즐겨찾기 아이템 타입
+type FavItem = {
+  code: string;
+  group: string;
+};
+
 export default function DiscoveryPage() {
   const supabase = createClientComponentClient();
   
-  // 탭 상태: 'TOP' | 'RISING'
+  // 탭 상태
   const [currentTab, setCurrentTab] = useState<'TOP' | 'RISING'>('TOP');
-  
-  // 급상승 탭 내부 서브탭: 'WEEKLY' | 'MONTHLY'
   const [risingPeriod, setRisingPeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
 
-  // [신규] 필터링 상태
-  const [excludeHighRise, setExcludeHighRise] = useState(false); // 90점 이상 상승 제외
-  const [minRs50, setMinRs50] = useState(false);       // 현재 RS 50 이상
+  // 필터링 상태
+  const [excludeHighRise, setExcludeHighRise] = useState(false); 
+  const [minRs50, setMinRs50] = useState(false);
 
-  // 전체 데이터와 현재 페이지 데이터 상태 분리
+  // 데이터 상태
   const [allRankedStocks, setAllRankedStocks] = useState<DailyPrice[]>([]);
   const [displayedStocks, setDisplayedStocks] = useState<DailyPrice[]>([]);
   
-  // 페이지네이션 상태
+  // 차트 관련 상태
+  const [selectedStock, setSelectedStock] = useState<{code: string, name: string} | null>(null);
+  const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [isChartLoading, setIsChartLoading] = useState(false);
+
+  // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
   const [inputPage, setInputPage] = useState('1');
   const ITEMS_PER_PAGE = 20;
 
   const [referenceDate, setReferenceDate] = useState<string>(''); 
-  const [comparisonDate, setComparisonDate] = useState<string>(''); // 비교 대상 날짜
+  const [comparisonDate, setComparisonDate] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [userProfile, setUserProfile] = useState<MyProfile | null>(null);
+  
+  // [신규] 즐겨찾기 상태 개선
+  const [favorites, setFavorites] = useState<FavItem[]>([]);
+  const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
+  const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
 
-  // [신규] 유저 프로필 가져오기
+  // 유저 프로필 및 즐겨찾기 가져오기
   useEffect(() => {
-    const getUser = async () => {
+    const getUserAndFavs = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data } = await supabase
+        const { data: profile } = await supabase
           .from('profiles')
           .select('nickname, is_admin')
           .eq('id', session.user.id)
           .single();
-        setUserProfile(data as MyProfile);
+        setUserProfile(profile as MyProfile);
+        
+        // 즐겨찾기 전체 로드
+        const { data: favData } = await supabase
+            .from('user_favorite_stocks')
+            .select('company_code, group_name')
+            .eq('user_id', session.user.id);
+        
+        if (favData) {
+            const loadedFavs = favData.map(f => ({ code: f.company_code, group: f.group_name || '기본 그룹' }));
+            setFavorites(loadedFavs);
+            
+            // 그룹 목록 추출
+            const groups = Array.from(new Set(loadedFavs.map(f => f.group)));
+            if (!groups.includes('기본 그룹')) groups.unshift('기본 그룹');
+            setFavGroups(groups.sort());
+        }
       }
     };
-    getUser();
+    getUserAndFavs();
   }, [supabase]);
+
+  // [신규] 즐겨찾기 토글 (선택된 그룹 기준)
+  const toggleFavorite = async () => {
+      if (!selectedStock) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { alert('로그인이 필요합니다.'); return; }
+
+      const isFav = favorites.some(f => f.code === selectedStock.code && f.group === targetGroup);
+
+      if (isFav) {
+          // 삭제
+          const { error } = await supabase
+              .from('user_favorite_stocks')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('company_code', selectedStock.code)
+              .eq('group_name', targetGroup);
+          if (!error) {
+              setFavorites(prev => prev.filter(f => !(f.code === selectedStock.code && f.group === targetGroup)));
+          }
+      } else {
+          // 추가
+          const { error } = await supabase
+              .from('user_favorite_stocks')
+              .insert({
+                  user_id: user.id,
+                  company_code: selectedStock.code,
+                  company_name: selectedStock.name,
+                  group_name: targetGroup
+              });
+          if (!error) {
+              setFavorites(prev => [...prev, { code: selectedStock.code, group: targetGroup }]);
+              // 만약 새로운 그룹이면 그룹 목록에도 추가 (UI 즉시 반영)
+              if (!favGroups.includes(targetGroup)) setFavGroups(prev => [...prev, targetGroup].sort());
+          }
+      }
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = '/login';
   };
 
-  // 2. 종목명 및 시가총액 매핑 함수
+  // 2. 종목명 매핑
   const mapCompanyNames = async (stocks: any[]) => {
     const codes = stocks.map((s: any) => s.code);
     let companyInfoMap = new Map();
@@ -105,12 +183,11 @@ export default function DiscoveryPage() {
     });
   };
 
-  // 3. RS 랭킹 TOP 데이터 가져오기
+  // 3. 랭킹 데이터 Fetch
   const fetchRankedStocks = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. 최신 날짜 가져오기
       const { data: dateData } = await supabase
         .from('rs_rankings_v2')
         .select('date')
@@ -123,7 +200,6 @@ export default function DiscoveryPage() {
       setReferenceDate(latestDate);
       setComparisonDate(''); 
 
-      // 2. 랭킹 데이터 가져오기 (세부 랭킹 포함)
       const { data: rankData, error: rankError } = await supabase
         .from('rs_rankings_v2')
         .select('*') 
@@ -133,7 +209,6 @@ export default function DiscoveryPage() {
       if (rankError) throw rankError;
 
       if (rankData && rankData.length > 0) {
-        // 3. 종가 데이터 가져오기
         const codes = rankData.map((r: any) => r.code);
         const { data: priceData } = await supabase
             .from('daily_prices_v2')
@@ -144,7 +219,6 @@ export default function DiscoveryPage() {
         const priceMap = new Map();
         priceData?.forEach((p: any) => priceMap.set(p.code, p.close));
 
-        // 4. 데이터 병합
         const mergedData = rankData.map((r: any) => ({
             date_str: r.date,
             code: r.code,
@@ -169,12 +243,11 @@ export default function DiscoveryPage() {
     }
   }, [supabase]);
 
-  // 4. RS 급상승 데이터 가져오기
+  // 4. 급상승 데이터 Fetch
   const fetchRisingStocks = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. 최신 날짜 가져오기
       const { data: dateData } = await supabase
         .from('rs_rankings_v2')
         .select('date')
@@ -186,14 +259,13 @@ export default function DiscoveryPage() {
       const latestDate = dateData.date;
       setReferenceDate(latestDate);
 
-      // 2. 과거 날짜 찾기 (rs_rankings_v2 기준)
       const daysAgo = risingPeriod === 'WEEKLY' ? 5 : 20;
       
       const { data: pastDateData } = await supabase
         .from('rs_rankings_v2')
         .select('date')
         .lt('date', latestDate)
-        .eq('code', '005930') // 삼성전자 기준 (데이터가 확실히 있는 종목)
+        .eq('code', '005930') 
         .order('date', { ascending: false })
         .range(daysAgo - 1, daysAgo - 1)
         .limit(1)
@@ -203,7 +275,6 @@ export default function DiscoveryPage() {
       const pastDate = pastDateData.date;
       setComparisonDate(pastDate);
 
-      // 3. 두 날짜의 랭킹 데이터 가져오기
       const { data: currData } = await supabase
         .from('rs_rankings_v2')
         .select('code, rank_weighted')
@@ -216,7 +287,6 @@ export default function DiscoveryPage() {
 
       if (!currData || !pastData) throw new Error('랭킹 조회 실패');
 
-      // 4. 비교 및 Diff 계산
       const pastMap = new Map();
       pastData.forEach((p: any) => pastMap.set(p.code, p.rank_weighted));
 
@@ -227,7 +297,7 @@ export default function DiscoveryPage() {
           const prevRank = pastMap.get(curr.code);
           if (prevRank !== undefined && prevRank !== null) {
               const diff = curr.rank_weighted - prevRank;
-              if (diff > 0) { // 상승한 종목만 (또는 전체 다 보여주고 정렬)
+              if (diff > 0) { 
                   risingList.push({
                       date_str: latestDate,
                       code: curr.code,
@@ -241,13 +311,9 @@ export default function DiscoveryPage() {
           }
       });
 
-      // 5. 종가 가져오기
       if (codes.length > 0) {
-          // 종가 조회 (한번에 가져오기엔 많을 수 있으니 risingList가 너무 많으면 잘라야 함)
-          // 여기서는 상위 100개만 먼저 추려서 종가 조회하는 게 효율적일 수 있음
           risingList.sort((a: any, b: any) => b.rs_diff - a.rs_diff);
           
-          // 상위 200개만 표시한다고 가정 (UI 성능 고려)
           const topRising = risingList.slice(0, 200);
           const topCodes = topRising.map((r: any) => r.code);
 
@@ -278,57 +344,129 @@ export default function DiscoveryPage() {
     }
   }, [supabase, risingPeriod]);
 
+  // 차트 데이터 가져오기
+  const fetchChartData = async (code: string) => {
+    setIsChartLoading(true);
+    try {
+        // JSON (과거)
+        const jsonPromise = supabase.storage
+            .from('stocks')
+            .download(`${code}.json?t=${Date.now()}`);
 
-  // 데이터 슬라이싱 및 페이지네이션 초기화 (필터 적용)
-  useEffect(() => {
-    setCurrentPage(1); 
-    setInputPage('1');
-  }, [currentTab, risingPeriod, excludeHighRise, minRs50]); 
+        // DB Price (최신 100일)
+        const dbPromise = supabase
+            .from('daily_prices_v2')
+            .select('date, open, high, low, close, volume')
+            .eq('code', code)
+            .order('date', { ascending: false })
+            .limit(100);
 
+        // DB RS (최신 100일)
+        const rsPromise = supabase
+            .from('rs_rankings_v2')
+            .select('date, rank_weighted')
+            .eq('code', code)
+            .order('date', { ascending: false })
+            .limit(100);
+
+        const [jsonResult, dbResult, rsResult] = await Promise.all([jsonPromise, dbPromise, rsPromise]);
+
+        let resultData: any[] = [];
+
+        if (jsonResult.data) {
+            const textData = await jsonResult.data.text();
+            resultData = JSON.parse(textData);
+        }
+
+        const dataMap = new Map();
+        
+        resultData.forEach(item => {
+            if (item.time) {
+                let o = Number(item.open);
+                let h = Number(item.high);
+                let l = Number(item.low);
+                const c = Number(item.close);
+                if (o === 0 && h === 0 && l === 0) { o = c; h = c; l = c; } 
+
+                dataMap.set(item.time, {
+                    ...item,
+                    open: o, high: h, low: l, close: c,
+                    volume: Number(item.volume),
+                    rs: item.rs !== null ? Number(item.rs) : undefined
+                });
+            }
+        });
+
+        if (dbResult.data) {
+            dbResult.data.forEach(row => {
+                const time = row.date;
+                if (!time) return;
+                const existing = dataMap.get(time) || {};
+                
+                let o = Number(row.open);
+                let h = Number(row.high);
+                let l = Number(row.low);
+                const c = Number(row.close);
+                if (o === 0 && h === 0 && l === 0) { o = c; h = c; l = c; }
+
+                dataMap.set(time, {
+                    ...existing, time,
+                    open: o, high: h, low: l, close: c,
+                    volume: Number(row.volume)
+                });
+            });
+        }
+
+        if (rsResult.data) {
+            rsResult.data.forEach(row => {
+                const time = row.date;
+                if (!time) return;
+                const existing = dataMap.get(time);
+                if (existing) {
+                    existing.rs = row.rank_weighted;
+                    dataMap.set(time, existing);
+                }
+            });
+        }
+
+        const sortedData = Array.from(dataMap.values()).sort((a: any, b: any) => 
+            new Date(a.time).getTime() - new Date(b.time).getTime()
+        );
+
+        setChartData(sortedData);
+
+    } catch (e) {
+        console.error("Chart fetch error:", e);
+        setChartData([]);
+    } finally {
+        setIsChartLoading(false);
+    }
+  };
+
+  const handleStockClick = (stock: DailyPrice) => {
+      setSelectedStock({ 
+          code: stock.code, 
+          name: stock.companies?.name || '알 수 없음' 
+      });
+      fetchChartData(stock.code);
+  };
+
+  useEffect(() => { setCurrentPage(1); setInputPage('1'); }, [currentTab, risingPeriod, excludeHighRise, minRs50]);
   useEffect(() => {
-    // 1. 필터링 적용
     let filtered = allRankedStocks;
-
-    if (minRs50) {
-        filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
-    }
-
-    if (excludeHighRise && currentTab === 'RISING') {
-        filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
-    }
-
-    // 2. 페이지네이션 적용
+    if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
+    if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     setDisplayedStocks(filtered.slice(startIndex, endIndex));
     setInputPage(currentPage.toString());
   }, [allRankedStocks, currentPage, excludeHighRise, minRs50, currentTab]);
 
-  // 탭 변경 시 데이터 로드
   useEffect(() => {
-    if (currentTab === 'TOP') {
-      fetchRankedStocks();
-    } else {
-      fetchRisingStocks();
-    }
+    if (currentTab === 'TOP') fetchRankedStocks();
+    else fetchRisingStocks();
   }, [currentTab, risingPeriod, fetchRankedStocks, fetchRisingStocks]);
 
-
-  // 페이지네이션 핸들러들
-  const handlePageChange = (newPage: number) => {
-    const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
-    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
-  };
-  const handleInputPageChange = (e: React.ChangeEvent<HTMLInputElement>) => setInputPage(e.target.value);
-  const submitPageInput = () => {
-    const pageNum = parseInt(inputPage);
-    const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
-    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) setCurrentPage(pageNum);
-    else setInputPage(currentPage.toString());
-  };
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') submitPageInput(); };
-
-  // 필터링된 전체 개수 (페이지네이션 계산용)
   const getFilteredCount = () => {
       let filtered = allRankedStocks;
       if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
@@ -336,238 +474,184 @@ export default function DiscoveryPage() {
       return filtered.length;
   };
   const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
+  const handlePageChange = (n: number) => { if (n >= 1 && n <= totalPages) setCurrentPage(n); };
+  const handleInputPageChange = (e: any) => setInputPage(e.target.value);
+  const submitPageInput = () => { const n = parseInt(inputPage); if (!isNaN(n) && n >= 1 && n <= totalPages) setCurrentPage(n); else setInputPage(currentPage.toString()); };
+  const handleKeyDown = (e: any) => { if (e.key === 'Enter') submitPageInput(); };
+
+  // 현재 선택된 그룹에 즐겨찾기 되어있는지 확인
+  const isFavorite = selectedStock 
+    ? favorites.some(f => f.code === selectedStock.code && f.group === targetGroup) 
+    : false;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b px-6 py-4 flex flex-col gap-4 shadow-sm">
-        <div className="flex justify-between items-center">
-            <div className="flex items-center gap-6">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      {/* 헤더 */}
+      <header className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
+        <div className="flex items-center gap-6">
             <h1 className="text-2xl font-bold text-blue-800">🔍 종목 발굴</h1>
-            </div>
-
-            <div className="flex items-center gap-6">
-              <nav className="flex gap-4 text-lg">
-                  <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">🗓️ 스케줄러</Link>
-                  <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">📊 밴드 차트 실험실 🏭️</Link>
-                  <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">🔍 종목 발굴</span>
-              </nav>
-
-              {userProfile && (
-                 <div className="flex items-center gap-3 border-l pl-6">
-                   <span className="text-sm text-gray-600">
-                     <b>{userProfile.nickname}</b>님
-                     {userProfile.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
-                   </span>
-                   
-                   {userProfile.is_admin && (
-                     <div className="flex gap-2">
-                       <button onClick={() => window.location.href='/admin/chart'} className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold border border-purple-200">
-                         📈 분석(Admin)
-                       </button>
-                       <button onClick={() => window.location.href='/admin'} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">
-                         ⚙️ 관리자
-                       </button>
-                     </div>
-                   )}
-                   
-                   <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
-                 </div>
-              )}
-            </div>
         </div>
-        
-        {/* 메인 탭 및 필터 */}
-        <div className="flex justify-between items-end">
-            <div className="flex gap-2">
-                <button onClick={() => setCurrentTab('TOP')} className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all ${currentTab === 'TOP' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    🏆 RS 랭킹 TOP
-                </button>
-                <button onClick={() => setCurrentTab('RISING')} className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                    🔥 RS 랭킹 급상승
-                </button>
-            </div>
-
-            {/* 필터 체크박스 */}
-            <div className="flex gap-4 mb-2">
-                {currentTab === 'RISING' && (
-                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-50 px-2 py-1 rounded">
-                        <input 
-                            type="checkbox" 
-                            checked={excludeHighRise} 
-                            onChange={(e) => setExcludeHighRise(e.target.checked)}
-                            className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
-                        />
-                        🚀 90점 이상 상승 제외
-                    </label>
-                )}
-                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-50 px-2 py-1 rounded">
-                    <input 
-                        type="checkbox" 
-                        checked={minRs50} 
-                        onChange={(e) => setMinRs50(e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                    💪 현재 RS 50 이상
-                </label>
-            </div>
+        <div className="flex items-center gap-6">
+            <nav className="flex gap-4 text-lg">
+                <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">🗓️ 스케줄러</Link>
+                <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">📊 밴드 차트 실험실 🏭️</Link>
+                <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">🔍 종목 발굴</span>
+            </nav>
+            {userProfile && (
+                <div className="flex items-center gap-3 border-l pl-6">
+                <span className="text-sm text-gray-600">
+                    <b>{userProfile.nickname}</b>님
+                    {userProfile.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
+                </span>
+                <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
+                </div>
+            )}
         </div>
       </header>
 
-      <main className="flex-1 p-6 flex flex-col gap-4">
-        <div className="bg-white p-6 rounded-xl shadow-md border flex-1 relative flex flex-col">
-          
-          {/* 탭별 헤더 영역 */}
-          <div className="flex flex-col mb-4">
-            <div className="flex justify-between items-start">
-                <div>
-                    <h2 className="text-xl font-bold text-gray-800 mb-1">
-                        {currentTab === 'TOP' ? '🚀 RS 랭킹 TOP' : '🔥 RS 랭킹 급상승'}
-                    </h2>
-                    
-                    {currentTab === 'RISING' && (
-                        <div className="flex gap-2 my-2">
-                             <button 
-                                onClick={() => setRisingPeriod('WEEKLY')}
-                                className={`text-xs px-3 py-1 rounded-full border font-bold ${risingPeriod === 'WEEKLY' ? 'bg-red-100 text-red-700 border-red-300' : 'text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                             >
-                                📅 주간 (5일 전 대비)
-                             </button>
-                             <button 
-                                onClick={() => setRisingPeriod('MONTHLY')}
-                                className={`text-xs px-3 py-1 rounded-full border font-bold ${risingPeriod === 'MONTHLY' ? 'bg-red-100 text-red-700 border-red-300' : 'text-gray-500 border-gray-200 hover:bg-gray-50'}`}
-                             >
-                                🗓️ 월간 (20일 전 대비)
-                             </button>
-                        </div>
-                    )}
-
-                    <p className="text-gray-500 text-sm mt-1">
-                        {currentTab === 'TOP' 
-                            ? "최근 시장의 강세 종목들을 RS(Relative Strength) 지수 기준으로 정렬했습니다."
-                            : `과거(${comparisonDate}) 대비 RS 랭킹 점수가 가장 많이 오른 종목들입니다.`
-                        }
-                    </p>
-                </div>
-
-                {/* 기준일 표시 */}
-                {referenceDate && (
-                    <div className="text-right">
-                        <p className="text-sm text-gray-600">
-                            기준일 : {referenceDate} (종가)
-                        </p>
-                        {currentTab === 'RISING' && comparisonDate && (
-                             <p className="text-xs text-red-500 mt-1">
-                                비교일 : {comparisonDate}
-                             </p>
+      {/* 메인 컨텐츠 (좌우 분할) */}
+      <main className="flex-1 p-4 flex gap-4 overflow-hidden">
+        
+        {/* [왼쪽] 종목 테이블 영역 (너비 30%) */}
+        <div className="w-[30%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
+            {/* 컨트롤 패널 (탭 & 필터) */}
+            <div className="p-4 border-b bg-gray-50">
+                <div className="flex justify-between items-end mb-3">
+                    <div className="flex gap-1">
+                        <button onClick={() => setCurrentTab('TOP')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'TOP' ? 'bg-blue-600 text-white shadow' : 'bg-white border text-gray-500'}`}>TOP</button>
+                        <button onClick={() => setCurrentTab('RISING')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow' : 'bg-white border text-gray-500'}`}>급상승</button>
+                    </div>
+                    <div className="flex flex-col gap-1 items-end">
+                        {currentTab === 'RISING' && (
+                            <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-red-500"/> 90점↑ 제외</label>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">총 {getFilteredCount()}개 종목</p>
+                        <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={minRs50} onChange={(e) => setMinRs50(e.target.checked)} className="accent-blue-500"/> RS 50↑</label>
+                    </div>
+                </div>
+                
+                {currentTab === 'RISING' && (
+                    <div className="flex gap-2 mb-2">
+                        <button onClick={() => setRisingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${risingPeriod === 'WEEKLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-gray-500'}`}>📅 주간</button>
+                        <button onClick={() => setRisingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${risingPeriod === 'MONTHLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-gray-500'}`}>🗓️ 월간</button>
                     </div>
                 )}
-            </div>
-          </div>
-
-          {/* 로딩 및 에러 */}
-          {loading && <div className="flex items-center justify-center h-full text-gray-500">데이터를 분석 중입니다...</div>}
-          {error && <div className="flex items-center justify-center h-full text-red-500">오류: {error}</div>}
-          {!loading && !error && allRankedStocks.length === 0 && <div className="flex items-center justify-center h-full text-gray-500">데이터가 없습니다.</div>}
-
-          {/* 테이블 */}
-          {!loading && !error && displayedStocks.length > 0 && (
-            <>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0">
-                <table className="min-w-full divide-y divide-gray-200 sticky top-0">
-                  <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">순위</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">종목명</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">코드</th>
-                      
-                      {currentTab === 'TOP' ? (
-                           <>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">통합 RS</th>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">3M</th>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">6M</th>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">12M</th>
-                           </>
-                      ) : (
-                           <>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RS 변화</th>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">현재 RS</th>
-                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">과거 RS</th>
-                           </>
-                      )}
-                      
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">종가</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">시가총액(억)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {displayedStocks.map((stock, index) => (
-                      <tr key={stock.code} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-bold">
-                          {stock.companies?.name || '알 수 없음'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                          {stock.code}
-                        </td>
-
-                        {currentTab === 'TOP' ? (
-                            <>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-blue-600 text-base">
-                                    {stock.rs_rating}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                                    {stock.rank_3m ?? '-'}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                                    {stock.rank_6m ?? '-'}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                                    {stock.rank_12m ?? '-'}
-                                </td>
-                            </>
-                        ) : (
-                            <>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-red-600">
-                                    +{stock.rs_diff}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">
-                                    {stock.rs_rating}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-400">
-                                    {stock.prev_rs}
-                                </td>
-                            </>
-                        )}
-
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">
-                          {stock.close?.toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium text-gray-800">
-                          {stock.marcap ? Math.round(stock.marcap / 100000000).toLocaleString() : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* 페이지네이션 */}
-              <div className="flex justify-center items-center gap-2 mt-4 pt-4 border-t">
-                <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-bold text-gray-600">&lt;</button>
-                <div className="flex items-center gap-1">
-                  <span className="text-sm text-gray-600">Page</span>
-                  <input type="text" className="w-12 border rounded p-1 text-center text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" value={inputPage} onChange={handleInputPageChange} onBlur={submitPageInput} onKeyDown={handleKeyDown} />
-                  <span className="text-sm text-gray-600">of {totalPages}</span>
+                
+                <div className="text-[10px] text-gray-500 flex justify-between">
+                    <span>기준: {referenceDate}</span>
+                    <span>총 {getFilteredCount()}개</span>
                 </div>
-                <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-3 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-bold text-gray-600">&gt;</button>
-              </div>
-            </>
-          )}
+            </div>
+
+            {/* 테이블 */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th className="px-2 py-2 font-medium">순위</th>
+                            <th className="px-2 py-2 font-medium">종목명</th>
+                            {currentTab === 'TOP' ? (
+                                <th className="px-2 py-2 font-medium text-right">RS</th>
+                            ) : (
+                                <th className="px-2 py-2 font-medium text-right">변화</th>
+                            )}
+                            <th className="px-2 py-2 font-medium text-right">시총(억)</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-xs">
+                        {!loading && displayedStocks.map((stock, idx) => (
+                            <tr 
+                                key={stock.code} 
+                                onClick={() => handleStockClick(stock)}
+                                className={`cursor-pointer hover:bg-blue-50 transition-colors ${selectedStock?.code === stock.code ? 'bg-blue-100' : ''}`}
+                            >
+                                <td className="px-2 py-2 text-gray-500">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+                                <td className="px-2 py-2 font-bold text-gray-800 truncate max-w-[80px]">
+                                    {stock.companies?.name}
+                                    <div className="text-[9px] text-gray-400 font-normal">{stock.code}</div>
+                                </td>
+                                {currentTab === 'TOP' ? (
+                                    <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_rating}</td>
+                                ) : (
+                                    <td className="px-2 py-2 text-right font-bold text-red-500">+{stock.rs_diff}</td>
+                                )}
+                                <td className="px-2 py-2 text-right text-gray-600">
+                                    {stock.marcap ? Math.round(stock.marcap / 100000000).toLocaleString() : '-'}
+                                </td>
+                            </tr>
+                        ))}
+                        {loading && <tr><td colSpan={4} className="p-4 text-center text-gray-400 text-xs">로딩 중...</td></tr>}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* 페이지네이션 */}
+            <div className="p-2 border-t bg-gray-50 flex justify-center items-center gap-1 text-[10px]">
+                <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-1.5 py-0.5 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">&lt;</button>
+                <input 
+                    type="text" 
+                    className="w-8 border rounded p-0.5 text-center font-bold focus:ring-1 focus:ring-blue-500 outline-none" 
+                    value={inputPage} 
+                    onChange={handleInputPageChange} 
+                    onBlur={submitPageInput} 
+                    onKeyDown={handleKeyDown} 
+                />
+                <span className="text-gray-500">/ {totalPages}</span>
+                <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-1.5 py-0.5 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">&gt;</button>
+            </div>
         </div>
+
+        {/* [오른쪽] 차트 영역 (나머지 공간) */}
+        <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
+            {selectedStock ? (
+                <>
+                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-xl font-bold text-gray-800">
+                                {selectedStock.name} <span className="text-base font-normal text-gray-500">({selectedStock.code})</span>
+                            </h2>
+                            
+                            {/* [신규] 즐겨찾기 그룹 선택 드롭다운 + 별 버튼 */}
+                            <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-1">
+                                <select 
+                                    value={targetGroup} 
+                                    onChange={(e) => setTargetGroup(e.target.value)}
+                                    className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
+                                >
+                                    {favGroups.map(g => (
+                                        <option key={g} value={g}>{g}</option>
+                                    ))}
+                                </select>
+                                <button 
+                                    onClick={toggleFavorite}
+                                    className={`text-xl focus:outline-none transition-transform hover:scale-110 px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                                    title={`'${targetGroup}'에 ${isFavorite ? '삭제' : '추가'}`}
+                                >
+                                    {isFavorite ? '⭐' : '☆'}
+                                </button>
+                            </div>
+                        </div>
+                        {isChartLoading && <span className="text-xs text-blue-500 font-bold animate-pulse">데이터 로딩 중...</span>}
+                    </div>
+                    <div className="flex-1 relative w-full h-full bg-white min-h-0">
+                        {chartData.length > 0 ? (
+                            // 차트 컴포넌트 (Price, Volume, RS)
+                            <StockChartDiscovery data={chartData} />
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                {isChartLoading ? '차트 그리는 중...' : '데이터가 없습니다.'}
+                            </div>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
+                    <div className="text-4xl mb-2">👈</div>
+                    <p className="font-bold">왼쪽 목록에서 종목을 선택하세요</p>
+                    <p className="text-xs mt-1">상세 차트와 RS 지수를 확인할 수 있습니다.</p>
+                </div>
+            )}
+        </div>
+
       </main>
     </div>
   );

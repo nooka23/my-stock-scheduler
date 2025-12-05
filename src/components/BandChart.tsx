@@ -1,14 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { createChart, ColorType, IChartApi, CandlestickSeries, LineSeries, LineStyle } from 'lightweight-charts';
-import { FinancialData } from '@/app/chart/page'; // page.tsx의 타입 참조
+import { createChart, ColorType, IChartApi, CandlestickSeries, LineSeries, HistogramSeries, LineStyle } from 'lightweight-charts';
+import { FinancialData } from '@/app/chart/page'; 
 
-export type BandSettings = {
-  type: 'PER' | 'PBR' | 'POR';
-  financials: FinancialData[];
-  multipliers: number[];
-};
+// ...
 
 type ChartData = {
   time: string;
@@ -16,6 +12,7 @@ type ChartData = {
   high: number;
   low: number;
   close: number;
+  volume: number; // [수정] 거래량 추가
 };
 
 interface Props {
@@ -38,6 +35,10 @@ export default function BandChart({ data, settings }: Props) {
       grid: { vertLines: { color: '#f0f3fa' }, horzLines: { color: '#f0f3fa' } },
       rightPriceScale: { visible: true, borderColor: '#cccccc' },
       timeScale: { borderColor: '#cccccc', timeVisible: true },
+      // [수정] 소수점 제거 포맷터
+      localization: {
+        priceFormatter: (p: number) => Math.round(p).toLocaleString(),
+      },
     });
     chartRef.current = chart;
 
@@ -48,6 +49,28 @@ export default function BandChart({ data, settings }: Props) {
     
     if (data.length > 0) {
       candleSeries.setData(data.map(d => ({ ...d, time: d.time as any })));
+    }
+
+    // [신규] 거래량 막대 그래프
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: 'volume' },
+      priceScaleId: '', // 오버레이 모드 (별도 스케일 없이 하단에 배치)
+    });
+    
+    // 거래량 위치 조정 (하단 20% 영역만 사용)
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8, 
+        bottom: 0,
+      },
+    });
+
+    if (data.length > 0) {
+      volumeSeries.setData(data.map(d => ({
+        time: d.time as any,
+        value: d.volume,
+        color: d.close >= d.open ? 'rgba(239, 68, 68, 0.5)' : 'rgba(59, 130, 246, 0.5)', // 반투명 빨강/파랑
+      })));
     }
 
     // 3. 밴드 그리기 로직 (대각선 보간 적용)
