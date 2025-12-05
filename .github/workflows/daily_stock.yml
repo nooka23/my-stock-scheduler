@@ -11,26 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: 코드 가져오기
-      uses: actions/checkout@v3
+      - name: 코드 가져오기
+        uses: actions/checkout@v3
 
-    - name: 파이썬 설정
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
+      - name: 파이썬 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-    - name: 라이브러리 설치
-      run: pip install -r scripts/requirements.txt
+      - name: 라이브러리 설치
+        run: pip install -r scripts/requirements.txt
 
-    - name: [1단계] 주가 데이터 업데이트 (V2)
-      env:
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      run: python scripts/update_today_v2.py
+      - name: [1단계] 주가 데이터 업데이트 (V2)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/update_today_v2.py
 
-    - name: [2단계] RS 랭킹 계산 (V2)
-      if: success() # 앞 단계가 성공했을 때만 실행
-      env:
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      run: python scripts/calculate_rs_v2.py
+      - name: [2단계] RS 랭킹 계산 (V2)
+        if: success()
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/calculate_rs_v2.py
