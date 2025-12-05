@@ -2,3 +2,7 @@ finance-datareader
 pandas
 supabase
 python-dotenv
+numpy
+pykrx
+selenium
+webdriver-manager
