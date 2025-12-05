@@ -6,6 +6,12 @@ import { FinancialData } from '@/app/chart/page';
 
 // ...
 
+export interface BandSettings {
+  type: 'PER' | 'PBR' | 'POR';
+  financials: FinancialData[];
+  multipliers: number[];
+}
+
 type ChartData = {
   time: string;
   open: number;
