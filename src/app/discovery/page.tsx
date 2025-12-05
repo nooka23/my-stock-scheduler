@@ -9,12 +9,20 @@ type DailyPrice = {
   code: string;
   close: number;
   rs_rating: number;
+  rank_3m?: number;
+  rank_6m?: number;
+  rank_12m?: number;
+  marcap?: number;
   companies: {
     name: string;
   } | null; 
-  // 급상승 랭킹용 필드 추가
   rs_diff?: number;
   prev_rs?: number;
+};
+
+type MyProfile = {
+  nickname: string;
+  is_admin: boolean;
 };
 
 export default function DiscoveryPage() {
@@ -25,6 +33,10 @@ export default function DiscoveryPage() {
   
   // 급상승 탭 내부 서브탭: 'WEEKLY' | 'MONTHLY'
   const [risingPeriod, setRisingPeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
+
+  // [신규] 필터링 상태
+  const [excludeHighRise, setExcludeHighRise] = useState(false); // 90점 이상 상승 제외
+  const [minRs50, setMinRs50] = useState(false);       // 현재 RS 50 이상
 
   // 전체 데이터와 현재 페이지 데이터 상태 분리
   const [allRankedStocks, setAllRankedStocks] = useState<DailyPrice[]>([]);
@@ -37,48 +49,60 @@ export default function DiscoveryPage() {
 
   const [referenceDate, setReferenceDate] = useState<string>(''); 
   const [comparisonDate, setComparisonDate] = useState<string>(''); // 비교 대상 날짜
-  const [referenceClose, setReferenceClose] = useState<number | null>(null); 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. 최신 날짜 가져오는 함수 (공통)
-  const getLatestDate = async () => {
-    const { data, error } = await supabase
-      .from('daily_prices')
-      .select('date_str')
-      .order('date_str', { ascending: false })
-      .limit(1)
-      .single();
-    if (error || !data) throw new Error('최근 날짜를 가져올 수 없습니다.');
-    return data.date_str;
+  const [userProfile, setUserProfile] = useState<MyProfile | null>(null);
+
+  // [신규] 유저 프로필 가져오기
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('nickname, is_admin')
+          .eq('id', session.user.id)
+          .single();
+        setUserProfile(data as MyProfile);
+      }
+    };
+    getUser();
+  }, [supabase]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
   };
 
-  // 2. 종목명 매핑 함수 (공통)
+  // 2. 종목명 및 시가총액 매핑 함수
   const mapCompanyNames = async (stocks: any[]) => {
     const codes = stocks.map((s: any) => s.code);
-    let companyNameMap = new Map();
+    let companyInfoMap = new Map();
     const chunkSize = 1000;
     
     for (let i = 0; i < codes.length; i += chunkSize) {
         const chunk = codes.slice(i, i + chunkSize);
         const { data: companiesData } = await supabase
         .from('companies')
-        .select('code, name')
+        .select('code, name, marcap')
         .in('code', chunk);
 
         if (companiesData) {
             companiesData.forEach((c: any) => {
-                companyNameMap.set(c.code, c.name);
+                companyInfoMap.set(c.code, { name: c.name, marcap: c.marcap });
             });
         }
     }
     
-    return stocks.map((stock: any) => ({
-        ...stock,
-        companies: {
-            name: companyNameMap.get(stock.code) || '알 수 없음'
-        }
-    }));
+    return stocks.map((stock: any) => {
+        const info = companyInfoMap.get(stock.code) || { name: '알 수 없음', marcap: 0 };
+        return {
+            ...stock,
+            marcap: info.marcap,
+            companies: { name: info.name }
+        };
+    });
   };
 
   // 3. RS 랭킹 TOP 데이터 가져오기
@@ -86,22 +110,54 @@ export default function DiscoveryPage() {
     setLoading(true);
     setError(null);
     try {
-      const latestDate = await getLatestDate();
+      // 1. 최신 날짜 가져오기
+      const { data: dateData } = await supabase
+        .from('rs_rankings_v2')
+        .select('date')
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (!dateData) throw new Error('랭킹 데이터가 없습니다.');
+      const latestDate = dateData.date;
       setReferenceDate(latestDate);
-      setComparisonDate(''); // TOP 탭에선 비교일 없음
+      setComparisonDate(''); 
 
-      const { data: stocksData, error: stocksError } = await supabase
-        .from('daily_prices')
+      // 2. 랭킹 데이터 가져오기 (세부 랭킹 포함)
+      const { data: rankData, error: rankError } = await supabase
+        .from('rs_rankings_v2')
         .select('*') 
-        .eq('date_str', latestDate)
-        .order('rs_rating', { ascending: false });
+        .eq('date', latestDate)
+        .order('rank_weighted', { ascending: false });
 
-      if (stocksError) throw stocksError;
+      if (rankError) throw rankError;
 
-      if (stocksData && stocksData.length > 0) {
-        const combinedData = await mapCompanyNames(stocksData);
+      if (rankData && rankData.length > 0) {
+        // 3. 종가 데이터 가져오기
+        const codes = rankData.map((r: any) => r.code);
+        const { data: priceData } = await supabase
+            .from('daily_prices_v2')
+            .select('code, close')
+            .eq('date', latestDate)
+            .in('code', codes);
+            
+        const priceMap = new Map();
+        priceData?.forEach((p: any) => priceMap.set(p.code, p.close));
+
+        // 4. 데이터 병합
+        const mergedData = rankData.map((r: any) => ({
+            date_str: r.date,
+            code: r.code,
+            rs_rating: r.rank_weighted,
+            rank_3m: r.rank_3m,
+            rank_6m: r.rank_6m,
+            rank_12m: r.rank_12m,
+            close: priceMap.get(r.code) || 0,
+            companies: null 
+        }));
+
+        const combinedData = await mapCompanyNames(mergedData);
         setAllRankedStocks(combinedData as DailyPrice[]);
-        setReferenceClose(stocksData[0].close);
       } else {
         setAllRankedStocks([]);
       }
@@ -118,102 +174,137 @@ export default function DiscoveryPage() {
     setLoading(true);
     setError(null);
     try {
-      const latestDate = await getLatestDate();
+      // 1. 최신 날짜 가져오기
+      const { data: dateData } = await supabase
+        .from('rs_rankings_v2')
+        .select('date')
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (!dateData) throw new Error('랭킹 데이터가 없습니다.');
+      const latestDate = dateData.date;
       setReferenceDate(latestDate);
 
-      // 비교할 날짜 찾기 (영업일 고려)
-      // 주간: 5일 전, 월간: 20일 전
+      // 2. 과거 날짜 찾기 (rs_rankings_v2 기준)
       const daysAgo = risingPeriod === 'WEEKLY' ? 5 : 20;
       
-      // 단순히 date calculation으로는 휴장일 제외가 어려우므로,
-      // date_str 기준 내림차순으로 N번째 날짜를 DB에서 가져옴
-      const { data: pastDateData, error: pastDateError } = await supabase
-        .from('daily_prices')
-        .select('date_str')
-        .lt('date_str', latestDate) // 최신일보다 과거
-        .order('date_str', { ascending: false })
-        .range(daysAgo - 1, daysAgo - 1) // N번째 (0-index이므로 -1)
+      const { data: pastDateData } = await supabase
+        .from('rs_rankings_v2')
+        .select('date')
+        .lt('date', latestDate)
+        .eq('code', '005930') // 삼성전자 기준 (데이터가 확실히 있는 종목)
+        .order('date', { ascending: false })
+        .range(daysAgo - 1, daysAgo - 1)
         .limit(1)
-        .single(); // single() 사용 시 데이터 없으면 에러 발생할 수 있음 -> maybeSingle 사용 권장하지만 여기선 try-catch
+        .maybeSingle();
 
-      if (pastDateError || !pastDateData) {
-        // 데이터 부족 시 가장 오래된 데이터라도 가져오거나 에러 처리
-        throw new Error('비교할 과거 데이터가 충분하지 않습니다.');
-      }
-      
-      const pastDate = pastDateData.date_str;
+      if (!pastDateData) throw new Error('비교할 과거 데이터가 부족합니다.');
+      const pastDate = pastDateData.date;
       setComparisonDate(pastDate);
 
-      // 두 날짜의 데이터 가져오기 (병렬 처리)
-      const currentPromise = supabase
-        .from('daily_prices')
-        .select('code, rs_rating, close')
-        .eq('date_str', latestDate);
+      // 3. 두 날짜의 랭킹 데이터 가져오기
+      const { data: currData } = await supabase
+        .from('rs_rankings_v2')
+        .select('code, rank_weighted')
+        .eq('date', latestDate);
 
-      const pastPromise = supabase
-        .from('daily_prices')
-        .select('code, rs_rating')
-        .eq('date_str', pastDate);
+      const { data: pastData } = await supabase
+        .from('rs_rankings_v2')
+        .select('code, rank_weighted')
+        .eq('date', pastDate);
 
-      const [currRes, pastRes] = await Promise.all([currentPromise, pastPromise]);
-      
-      if (currRes.error) throw currRes.error;
-      if (pastRes.error) throw pastRes.error;
+      if (!currData || !pastData) throw new Error('랭킹 조회 실패');
 
-      // 매핑 및 차이 계산
+      // 4. 비교 및 Diff 계산
       const pastMap = new Map();
-      pastRes.data?.forEach((p: any) => pastMap.set(p.code, p.rs_rating));
+      pastData.forEach((p: any) => pastMap.set(p.code, p.rank_weighted));
 
-      let risingList = [];
-      if (currRes.data) {
-        for (const curr of currRes.data) {
-            const prevRs = pastMap.get(curr.code);
-            // 두 날짜 모두 RS 점수가 있어야 함
-            if (curr.rs_rating !== null && prevRs !== null && prevRs !== undefined) {
-                const diff = curr.rs_rating - prevRs;
-                risingList.push({
-                    ...curr,
-                    date_str: latestDate,
-                    rs_diff: diff,
-                    prev_rs: prevRs
-                });
-            }
-        }
-      }
+      let risingList: any[] = [];
+      const codes: string[] = [];
 
-      // 급상승 순(diff 내림차순) 정렬
-      risingList.sort((a, b) => b.rs_diff - a.rs_diff);
+      currData.forEach((curr: any) => {
+          const prevRank = pastMap.get(curr.code);
+          if (prevRank !== undefined && prevRank !== null) {
+              const diff = curr.rank_weighted - prevRank;
+              if (diff > 0) { // 상승한 종목만 (또는 전체 다 보여주고 정렬)
+                  risingList.push({
+                      date_str: latestDate,
+                      code: curr.code,
+                      rs_rating: curr.rank_weighted,
+                      prev_rs: prevRank,
+                      rs_diff: diff,
+                      companies: null
+                  });
+                  codes.push(curr.code);
+              }
+          }
+      });
 
-      if (risingList.length > 0) {
-        const combinedData = await mapCompanyNames(risingList);
-        setAllRankedStocks(combinedData as DailyPrice[]);
+      // 5. 종가 가져오기
+      if (codes.length > 0) {
+          // 종가 조회 (한번에 가져오기엔 많을 수 있으니 risingList가 너무 많으면 잘라야 함)
+          // 여기서는 상위 100개만 먼저 추려서 종가 조회하는 게 효율적일 수 있음
+          risingList.sort((a: any, b: any) => b.rs_diff - a.rs_diff);
+          
+          // 상위 200개만 표시한다고 가정 (UI 성능 고려)
+          const topRising = risingList.slice(0, 200);
+          const topCodes = topRising.map((r: any) => r.code);
+
+          const { data: priceData } = await supabase
+            .from('daily_prices_v2')
+            .select('code, close')
+            .eq('date', latestDate)
+            .in('code', topCodes);
+            
+          const priceMap = new Map();
+          priceData?.forEach((p: any) => priceMap.set(p.code, p.close));
+          
+          topRising.forEach((r: any) => {
+              r.close = priceMap.get(r.code) || 0;
+          });
+
+          const combinedData = await mapCompanyNames(topRising);
+          setAllRankedStocks(combinedData as DailyPrice[]);
       } else {
-        setAllRankedStocks([]);
+          setAllRankedStocks([]);
       }
 
     } catch (err: any) {
       console.error("RISING 로딩 실패:", err.message);
-      setError('급상승 데이터를 계산할 수 없습니다 (과거 데이터 부족 등).');
+      setError('급상승 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
   }, [supabase, risingPeriod]);
 
 
-  // 데이터 슬라이싱 및 페이지네이션 초기화
+  // 데이터 슬라이싱 및 페이지네이션 초기화 (필터 적용)
   useEffect(() => {
-    setCurrentPage(1); // 탭이나 데이터 바뀌면 1페이지로
+    setCurrentPage(1); 
     setInputPage('1');
-  }, [currentTab, risingPeriod]); // allRankedStocks가 바뀔 때마다가 아니라 탭 바뀔 때만 초기화 (데이터 로딩 시점 고려)
+  }, [currentTab, risingPeriod, excludeHighRise, minRs50]); 
 
   useEffect(() => {
+    // 1. 필터링 적용
+    let filtered = allRankedStocks;
+
+    if (minRs50) {
+        filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
+    }
+
+    if (excludeHighRise && currentTab === 'RISING') {
+        filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
+    }
+
+    // 2. 페이지네이션 적용
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    setDisplayedStocks(allRankedStocks.slice(startIndex, endIndex));
+    setDisplayedStocks(filtered.slice(startIndex, endIndex));
     setInputPage(currentPage.toString());
-  }, [allRankedStocks, currentPage]);
+  }, [allRankedStocks, currentPage, excludeHighRise, minRs50, currentTab]);
 
-  // 탭 변경 시 데이터 로치
+  // 탭 변경 시 데이터 로드
   useEffect(() => {
     if (currentTab === 'TOP') {
       fetchRankedStocks();
@@ -225,19 +316,26 @@ export default function DiscoveryPage() {
 
   // 페이지네이션 핸들러들
   const handlePageChange = (newPage: number) => {
-    const totalPages = Math.ceil(allRankedStocks.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
     if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
   };
   const handleInputPageChange = (e: React.ChangeEvent<HTMLInputElement>) => setInputPage(e.target.value);
   const submitPageInput = () => {
     const pageNum = parseInt(inputPage);
-    const totalPages = Math.ceil(allRankedStocks.length / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
     if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages) setCurrentPage(pageNum);
     else setInputPage(currentPage.toString());
   };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') submitPageInput(); };
 
-  const totalPages = Math.ceil(allRankedStocks.length / ITEMS_PER_PAGE);
+  // 필터링된 전체 개수 (페이지네이션 계산용)
+  const getFilteredCount = () => {
+      let filtered = allRankedStocks;
+      if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
+      if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
+      return filtered.length;
+  };
+  const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -245,22 +343,73 @@ export default function DiscoveryPage() {
         <div className="flex justify-between items-center">
             <div className="flex items-center gap-6">
             <h1 className="text-2xl font-bold text-blue-800">🔍 종목 발굴</h1>
-            <nav className="flex gap-4 text-lg">
-                <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">🗓️ 스케줄러</Link>
-                <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">📊 밴드 차트 실험실 🏭️</Link>
-                <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">🔍 종목 발굴</span>
-            </nav>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <nav className="flex gap-4 text-lg">
+                  <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">🗓️ 스케줄러</Link>
+                  <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">📊 밴드 차트 실험실 🏭️</Link>
+                  <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">🔍 종목 발굴</span>
+              </nav>
+
+              {userProfile && (
+                 <div className="flex items-center gap-3 border-l pl-6">
+                   <span className="text-sm text-gray-600">
+                     <b>{userProfile.nickname}</b>님
+                     {userProfile.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
+                   </span>
+                   
+                   {userProfile.is_admin && (
+                     <div className="flex gap-2">
+                       <button onClick={() => window.location.href='/admin/chart'} className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold border border-purple-200">
+                         📈 분석(Admin)
+                       </button>
+                       <button onClick={() => window.location.href='/admin'} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">
+                         ⚙️ 관리자
+                       </button>
+                     </div>
+                   )}
+                   
+                   <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
+                 </div>
+              )}
             </div>
         </div>
         
-        {/* 메인 탭 */}
-        <div className="flex gap-2">
-            <button onClick={() => setCurrentTab('TOP')} className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all ${currentTab === 'TOP' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                🏆 RS 랭킹 TOP
-            </button>
-            <button onClick={() => setCurrentTab('RISING')} className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                🔥 RS 랭킹 급상승
-            </button>
+        {/* 메인 탭 및 필터 */}
+        <div className="flex justify-between items-end">
+            <div className="flex gap-2">
+                <button onClick={() => setCurrentTab('TOP')} className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all ${currentTab === 'TOP' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    🏆 RS 랭킹 TOP
+                </button>
+                <button onClick={() => setCurrentTab('RISING')} className={`px-4 py-2 rounded-t-lg font-bold text-sm transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    🔥 RS 랭킹 급상승
+                </button>
+            </div>
+
+            {/* 필터 체크박스 */}
+            <div className="flex gap-4 mb-2">
+                {currentTab === 'RISING' && (
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-50 px-2 py-1 rounded">
+                        <input 
+                            type="checkbox" 
+                            checked={excludeHighRise} 
+                            onChange={(e) => setExcludeHighRise(e.target.checked)}
+                            className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                        />
+                        🚀 90점 이상 상승 제외
+                    </label>
+                )}
+                <label className="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer select-none hover:bg-gray-50 px-2 py-1 rounded">
+                    <input 
+                        type="checkbox" 
+                        checked={minRs50} 
+                        onChange={(e) => setMinRs50(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    💪 현재 RS 50 이상
+                </label>
+            </div>
         </div>
       </header>
 
@@ -275,7 +424,6 @@ export default function DiscoveryPage() {
                         {currentTab === 'TOP' ? '🚀 RS 랭킹 TOP' : '🔥 RS 랭킹 급상승'}
                     </h2>
                     
-                    {/* 급상승 탭일 때 서브탭 표시 */}
                     {currentTab === 'RISING' && (
                         <div className="flex gap-2 my-2">
                              <button 
@@ -312,7 +460,7 @@ export default function DiscoveryPage() {
                                 비교일 : {comparisonDate}
                              </p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">총 {allRankedStocks.length}개 종목</p>
+                        <p className="text-xs text-gray-400 mt-1">총 {getFilteredCount()}개 종목</p>
                     </div>
                 )}
             </div>
@@ -330,57 +478,76 @@ export default function DiscoveryPage() {
                 <table className="min-w-full divide-y divide-gray-200 sticky top-0">
                   <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">순위</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">종목명</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">코드</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">순위</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">종목명</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">코드</th>
                       
-                      {/* 탭에 따라 컬럼 다르게 표시 */}
                       {currentTab === 'TOP' ? (
-                           <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">RS 랭킹</th>
+                           <>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">통합 RS</th>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">3M</th>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">6M</th>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase whitespace-nowrap">12M</th>
+                           </>
                       ) : (
                            <>
-                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">RS 변화량</th>
-                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">현재 RS</th>
-                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">과거 RS</th>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">RS 변화</th>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">현재 RS</th>
+                             <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">과거 RS</th>
                            </>
                       )}
                       
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">종가</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">종가</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase whitespace-nowrap">시가총액(억)</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {displayedStocks.map((stock, index) => (
                       <tr key={stock.code} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           {(currentPage - 1) * ITEMS_PER_PAGE + index + 1}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-bold">
                           {stock.companies?.name || '알 수 없음'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                           {stock.code}
                         </td>
 
                         {currentTab === 'TOP' ? (
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-blue-600">
-                                {stock.rs_rating}
-                            </td>
-                        ) : (
                             <>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-red-600">
-                                    +{stock.rs_diff}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-blue-600 text-base">
                                     {stock.rs_rating}
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-400">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
+                                    {stock.rank_3m ?? '-'}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
+                                    {stock.rank_6m ?? '-'}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
+                                    {stock.rank_12m ?? '-'}
+                                </td>
+                            </>
+                        ) : (
+                            <>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-red-600">
+                                    +{stock.rs_diff}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">
+                                    {stock.rs_rating}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-400">
                                     {stock.prev_rs}
                                 </td>
                             </>
                         )}
 
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700">
-                          {stock.close?.toLocaleString()}원
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-700">
+                          {stock.close?.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-medium text-gray-800">
+                          {stock.marcap ? Math.round(stock.marcap / 100000000).toLocaleString() : '-'}
                         </td>
                       </tr>
                     ))}

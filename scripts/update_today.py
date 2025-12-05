@@ -83,31 +83,51 @@ for idx, stock in enumerate(target_stocks):
     try:
         df = fdr.DataReader(f'KRX:{code}', START_DATE)
         
-        if df.empty or len(df) < 5: continue
-
-        price_now = float(df['Close'].iloc[-1])
+        # [수정] 거래정지 종목 필터링 (최근 5일간 거래량 합계 0이면 제외)
+        # 에이디칩스 등 거래정지 중 감자/액면분할로 가격만 튀는 경우 방지
+        recent_vol_sum = df['Volume'].tail(5).sum()
         
-        def get_past_price(days_ago):
-            if len(df) > days_ago:
-                return float(df['Close'].iloc[-days_ago - 1])
-            else:
-                return float(df['Close'].iloc[0])
+        if df.empty or len(df) < 253: 
+            # 데이터 부족 시 최신 주가만 저장하고 RS는 스킵
+            pass
+        elif recent_vol_sum == 0:
+            print(f"⚠️ [Suspended] {name}({code}): 최근 5일 거래량 0. RS 제외.")
+            # 거래정지 종목은 RS 계산 제외
+            pass
+        else:
+            price_now = float(df['Close'].iloc[-1])
+            
+            def get_past_price(days_ago):
+                if len(df) > days_ago:
+                    return float(df['Close'].iloc[-days_ago - 1])
+                return None # 데이터 부족 시 None 반환
 
-        price_3m = get_past_price(63)
-        price_6m = get_past_price(126)
-        price_9m = get_past_price(189)
-        price_12m = get_past_price(252)
+            price_3m = get_past_price(63)
+            price_6m = get_past_price(126)
+            price_9m = get_past_price(189)
+            price_12m = get_past_price(252)
 
-        def calc_ret(p_new, p_old):
-            if p_old == 0: return 0.0
-            return (p_new - p_old) / p_old
+            if None not in [price_3m, price_6m, price_9m, price_12m]:
+                def calc_ret(p_new, p_old):
+                    if p_old == 0: return 0.0
+                    return (p_new - p_old) / p_old
 
-        ret_q1 = calc_ret(price_now, price_3m)
-        ret_q2 = calc_ret(price_3m, price_6m)
-        ret_q3 = calc_ret(price_6m, price_9m)
-        ret_q4 = calc_ret(price_9m, price_12m)
+                ret_q1 = calc_ret(price_now, price_3m)
+                ret_q2 = calc_ret(price_3m, price_6m)
+                ret_q3 = calc_ret(price_6m, price_9m)
+                ret_q4 = calc_ret(price_9m, price_12m)
 
-        weighted_score = (0.4 * ret_q1) + (0.2 * ret_q2) + (0.2 * ret_q3) + (0.2 * ret_q4)
+                weighted_score = (0.4 * ret_q1) + (0.2 * ret_q2) + (0.2 * ret_q3) + (0.2 * ret_q4)
+                
+                rs_calc_list.append({
+                    "code": code,
+                    "score": weighted_score
+                })
+                
+                # [디버깅] 점수가 너무 높으면 로그 출력
+                if weighted_score > 2.0: # 200% 이상 상승 효과
+                    print(f"⚠️ [High RS] {name}({code}): Score={weighted_score:.2f}, Now={price_now}, 1Y={price_12m}")
+
         
         df_recent = df.tail(5).reset_index()
         
@@ -117,6 +137,11 @@ for idx, stock in enumerate(target_stocks):
         for _, row in df_recent.iterrows():
             d_str = pd.to_datetime(row['Date']).strftime('%Y-%m-%d')
             
+            # [중요] 오늘(최신) 날짜 데이터만 업로드 리스트에 추가
+            # 과거 데이터를 같이 올리면 RS 점수가 null로 덮어씌워질 위험이 있음
+            if d_str != latest_date_str:
+                continue
+
             daily_data_list.append({
                 "code": code,
                 "date_str": d_str,
@@ -125,7 +150,7 @@ for idx, stock in enumerate(target_stocks):
                 "low": int(row['Low']),
                 "close": int(row['Close']),
                 "volume": int(row['Volume']),
-                "weighted_score": weighted_score if d_str == latest_date_str else None 
+                "weighted_score": weighted_score # 오늘 날짜이므로 점수 할당
             })
             
         rs_calc_list.append({

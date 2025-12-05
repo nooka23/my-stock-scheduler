@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useRouter } from 'next/navigation';
 import BandChart, { BandSettings } from '@/components/BandChart';
+import { User } from '@supabase/supabase-js';
 
 type Company = { code: string; name: string; };
 
@@ -24,6 +26,11 @@ export type FinancialData = {
   ops: number;
 };
 
+type MyProfile = {
+  nickname: string;
+  is_admin: boolean;
+};
+
 // 기본 멀티플 반환 함수
 const getDefaultMultipliers = (type: 'PER' | 'PBR' | 'POR') => {
   if (type === 'PBR') return ['0.5', '1.0', '2.0'];
@@ -32,7 +39,8 @@ const getDefaultMultipliers = (type: 'PER' | 'PBR' | 'POR') => {
 
 export default function BandChartPage() {
   const supabase = createClientComponentClient();
-  
+  const router = useRouter();
+
   // 데이터 상태
   const [stockData, setStockData] = useState<any[]>([]);
   
@@ -58,6 +66,29 @@ export default function BandChartPage() {
   const [bandType, setBandType] = useState<'PER' | 'PBR' | 'POR'>('PER');
   
   const [multipliers, setMultipliers] = useState<string[]>(getDefaultMultipliers('PER'));
+
+  const [userProfile, setUserProfile] = useState<MyProfile | null>(null);
+
+  // [신규] 유저 프로필 가져오기
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('nickname, is_admin')
+          .eq('id', session.user.id)
+          .single();
+        setUserProfile(data as MyProfile);
+      }
+    };
+    getUser();
+  }, [supabase]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
+  };
 
   // 1. 초기 종목 목록 로드
   useEffect(() => {
@@ -183,7 +214,6 @@ export default function BandChartPage() {
       }
 
       if (data && data.multipliers) {
-          console.log(`Loaded settings for ${type}:`, data.multipliers);
           return data.multipliers.map((m: any) => String(m));
       }
       
@@ -193,80 +223,45 @@ export default function BandChartPage() {
   // 2. 데이터 가져오기 (주가 + 재무 원본)
   const fetchDatAndFinancials = useCallback(async (code: string) => {
     try {
-      const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
-      const dbPromise = supabase
-        .from('daily_prices')
-        .select('date_str, open, high, low, close, volume, rs_rating') 
+      // (1) 주가 데이터 조회 (v2 테이블)
+      const { data: priceData, error: priceError } = await supabase
+        .from('daily_prices_v2')
+        .select('date, open, high, low, close, volume')
         .eq('code', code)
-        .order('date_str', { ascending: false }) 
-        .limit(60); 
+        .order('date', { ascending: true });
 
-      const [jsonResult, dbResult] = await Promise.all([jsonPromise, dbPromise]);
+      if (priceError) throw priceError;
 
       let stockChartData: any[] = [];
 
-      if (jsonResult.data) {
-        const textData = await jsonResult.data.text();
-        const parsedJson = JSON.parse(textData);
-        stockChartData = parsedJson.map((item: any) => ({
-          time: item.time,
-          open: Number(item.open) || 0,
-          high: Number(item.high) || 0,
-          low: Number(item.low) || 0,
-          close: Number(item.close) || 0,
-          volume: Number(item.volume) || 0,
-          rs: item.rs !== null ? Number(item.rs) : undefined 
-        }));
-      }
+      if (priceData && priceData.length > 0) {
+        stockChartData = priceData.map(row => {
+          let o = Number(row.open);
+          let h = Number(row.high);
+          let l = Number(row.low);
+          const c = Number(row.close);
 
-      if (dbResult.data && dbResult.data.length > 0) {
-        const dataMap = new Map();
-        stockChartData.forEach(item => {
-            if (item.time) dataMap.set(item.time, {
-                ...item,
-                open: Number(item.open),
-                high: Number(item.high),
-                low: Number(item.low),
-                close: Number(item.close),
-                volume: Number(item.volume),
-                rs: item.rs !== null ? Number(item.rs) : undefined
-            });
-        });
+          // [수정] 거래정지 등으로 시가/고가/저가가 0인 경우 종가로 대체하여 차트 왜곡 방지
+          if (o === 0 && h === 0 && l === 0) {
+            o = c;
+            h = c;
+            l = c;
+          }
 
-        dbResult.data.forEach(row => {
-            const time = row.date_str;
-            if (!time) return;
-
-            const existing = dataMap.get(time) || {};
-            const merged = { ...existing, time };
-
-            if (row.open !== null) merged.open = Number(row.open);
-            else if (merged.open === undefined) merged.open = 0;
-
-            if (row.high !== null) merged.high = Number(row.high);
-            else if (merged.high === undefined) merged.high = 0;
-
-            if (row.low !== null) merged.low = Number(row.low);
-            else if (merged.low === undefined) merged.low = 0;
-
-            if (row.close !== null) merged.close = Number(row.close);
-            else if (merged.close === undefined) merged.close = 0;
-
-            if (row.volume !== null) merged.volume = Number(row.volume);
-            else if (merged.volume === undefined) merged.volume = 0;
-
-            if (row.rs_rating !== null) merged.rs = Number(row.rs_rating);
-            
-            dataMap.set(time, merged);
-        });
-
-        stockChartData = Array.from(dataMap.values()).sort((a: any, b: any) => {
-            return new Date(a.time).getTime() - new Date(b.time).getTime();
+          return {
+            time: row.date, // date 컬럼 사용
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: Number(row.volume),
+          };
         });
       }
       
       setStockData(stockChartData);
 
+      // (2) 재무 데이터 조회
       const { data: finData } = await supabase
         .from('company_financials')
         .select('*')
@@ -276,8 +271,6 @@ export default function BandChartPage() {
       if (finData && finData.length > 0) {
         const maxAllowedYear = new Date().getFullYear() + 10;
         const validData = finData.filter((d: any) => d.year <= maxAllowedYear);
-
-        console.log("🔍 Loaded Financial Data (Raw):", validData);
 
         let lastKnownShares = 0;
         
@@ -362,7 +355,6 @@ export default function BandChartPage() {
       const newItem = { ...item };
       const shares = newItem.shares;
 
-      // 현재 탭 모드에 따라 값 업데이트
       if (bandType === 'PER') {
         newItem.net_income = newValInWon;
         if (shares > 0) newItem.eps = Math.floor(newItem.net_income / shares);
@@ -400,12 +392,6 @@ export default function BandChartPage() {
 
           if (financialRes.error) throw financialRes.error;
 
-          console.log("Saving settings:", { 
-              company: currentCompany.code, 
-              type: bandType, 
-              multipliers 
-          });
-
           const settingRes = await supabase
               .from('user_chart_settings')
               .upsert({
@@ -430,13 +416,7 @@ export default function BandChartPage() {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value; setInputCompany(val);
-    if (val.trim()) { 
-      const lowerVal = val.toLowerCase();
-      setFilteredCompanies(companyList.filter(c => 
-        c.name.toLowerCase().includes(lowerVal) || c.code.toLowerCase().includes(lowerVal)
-      )); 
-      setShowDropdown(true); 
-    } else setShowDropdown(false);
+    if (val.trim()) { setFilteredCompanies(companyList.filter(c => c.name.includes(val) || c.code.includes(val))); setShowDropdown(true); } else setShowDropdown(false);
   };
   const selectCompany = (c: Company) => { setCurrentCompany(c); setInputCompany(c.name); setShowDropdown(false); };
 
@@ -474,10 +454,35 @@ export default function BandChartPage() {
             )}
           </div>
         </div>
-        <div className="flex gap-6 text-lg">
-          <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold">🗓️ 스케줄러</Link>
-          <Link href="/discovery" className="text-gray-400 hover:text-blue-600 font-bold">🔍 종목발굴</Link>
-          <span className="text-blue-600 font-bold border-b-2 border-blue-600">📊 밴드 차트</span>
+
+        <div className="flex items-center gap-6">
+          <nav className="flex gap-6 text-lg">
+            <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold">🗓️ 스케줄러</Link>
+            <Link href="/discovery" className="text-gray-400 hover:text-blue-600 font-bold">🔍 종목발굴</Link>
+            <span className="text-blue-600 font-bold border-b-2 border-blue-600">📊 밴드 차트</span>
+          </nav>
+
+          {userProfile && (
+             <div className="flex items-center gap-3 border-l pl-6">
+               <span className="text-sm text-gray-600">
+                 <b>{userProfile.nickname}</b>님
+                 {userProfile.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
+               </span>
+               
+               {userProfile.is_admin && (
+                 <div className="flex gap-2">
+                   <button onClick={() => window.location.href='/admin/chart'} className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold border border-purple-200">
+                     📈 분석(Admin)
+                   </button>
+                   <button onClick={() => window.location.href='/admin'} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">
+                     ⚙️ 관리자
+                   </button>
+                 </div>
+               )}
+               
+               <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
+             </div>
+          )}
         </div>
       </header>
 
