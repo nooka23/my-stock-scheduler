@@ -133,8 +133,22 @@ export default function Home() {
 
   // ... 기존 코드 ...
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
+        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+    }
+    localStorage.clear(); sessionStorage.clear();
+    setUser(null); setSchedules([]);
+    alert("로그아웃 되었습니다.");
+    window.location.href = '/login?t=' + Date.now(); 
+  };
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if(session?.user) {
         fetchSchedules(); fetchMyProfile(session.user.id); fetchCompanies();
@@ -151,20 +165,7 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, [supabase, fetchSchedules, fetchMyProfile, fetchCompanies]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
-        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-    }
-    localStorage.clear(); sessionStorage.clear();
-    setUser(null); setSchedules([]);
-    alert("로그아웃 되었습니다.");
-    window.location.href = '/login?t=' + Date.now(); 
-  };
+
 
   useEffect(() => {
     if (editingId) {
