@@ -22,7 +22,6 @@ jobs:
     - name: 라이브러리 설치
       run: |
         pip install -r scripts/requirements.txt
-        pip install pykrx  # pykrx는 requirements.txt에 없을 수도 있어서 명시적으로 추가
 
     - name: [1단계] 주가 데이터 업데이트 (V2)
       env:
