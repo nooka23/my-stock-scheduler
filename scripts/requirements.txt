@@ -6,3 +6,4 @@ numpy
 pykrx
 selenium
 webdriver-manager
+setuptools
