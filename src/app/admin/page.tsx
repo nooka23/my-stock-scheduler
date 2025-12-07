@@ -9,7 +9,7 @@ type Profile = {
   email: string;
   nickname: string;
   is_approved: boolean;
-  is_admin: boolean; // ★ 관리자 여부 추가
+  is_admin: boolean; 
   created_at: string;
 };
 
@@ -26,13 +26,11 @@ export default function AdminPage() {
   const checkAdminAndFetchUsers = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     
-    // 1. 로그인 체크
     if (!session) {
       router.push('/');
       return;
     }
 
-    // 2. 접속자가 진짜 관리자인지 DB에서 확인 (보안 강화)
     const { data: myProfile } = await supabase
       .from('profiles')
       .select('is_admin')
@@ -45,7 +43,6 @@ export default function AdminPage() {
       return;
     }
 
-    // 3. 유저 목록 불러오기
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -55,13 +52,11 @@ export default function AdminPage() {
     setIsLoading(false);
   };
 
-  // 승인/미승인 토글
   const toggleApprove = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase.from('profiles').update({ is_approved: !currentStatus }).eq('id', id);
     if (!error) setUsers(users.map(u => u.id === id ? { ...u, is_approved: !currentStatus } : u));
   };
 
-  // ★ 관리자 임명/해임 토글
   const toggleAdmin = async (id: string, currentStatus: boolean) => {
     if (confirm(currentStatus ? "관리자 권한을 해제하시겠습니까?" : "이 회원을 관리자로 임명하시겠습니까?")) {
       const { error } = await supabase.from('profiles').update({ is_admin: !currentStatus }).eq('id', id);
@@ -72,11 +67,10 @@ export default function AdminPage() {
   if (isLoading) return <div className="p-10 text-center">로딩 중...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-10">
+    <div className="h-full bg-gray-50 p-10 overflow-y-auto">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-blue-800">👮 관리자 페이지</h1>
-          <button onClick={() => router.push('/')} className="text-gray-600 hover:underline">← 메인으로 돌아가기</button>
         </div>
 
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -104,7 +98,6 @@ export default function AdminPage() {
                     </button>
                   </td>
                   <td className="p-4">
-                    {/* ★ 관리자 임명 버튼 */}
                     <button
                       onClick={() => toggleAdmin(user.id, user.is_admin)}
                       className={`px-3 py-1 rounded text-xs font-bold border ${

@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import Calendar from 'react-calendar';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User } from '@supabase/supabase-js';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import './calendar-style.css';
 
 const STOCK_LIST = [
@@ -55,7 +53,6 @@ const formatDateToKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
-// ★ 시간 문자열("오전 10:30")을 비교 가능한 숫자(분)로 바꾸는 함수
 const getTimeValue = (timeStr: string) => {
   const [ampm, time] = timeStr.split(' ');
   const [h, m] = time.split(':').map(Number);
@@ -67,7 +64,6 @@ const getTimeValue = (timeStr: string) => {
 
 export default function Home() {
   const supabase = createClientComponentClient();
-  const router = useRouter();
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -114,39 +110,17 @@ export default function Home() {
     if (data) setMyProfile(data as MyProfile);
   }, [supabase]);
 
-  // ... 기존 코드 ...
-
-  // ★ 종목 리스트 불러오기 (DB)
   const fetchCompanies = useCallback(async () => {
     const { data, error } = await supabase
       .from('companies')
       .select('*')
       .order('name', { ascending: true })
-      // ★ [중요] 기본 1000개 제한을 풀고 10000개까지 가져오라고 명시
       .range(0, 9999); 
     
     if (!error && data) {
-      console.log(`불러온 기업 수: ${data.length}`); // 확인용 로그
       setCompanyList(data as Company[]);
     }
   }, [supabase]);
-
-  // ... 기존 코드 ...
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i];
-        const eqPos = cookie.indexOf("=");
-        const name = eqPos > -1 ? cookie.substr(0, eqPos) : cookie;
-        document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
-    }
-    localStorage.clear(); sessionStorage.clear();
-    setUser(null); setSchedules([]);
-    alert("로그아웃 되었습니다.");
-    window.location.href = '/login?t=' + Date.now(); 
-  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -166,8 +140,6 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, [supabase, fetchSchedules, fetchMyProfile, fetchCompanies]);
 
-
-
   useEffect(() => {
     if (editingId) {
       const target = schedules.find(s => s.id === editingId);
@@ -185,7 +157,6 @@ export default function Home() {
       }
     } else {
       setInputCompany(''); setIsUnlisted(false); setFilteredCompanies([]); setShowDropdown(false);
-      // 초기값
       setStartAmPm('오전'); setStartHour('10'); setStartMin('00');
       setEndAmPm('오전'); setEndHour('11'); setEndMin('00');
       setInputLocation(''); setMaxParticipants('1명'); setInputMemo('');
@@ -193,20 +164,17 @@ export default function Home() {
     }
   }, [editingId, isPanelOpen, schedules]);
 
-  // ★ [NEW] 시작 시간 변경 시 자동 계산 로직
   const handleStartAmPmChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setStartAmPm(val);
-    setEndAmPm(val); // 종료 시간 오전/오후도 똑같이 맞춤
+    setEndAmPm(val);
   };
 
   const handleStartHourChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setStartHour(val);
-    
-    // 종료 시간 = 시작 시간 + 1
     let nextHour = parseInt(val) + 1;
-    if (nextHour > 12) nextHour = 1; // 12시 다음은 1시
+    if (nextHour > 12) nextHour = 1; 
     setEndHour(nextHour.toString());
   };
 
@@ -294,52 +262,16 @@ export default function Home() {
   const canDelete = editingId && user ? (myProfile?.is_admin || schedules.find(s => s.id === editingId)?.author_email === user.email) : false;
 
   return (
-    <main className="flex h-screen bg-gray-50 overflow-hidden">
+    // Layout container handled by RootLayout + Sidebar. We just need to fill the available space.
+    <main className="flex h-full bg-gray-50">
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 transition-all duration-300">
+        
+        {/* Header Title Only - Nav and User Profile moved to Sidebar */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-6">
             <h1 className="text-3xl font-bold text-blue-800">
               📈 기업 탐방 스케줄러
             </h1>
-            {/* ★ 수정된 네비게이션 */}
-            <nav className="flex gap-4 text-lg">
-              <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">
-                🗓️ 스케줄러
-              </span>
-              {/* 기존 '/chart' 링크는 이제 새로운 밴드 차트로 연결됨 */}
-              <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">
-                📊 밴드 차트 실험실 🏭️
-              </Link>
-              {/* 여기에 새 링크 추가 */}
-              <Link href="/discovery" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">
-                🔍 종목 발굴
-              </Link>
-            </nav>
-          </div>
-
-          {user && (
-             <div className="flex items-center gap-3">
-               <span className="text-sm text-gray-600">
-                 <b>{myProfile?.nickname || user.email?.split('@')[0]}</b>님
-                 {myProfile?.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
-               </span>
-               
-               {/* ★ 관리자 전용 버튼 영역 수정 */}
-               {myProfile?.is_admin && (
-                 <div className="flex gap-2">
-                   {/* 기존 차트(전문가용)는 관리자만 접근 가능 */}
-                   <button onClick={() => router.push('/admin/chart')} className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold border border-purple-200">
-                     📈 분석(Admin)
-                   </button>
-                   <button onClick={() => router.push('/admin')} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">
-                     ⚙️ 관리자
-                   </button>
-                 </div>
-               )}
-               
-               <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
-             </div>
-          )}
         </div>
 
         <div className="bg-white p-6 rounded-xl shadow-md h-full">
@@ -352,20 +284,17 @@ export default function Home() {
               if (view !== 'month') return null;
               const dayKey = formatDateToKey(date);
               
-              // ★ [수정] 시간 순서대로 정렬 (sort)
               const daysSchedules = schedules
                 .filter(s => s.date_str === dayKey)
                 .sort((a, b) => getTimeValue(a.start_time) - getTimeValue(b.start_time));
 
               return (
-                // ★ [수정] 스크롤 컨테이너 추가
                 <div className="tile-content-container flex flex-col gap-1">
                   {daysSchedules.map(schedule => {
                     const count = schedule.participants?.length || 0;
                     const max = schedule.max_participants.replace('명', '');
                     const amIJoined = schedule.participants?.some(p => p.user_id === user?.id);
                     
-                    // ★ [수정] 내가 참가했으면 초록색, 아니면 파란색
                     const barColor = amIJoined 
                       ? "bg-green-100 text-green-800 border-green-200 hover:bg-green-200" 
                       : "bg-blue-50 text-blue-800 border-blue-100 hover:bg-blue-100";
@@ -393,9 +322,9 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Side Panel for Schedule Details */}
       {isPanelOpen && (
-        <div className="w-[450px] bg-white border-l shadow-2xl h-full p-8 overflow-y-auto flex flex-col animate-slide-in">
-          {/* 패널 헤더, 참가현황, 입력폼 등 기존과 동일 */}
+        <div className="w-[450px] bg-white border-l shadow-2xl h-full p-8 overflow-y-auto flex flex-col animate-slide-in z-20 absolute right-0 top-0 bottom-0">
           <div className="flex justify-between items-center mb-6 border-b pb-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-800">{editingId ? "일정 상세" : "새 일정 등록"}</h2>
@@ -447,14 +376,11 @@ export default function Home() {
               )}
             </div>
 
-            {/* ★ [수정] 시간 입력 부분에 핸들러 연결 */}
             <div className="grid grid-cols-2 gap-4">
                <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">시작 시간</label>
                   <div className="flex gap-1">
-                     {/* handleStartAmPmChange 적용 */}
                      <select className="border rounded p-2 text-sm w-full" value={startAmPm} onChange={handleStartAmPmChange}><option>오전</option><option>오후</option></select>
-                     {/* handleStartHourChange 적용 */}
                      <select className="border rounded p-2 text-sm w-full" value={startHour} onChange={handleStartHourChange}>{hours.map(h => <option key={h}>{h}</option>)}</select>
                      <select className="border rounded p-2 text-sm w-full" value={startMin} onChange={e=>setStartMin(e.target.value)}>{minutes.map(m => <option key={m}>{m}</option>)}</select>
                   </div>

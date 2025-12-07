@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import Link from 'next/link';
 import StockChartDiscovery from '@/components/StockChartDiscovery';
 
 type DailyPrice = {
@@ -21,11 +20,6 @@ type DailyPrice = {
   prev_rs?: number;
 };
 
-type MyProfile = {
-  nickname: string;
-  is_admin: boolean;
-};
-
 type ChartData = {
   time: string;
   open: number;
@@ -36,7 +30,6 @@ type ChartData = {
   rs?: number;
 };
 
-// [신규] 즐겨찾기 아이템 타입
 type FavItem = {
   code: string;
   group: string;
@@ -45,24 +38,19 @@ type FavItem = {
 export default function DiscoveryPage() {
   const supabase = createClientComponentClient();
   
-  // 탭 상태
   const [currentTab, setCurrentTab] = useState<'TOP' | 'RISING'>('TOP');
   const [risingPeriod, setRisingPeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
 
-  // 필터링 상태
   const [excludeHighRise, setExcludeHighRise] = useState(false); 
   const [minRs50, setMinRs50] = useState(false);
 
-  // 데이터 상태
   const [allRankedStocks, setAllRankedStocks] = useState<DailyPrice[]>([]);
   const [displayedStocks, setDisplayedStocks] = useState<DailyPrice[]>([]);
   
-  // 차트 관련 상태
   const [selectedStock, setSelectedStock] = useState<{code: string, name: string} | null>(null);
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [isChartLoading, setIsChartLoading] = useState(false);
 
-  // 페이지네이션
   const [currentPage, setCurrentPage] = useState(1);
   const [inputPage, setInputPage] = useState('1');
   const ITEMS_PER_PAGE = 20;
@@ -72,26 +60,14 @@ export default function DiscoveryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [userProfile, setUserProfile] = useState<MyProfile | null>(null);
-  
-  // [신규] 즐겨찾기 상태 개선
   const [favorites, setFavorites] = useState<FavItem[]>([]);
   const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
   const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
 
-  // 유저 프로필 및 즐겨찾기 가져오기
   useEffect(() => {
     const getUserAndFavs = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('nickname, is_admin')
-          .eq('id', session.user.id)
-          .single();
-        setUserProfile(profile as MyProfile);
-        
-        // 즐겨찾기 전체 로드
         const { data: favData } = await supabase
             .from('user_favorite_stocks')
             .select('company_code, group_name')
@@ -101,7 +77,6 @@ export default function DiscoveryPage() {
             const loadedFavs = favData.map(f => ({ code: f.company_code, group: f.group_name || '기본 그룹' }));
             setFavorites(loadedFavs);
             
-            // 그룹 목록 추출
             const groups = Array.from(new Set(loadedFavs.map(f => f.group)));
             if (!groups.includes('기본 그룹')) groups.unshift('기본 그룹');
             setFavGroups(groups.sort());
@@ -111,7 +86,6 @@ export default function DiscoveryPage() {
     getUserAndFavs();
   }, [supabase]);
 
-  // [신규] 즐겨찾기 토글 (선택된 그룹 기준)
   const toggleFavorite = async () => {
       if (!selectedStock) return;
       const { data: { user } } = await supabase.auth.getUser();
@@ -120,7 +94,6 @@ export default function DiscoveryPage() {
       const isFav = favorites.some(f => f.code === selectedStock.code && f.group === targetGroup);
 
       if (isFav) {
-          // 삭제
           const { error } = await supabase
               .from('user_favorite_stocks')
               .delete()
@@ -131,7 +104,6 @@ export default function DiscoveryPage() {
               setFavorites(prev => prev.filter(f => !(f.code === selectedStock.code && f.group === targetGroup)));
           }
       } else {
-          // 추가
           const { error } = await supabase
               .from('user_favorite_stocks')
               .insert({
@@ -142,18 +114,11 @@ export default function DiscoveryPage() {
               });
           if (!error) {
               setFavorites(prev => [...prev, { code: selectedStock.code, group: targetGroup }]);
-              // 만약 새로운 그룹이면 그룹 목록에도 추가 (UI 즉시 반영)
               if (!favGroups.includes(targetGroup)) setFavGroups(prev => [...prev, targetGroup].sort());
           }
       }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/login';
-  };
-
-  // 2. 종목명 매핑
   const mapCompanyNames = async (stocks: any[]) => {
     const codes = stocks.map((s: any) => s.code);
     let companyInfoMap = new Map();
@@ -183,7 +148,6 @@ export default function DiscoveryPage() {
     });
   };
 
-  // 3. 랭킹 데이터 Fetch
   const fetchRankedStocks = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -243,7 +207,6 @@ export default function DiscoveryPage() {
     }
   }, [supabase]);
 
-  // 4. 급상승 데이터 Fetch
   const fetchRisingStocks = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -344,16 +307,13 @@ export default function DiscoveryPage() {
     }
   }, [supabase, risingPeriod]);
 
-  // 차트 데이터 가져오기
   const fetchChartData = async (code: string) => {
     setIsChartLoading(true);
     try {
-        // JSON (과거)
         const jsonPromise = supabase.storage
             .from('stocks')
             .download(`${code}.json?t=${Date.now()}`);
 
-        // DB Price (최신 100일)
         const dbPromise = supabase
             .from('daily_prices_v2')
             .select('date, open, high, low, close, volume')
@@ -361,7 +321,6 @@ export default function DiscoveryPage() {
             .order('date', { ascending: false })
             .limit(100);
 
-        // DB RS (최신 100일)
         const rsPromise = supabase
             .from('rs_rankings_v2')
             .select('date, rank_weighted')
@@ -479,36 +438,14 @@ export default function DiscoveryPage() {
   const submitPageInput = () => { const n = parseInt(inputPage); if (!isNaN(n) && n >= 1 && n <= totalPages) setCurrentPage(n); else setInputPage(currentPage.toString()); };
   const handleKeyDown = (e: any) => { if (e.key === 'Enter') submitPageInput(); };
 
-  // 현재 선택된 그룹에 즐겨찾기 되어있는지 확인
   const isFavorite = selectedStock 
     ? favorites.some(f => f.code === selectedStock.code && f.group === targetGroup) 
     : false;
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      {/* 헤더 */}
-      <header className="bg-white border-b px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
-        <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-bold text-blue-800">🔍 종목 발굴</h1>
-        </div>
-        <div className="flex items-center gap-6">
-            <nav className="flex gap-4 text-lg">
-                <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">🗓️ 스케줄러</Link>
-                <Link href="/chart" className="text-gray-400 hover:text-blue-600 font-bold transition-colors">📊 밴드 차트 실험실 🏭️</Link>
-                <span className="text-blue-600 font-bold border-b-2 border-blue-600 cursor-default">🔍 종목 발굴</span>
-            </nav>
-            {userProfile && (
-                <div className="flex items-center gap-3 border-l pl-6">
-                <span className="text-sm text-gray-600">
-                    <b>{userProfile.nickname}</b>님
-                    {userProfile.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
-                </span>
-                <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
-                </div>
-            )}
-        </div>
-      </header>
-
+    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
+      {/* Header removed - now using Sidebar */}
+      
       {/* 메인 컨텐츠 (좌우 분할) */}
       <main className="flex-1 p-4 flex gap-4 overflow-hidden">
         

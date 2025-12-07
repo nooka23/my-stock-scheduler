@@ -161,7 +161,20 @@ export default function StockChart({ data = [], colors: {
       macdSeries.setData(data.filter(d => d.macd && !isNaN(d.macd.macd)).map(d => ({ time: d.time as any, value: d.macd!.macd })));
       signalSeries.setData(data.filter(d => d.macd && !isNaN(d.macd.signal)).map(d => ({ time: d.time as any, value: d.macd!.signal })));
       
-      chart.timeScale().fitContent();
+      // chart.timeScale().fitContent();
+      
+      // [수정] 최근 1년(약 250봉)만 확대해서 보기
+      const totalDataCount = data.length;
+      const visibleCount = 250; // 보여주고 싶은 캔들 개수
+      
+      if (totalDataCount > visibleCount) {
+          chart.timeScale().setVisibleLogicalRange({
+              from: totalDataCount - visibleCount,
+              to: totalDataCount,
+          });
+      } else {
+          chart.timeScale().fitContent();
+      }
     }
 
     // ----------------------------------------

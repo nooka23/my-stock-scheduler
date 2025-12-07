@@ -1,15 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 import BandChart, { BandSettings } from '@/components/BandChart';
-import { User } from '@supabase/supabase-js';
 
 type Company = { code: string; name: string; };
 
-// [신규] 즐겨찾기 타입
 type FavoriteStock = {
   code: string;
   name: string;
@@ -18,21 +15,15 @@ type FavoriteStock = {
 
 export type FinancialData = {
   year: number;
-  net_income: number; // 당기순이익 (원)
-  equity: number;     // 자본총계 (원)
-  op_income: number;  // 영업이익 (원)
-  shares: number;     // 주식수
+  net_income: number;
+  equity: number; 
+  op_income: number;
+  shares: number;
   eps: number;
   bps: number;
   ops: number;
 };
 
-type MyProfile = {
-  nickname: string;
-  is_admin: boolean;
-};
-
-// 기본 멀티플 반환 함수
 const getDefaultMultipliers = (type: 'PER' | 'PBR' | 'POR') => {
   if (type === 'PBR') return ['0.5', '1.0', '2.0'];
   return ['10', '15', '20'];
@@ -42,58 +33,29 @@ export default function BandChartPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
 
-  // 데이터 상태
   const [stockData, setStockData] = useState<any[]>([]);
   
-  // 상태 관리 분리
-  const [serverFinancials, setServerFinancials] = useState<FinancialData[]>([]); // 원본
-  const [userFinancials, setUserFinancials] = useState<FinancialData[]>([]);     // 사용자 커스텀
-  const [financialHistory, setFinancialHistory] = useState<FinancialData[]>([]); // 현재 표시용
+  const [serverFinancials, setServerFinancials] = useState<FinancialData[]>([]); 
+  const [userFinancials, setUserFinancials] = useState<FinancialData[]>([]);     
+  const [financialHistory, setFinancialHistory] = useState<FinancialData[]>([]); 
   
   const [viewMode, setViewMode] = useState<'server' | 'user'>('server');
   const [isSaving, setIsSaving] = useState(false);
 
-  // UI 상태
   const [companyList, setCompanyList] = useState<Company[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930' });
   const [inputCompany, setInputCompany] = useState('삼성전자');
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
 
-  // [신규] 즐겨찾기 상태 확장
   const [favorites, setFavorites] = useState<FavoriteStock[]>([]);
   const [groups, setGroups] = useState<string[]>(['기본 그룹']);
   const [activeGroup, setActiveGroup] = useState<string>('기본 그룹');
 
-  // 밴드 설정 상태
   const [bandType, setBandType] = useState<'PER' | 'PBR' | 'POR'>('PER');
   
   const [multipliers, setMultipliers] = useState<string[]>(getDefaultMultipliers('PER'));
 
-  const [userProfile, setUserProfile] = useState<MyProfile | null>(null);
-
-  // [신규] 유저 프로필 가져오기
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('nickname, is_admin')
-          .eq('id', session.user.id)
-          .single();
-        setUserProfile(data as MyProfile);
-      }
-    };
-    getUser();
-  }, [supabase]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.href = '/login';
-  };
-
-  // 1. 초기 종목 목록 로드
   useEffect(() => {
     const fetchCompanies = async () => {
       const { data } = await supabase.from('companies').select('*').order('name').range(0, 9999);
@@ -102,7 +64,6 @@ export default function BandChartPage() {
     fetchCompanies();
   }, [supabase]);
 
-  // [수정] 즐겨찾기 목록 불러오기 (그룹명 포함)
   const loadFavorites = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -121,19 +82,16 @@ export default function BandChartPage() {
       }));
       setFavorites(loadedFavs);
       
-      // 그룹 목록 추출 (기본 그룹은 항상 포함)
       const loadedGroups = Array.from(new Set(loadedFavs.map(f => f.group_name)));
       if (!loadedGroups.includes('기본 그룹')) loadedGroups.unshift('기본 그룹');
       setGroups(loadedGroups.sort());
     }
   }, [supabase]);
 
-  // 초기 로드 시 즐겨찾기 가져오기
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
 
-  // [신규] 그룹 추가 핸들러
   const handleAddGroup = () => {
     const newGroup = prompt("새로운 그룹 이름을 입력하세요:");
     if (newGroup && !groups.includes(newGroup)) {
@@ -142,7 +100,6 @@ export default function BandChartPage() {
     }
   };
 
-  // [수정] 즐겨찾기 토글 핸들러 (현재 활성화된 그룹 기준)
   const toggleFavorite = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -150,30 +107,27 @@ export default function BandChartPage() {
       return;
     }
 
-    // 현재 그룹에 이미 있는지 확인
     const isFavInGroup = favorites.some(f => f.code === currentCompany.code && f.group_name === activeGroup);
 
     if (isFavInGroup) {
-      // 현재 그룹에서 삭제
       const { error } = await supabase
         .from('user_favorite_stocks')
         .delete()
         .eq('user_id', user.id)
         .eq('company_code', currentCompany.code)
-        .eq('group_name', activeGroup); // 그룹명 조건 추가
+        .eq('group_name', activeGroup);
       
       if (!error) {
         setFavorites(prev => prev.filter(f => !(f.code === currentCompany.code && f.group_name === activeGroup)));
       }
     } else {
-      // 현재 그룹에 추가
       const { error } = await supabase
         .from('user_favorite_stocks')
         .insert({
           user_id: user.id,
           company_code: currentCompany.code,
           company_name: currentCompany.name,
-          group_name: activeGroup // 현재 활성화된 그룹명 저장
+          group_name: activeGroup
         });
       
       if (!error) {
@@ -186,7 +140,6 @@ export default function BandChartPage() {
     }
   };
 
-  // 사용자 커스텀 데이터 불러오기 및 병합
   const loadUserFinancials = useCallback(async (code: string, serverData: FinancialData[]) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return serverData; 
@@ -219,7 +172,6 @@ export default function BandChartPage() {
       });
   }, [supabase]);
 
-  // 사용자 차트 설정 불러오기
   const loadUserChartSettings = useCallback(async (code: string, type: string) => {
       const { data: { user } } = await supabase.auth.getUser();
       const defaults = getDefaultMultipliers(type as any);
@@ -246,10 +198,8 @@ export default function BandChartPage() {
       return defaults;
   }, [supabase]);
 
-  // 2. 데이터 가져오기 (주가 + 재무 원본)
   const fetchDatAndFinancials = useCallback(async (code: string) => {
     try {
-      // (1) 주가 데이터 조회 (v2 테이블)
       const { data: priceData, error: priceError } = await supabase
         .from('daily_prices_v2')
         .select('date, open, high, low, close, volume')
@@ -267,7 +217,6 @@ export default function BandChartPage() {
           let l = Number(row.low);
           const c = Number(row.close);
 
-          // [수정] 거래정지 등으로 시가/고가/저가가 0인 경우 종가로 대체하여 차트 왜곡 방지
           if (o === 0 && h === 0 && l === 0) {
             o = c;
             h = c;
@@ -275,7 +224,7 @@ export default function BandChartPage() {
           }
 
           return {
-            time: row.date, // date 컬럼 사용
+            time: row.date,
             open: o,
             high: h,
             low: l,
@@ -287,7 +236,6 @@ export default function BandChartPage() {
       
       setStockData(stockChartData);
 
-      // (2) 재무 데이터 조회
       const { data: finData } = await supabase
         .from('company_financials')
         .select('*')
@@ -342,8 +290,6 @@ export default function BandChartPage() {
     }
   }, [supabase]);
 
-
-  // 통합 로드 로직
   useEffect(() => {
     const loadAll = async () => {
       const serverData = await fetchDatAndFinancials(currentCompany.code);
@@ -462,64 +408,18 @@ export default function BandChartPage() {
   const latestData = financialHistory.length > 0 ? financialHistory[financialHistory.length - 1] : null;
   const currentBaseValue = latestData ? (bandType === 'PER' ? latestData.eps : bandType === 'PBR' ? latestData.bps : latestData.ops) : 0;
 
-  // 현재 종목이 활성화된 그룹에 있는지 여부
   const isFavorite = favorites.some(f => f.code === currentCompany.code && f.group_name === activeGroup);
-
-  // 현재 그룹의 즐겨찾기 목록 필터링
   const currentGroupFavorites = favorites.filter(f => f.group_name === activeGroup);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-6">
-          <h1 className="text-2xl font-bold text-blue-800">📊 밴드 차트 분석</h1>
-          <div className="relative w-64">
-            <input type="text" className="w-full border p-2 rounded font-bold" value={inputCompany} onChange={handleSearchChange} placeholder="종목 검색..." />
-            {showDropdown && (
-              <ul className="absolute z-20 w-full bg-white border mt-1 rounded max-h-60 overflow-y-auto shadow-xl">
-                {filteredCompanies.map(c => (
-                  <li key={c.code} onClick={() => selectCompany(c)} className="p-2 hover:bg-gray-100 cursor-pointer">{c.name}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-6">
-          <nav className="flex gap-6 text-lg">
-            <Link href="/" className="text-gray-400 hover:text-blue-600 font-bold">🗓️ 스케줄러</Link>
-            <Link href="/discovery" className="text-gray-400 hover:text-blue-600 font-bold">🔍 종목발굴</Link>
-            <span className="text-blue-600 font-bold border-b-2 border-blue-600">📊 밴드 차트</span>
-          </nav>
-
-          {userProfile && (
-             <div className="flex items-center gap-3 border-l pl-6">
-               <span className="text-sm text-gray-600">
-                 <b>{userProfile.nickname}</b>님
-                 {userProfile.is_admin && <span className="ml-1 text-[10px] bg-purple-100 text-purple-700 px-1 rounded border border-purple-200">ADMIN</span>}
-               </span>
-               
-               {userProfile.is_admin && (
-                 <div className="flex gap-2">
-                   <button onClick={() => window.location.href='/admin/chart'} className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200 font-bold border border-purple-200">
-                     📈 분석(Admin)
-                   </button>
-                   <button onClick={() => window.location.href='/admin'} className="text-sm bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 font-bold">
-                     ⚙️ 관리자
-                   </button>
-                 </div>
-               )}
-               
-               <button onClick={handleLogout} className="text-sm bg-gray-200 px-3 py-1 rounded hover:bg-gray-300">로그아웃</button>
-             </div>
-          )}
-        </div>
-      </header>
-
+    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
+      {/* Header removed - now using Sidebar */}
+      
       <main className="flex-1 p-6 flex gap-6 overflow-hidden">
         {/* 컨트롤 패널 */}
         <div className="w-96 bg-white p-6 rounded-xl shadow border h-full flex flex-col relative transition-all overflow-y-auto">
           
+          {/* ... 컨트롤 패널 내부 내용 (그대로 유지) ... */}
           <div className="flex mb-4 border bg-gray-100 p-1 rounded-lg">
              <button 
                 onClick={() => setViewMode('server')}
@@ -540,7 +440,6 @@ export default function BandChartPage() {
              {viewMode === 'user' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">편집 모드</span>}
           </h2>
 
-          {/* 지표 탭 */}
           <div className="mb-6">
             <div className="flex bg-gray-100 p-1 rounded-lg">
               {['PER', 'PBR', 'POR'].map(type => (
@@ -555,7 +454,6 @@ export default function BandChartPage() {
             </div>
           </div>
 
-          {/* 연도별 데이터 입력 */}
           <div className="mb-6">
              <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-bold text-gray-700">📅 연도별 {labels.input} (단위: {labels.unit})</label>
@@ -603,7 +501,6 @@ export default function BandChartPage() {
              </div>
           </div>
 
-          {/* 멀티플 설정 */}
           <div className="mb-6">
              <label className="block text-sm font-bold text-gray-700 mb-2">멀티플 (배수) 설정</label>
              <div className="flex flex-col gap-2">
@@ -643,7 +540,6 @@ export default function BandChartPage() {
               </div>
           )}
 
-          {/* 계산 결과 */}
           <div className="border-t pt-4 flex-1 flex flex-col min-h-0">
             <h3 className="text-sm font-bold text-gray-700 mb-2">📉 계산된 지표 ({bandType}, {labels.output})</h3>
             <div className="overflow-y-auto text-xs border rounded bg-gray-50 flex-1">
@@ -672,11 +568,11 @@ export default function BandChartPage() {
 
         {/* 차트 영역 */}
         <div className="flex-1 flex flex-col gap-6">
+            {/* Header style control bar */}
             <div className="bg-white p-6 rounded-xl shadow border flex flex-col min-h-[600px]">
               <div className="mb-4 flex justify-between items-end">
                  <div className="flex items-center gap-3">
                    <h2 className="text-3xl font-bold text-gray-800">{currentCompany.name} <span className="text-xl text-gray-400 font-normal">({currentCompany.code})</span></h2>
-                   {/* [신규] 즐겨찾기 별 버튼 */}
                    <button 
                      onClick={toggleFavorite} 
                      className={`text-xl focus:outline-none transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
@@ -685,7 +581,17 @@ export default function BandChartPage() {
                      {isFavorite ? '⭐' : '☆'}
                    </button>
                  </div>
-                 <div className="text-right">
+                 <div className="flex items-center gap-4">
+                     <div className="relative w-64">
+                        <input type="text" className="w-full border p-2 rounded font-bold" value={inputCompany} onChange={handleSearchChange} placeholder="종목 검색..." />
+                        {showDropdown && (
+                          <ul className="absolute z-20 w-full bg-white border mt-1 rounded max-h-60 overflow-y-auto shadow-xl">
+                            {filteredCompanies.map(c => (
+                              <li key={c.code} onClick={() => selectCompany(c)} className="p-2 hover:bg-gray-100 cursor-pointer">{c.name}</li>
+                            ))}
+                          </ul>
+                        )}
+                    </div>
                     <span className={`text-sm font-bold px-2 py-1 rounded ${viewMode==='server' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
                        {viewMode === 'server' ? '🏢 Server Data' : '✏️ Custom Data'}
                     </span>
@@ -704,14 +610,12 @@ export default function BandChartPage() {
               </div>
             </div>
 
-            {/* [수정] 즐겨찾기 섹션 (그룹 탭 포함) */}
             <div className="bg-white p-6 rounded-xl shadow border">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                         <span>⭐ 내 관심 종목</span>
                     </h3>
                     
-                    {/* 그룹 탭 */}
                     <div className="flex gap-2 items-center overflow-x-auto max-w-[600px]">
                         {groups.map(group => (
                             <button
