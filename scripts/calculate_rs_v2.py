@@ -4,7 +4,7 @@ import numpy as np
 from supabase import create_client, Client
 from dotenv import load_dotenv
 import time
-from datetime import datetime, timedelta  # <--- 여기 확실히 있음
+from datetime import datetime, timedelta
 
 load_dotenv('.env.local')
 
@@ -17,57 +17,43 @@ if not url or not key:
 
 supabase: Client = create_client(url, key)
 
-# 계산 시작일 (2023 ~ 현재)
-CALC_START_DATE = '2023-01-01' 
-CALC_END_DATE = datetime.now().strftime('%Y-%m-%d')
+# 기준일: 오늘 (또는 특정 날짜)
+TARGET_DATE = datetime.now().strftime('%Y-%m-%d')
+# TARGET_DATE = '2025-12-07' # 테스트용
 
-print(f"🚀 V2 다중 RS 랭킹 계산 시작 ({CALC_START_DATE} ~ {CALC_END_DATE})")
+print(f"🚀 V2 데일리 RS 랭킹 계산 시작 (Target Date: {TARGET_DATE})")
 
-# 1. 데이터 로딩
-print("1. 전체 주가 데이터 로딩 중 (날짜별 분할 로드)...")
+# 1. 필요 데이터 로딩 (최근 1년 + 여유분)
+# 12개월 RS를 구하려면 252거래일 전 데이터가 필요하므로, 넉넉히 380일 전부터 로드
+FETCH_START_DATE = (datetime.strptime(TARGET_DATE, '%Y-%m-%d') - timedelta(days=400)).strftime('%Y-%m-%d')
+
+print(f"1. 주가 데이터 로딩 중 ({FETCH_START_DATE} ~ {TARGET_DATE})...")
+
 try:
     all_rows = []
+    chunk_offset = 0
+    chunk_limit = 10000
     
-    # 2022년부터 로드 (2023년 1월 랭킹 계산을 위해 1년 전 데이터 필요)
-    start_year = 2022 
-    # 현재 연도까지 로드
-    end_year = datetime.now().year
-    
-    for year in range(start_year, end_year + 1):
-        print(f"   Fetching {year} data...", end='\r')
+    while True:
+        # 날짜 범위로 필터링하여 데이터 조회
+        res = supabase.table('daily_prices_v2') \
+            .select('code, date, close') \
+            .gte('date', FETCH_START_DATE) \
+            .lte('date', TARGET_DATE) \
+            .range(chunk_offset, chunk_offset + chunk_limit - 1) \
+            .execute()
         
-        for month in range(1, 13):
-            # 월별 시작/끝 날짜 계산
-            next_month = month + 1 if month < 12 else 1
-            next_year_val = year if month < 12 else year + 1
+        if not res.data:
+            break
             
-            m_start = f"{year}-{month:02d}-01"
-            m_end_exclusive = f"{next_year_val}-{next_month:02d}-01"
-            
-            if m_start > datetime.now().strftime('%Y-%m-%d'):
-                break
+        all_rows.extend(res.data)
+        
+        if len(res.data) < chunk_limit:
+            break 
+        
+        chunk_offset += chunk_limit
+        print(f"   {len(all_rows)}건 로드 중...", end='\r')
 
-            chunk_offset = 0
-            chunk_limit = 10000
-            
-            while True:
-                res = supabase.table('daily_prices_v2') \
-                    .select('code, date, close') \
-                    .gte('date', m_start) \
-                    .lt('date', m_end_exclusive) \
-                    .range(chunk_offset, chunk_offset + chunk_limit - 1) \
-                    .execute()
-                
-                if not res.data:
-                    break
-                    
-                all_rows.extend(res.data)
-                
-                if len(res.data) < chunk_limit:
-                    break 
-                
-                chunk_offset += chunk_limit
-                
     print(f"\n✅ 로드 완료: {len(all_rows)}건")
     
     if not all_rows:
@@ -94,7 +80,12 @@ P6 = 126
 P9 = 189
 P12 = 252
 
-# GroupBy 연산
+# 각 종목별로 계산
+# 전체 기간에 대해 pct_change를 계산하면 느리므로, 
+# tail을 이용해서 마지막 날짜(TARGET_DATE)가 포함된 그룹만 처리하면 좋지만,
+# pandas pct_change 특성상 전체에 대해 하고 마지막 날만 뽑는 게 코드는 간단함.
+# 데이터가 1년치라 빠름.
+
 df['ret_3m'] = df.groupby('code')['close'].pct_change(P3)
 df['ret_6m'] = df.groupby('code')['close'].pct_change(P6)
 df['ret_12m'] = df.groupby('code')['close'].pct_change(P12)
@@ -120,30 +111,35 @@ r4 = (s_9m - s_12m) / s_12m
 
 df['score_weighted'] = (0.4 * r1) + (0.2 * r2) + (0.2 * r3) + (0.2 * r4)
 
-# 계산 대상 기간 필터링 (2020~2022)
-df_calc = df[(df['date'] >= CALC_START_DATE) & (df['date'] <= CALC_END_DATE)].copy()
+# [핵심] TARGET_DATE에 해당하는 데이터만 추출
+df_today = df[df['date'] == TARGET_DATE].copy()
 
-print(f"✅ 지표 계산 완료. 랭킹 산정 대상: {len(df_calc)}건 ({CALC_START_DATE} ~ {CALC_END_DATE})")
+if df_today.empty:
+    print(f"❌ {TARGET_DATE} 일자에 해당하는 데이터가 없습니다. 주가 업데이트가 선행되었는지 확인하세요.")
+    exit()
 
-# 3. 날짜별 랭킹 산정
-print("3. 날짜별 랭킹(1~99) 산정 중...")
+print(f"✅ 지표 계산 완료. 랭킹 산정 대상: {len(df_today)}건 ({TARGET_DATE})")
 
-def calc_rank(series):
+# 3. 랭킹 산정 (오늘 날짜 1일치에 대해서만 수행)
+print("3. 랭킹(1~99) 산정 중...")
+
+def calc_rank_single_day(series):
+    # 단일 날짜 데이터이므로 groupby 없이 바로 rank
     return (series.rank(pct=True) * 99).fillna(0).round().astype(int).clip(1, 99)
 
-df_calc['rank_weighted'] = df_calc.groupby('date')['score_weighted'].transform(calc_rank)
-df_calc['rank_3m'] = df_calc.groupby('date')['ret_3m'].transform(calc_rank)
-df_calc['rank_6m'] = df_calc.groupby('date')['ret_6m'].transform(calc_rank)
-df_calc['rank_12m'] = df_calc.groupby('date')['ret_12m'].transform(calc_rank)
+df_today['rank_weighted'] = calc_rank_single_day(df_today['score_weighted'])
+df_today['rank_3m'] = calc_rank_single_day(df_today['ret_3m'])
+df_today['rank_6m'] = calc_rank_single_day(df_today['ret_6m'])
+df_today['rank_12m'] = calc_rank_single_day(df_today['ret_12m'])
 
 # 4. 업로드
 print("4. DB 업로드 시작...")
 
 # NaN 처리
-df_calc = df_calc.fillna(0)
+df_today = df_today.fillna(0)
 
 upload_list = []
-for _, row in df_calc.iterrows():
+for _, row in df_today.iterrows():
     upload_list.append({
         'date': row['date'].strftime('%Y-%m-%d'),
         'code': row['code'],
@@ -164,9 +160,9 @@ for i in range(0, len(upload_list), chunk_size):
     chunk = upload_list[i:i+chunk_size]
     try:
         supabase.table('rs_rankings_v2').upsert(chunk, on_conflict="date, code").execute()
-        print(f"   [{i // chunk_size + 1}/{total_chunks}] 업로드 중...", end='\r')
+        print(f"   [{i // chunk_size + 1}/{total_chunks}] 업로드 완료")
     except Exception as e:
         print(f"   ❌ 업로드 실패: {e}")
         time.sleep(1)
 
-print("\n🎉 모든 작업 완료!")
+print("\n🎉 오늘의 RS 계산 및 업로드 완료!")
