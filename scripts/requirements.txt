@@ -4,6 +4,7 @@ supabase
 python-dotenv
 numpy
 pykrx
+requests
 selenium
 webdriver-manager
 setuptools

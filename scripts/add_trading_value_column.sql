@@ -1,0 +1,1 @@
+ALTER TABLE public.daily_prices_v2 ADD COLUMN IF NOT EXISTS trading_value numeric;
