@@ -33,14 +33,13 @@ type ChartData = {
 type TableStock = {
   code: string;
   name: string;
-  rank: number; // RS 순위
+  rank: number; 
   rs_score: number;
   close: number;
   marcap: number;
-  is_template?: boolean | null; // null: 로딩중, true: 충족, false: 미충족
+  is_template?: boolean | null; 
 };
 
-// [신규] 즐겨찾기 아이템 타입
 type FavItem = {
   code: string;
   group: string;
@@ -50,30 +49,32 @@ export default function ChartPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   
-  // --- 차트 상태 ---
   const [data, setData] = useState<ChartData[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930' });
   const [chartLoading, setChartLoading] = useState(false);
 
-  // --- 테이블 상태 ---
   const [tableData, setTableData] = useState<TableStock[]>([]);
   const [tableLoading, setTableLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [inputPage, setInputPage] = useState('1');
   const ITEMS_PER_PAGE = 20;
   const [totalPages, setTotalPages] = useState(1);
   const [latestDate, setLatestDate] = useState('');
 
-  // --- 즐겨찾기 상태 ---
+  const [companyList, setCompanyList] = useState<Company[]>([]);
+  const [inputCompany, setInputCompany] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+
   const [favorites, setFavorites] = useState<FavItem[]>([]);
   const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
   const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
+  const [checkGroup, setCheckGroup] = useState<string>('기본 그룹');
 
-  // [신규] 유저 프로필 및 즐겨찾기 가져오기
   useEffect(() => {
     const getUserAndFavs = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        // 즐겨찾기 전체 로드
         const { data: favData } = await supabase
             .from('user_favorite_stocks')
             .select('company_code, group_name')
@@ -83,7 +84,6 @@ export default function ChartPage() {
             const loadedFavs = favData.map(f => ({ code: f.company_code, group: f.group_name || '기본 그룹' }));
             setFavorites(loadedFavs);
             
-            // 그룹 목록 추출
             const groups = Array.from(new Set(loadedFavs.map(f => f.group)));
             if (!groups.includes('기본 그룹')) groups.unshift('기본 그룹');
             setFavGroups(groups.sort());
@@ -93,48 +93,30 @@ export default function ChartPage() {
     getUserAndFavs();
   }, [supabase]);
 
-  // [신규] 즐겨찾기 토글 (선택된 그룹 기준)
-  const toggleFavorite = async () => {
-      if (!currentCompany) return; // 선택된 종목이 없으면 아무것도 하지 않음
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { alert('로그인이 필요합니다.'); return; }
+  useEffect(() => {
+      setInputPage(currentPage.toString());
+  }, [currentPage]);
 
-      const isFav = favorites.some(f => f.code === currentCompany.code && f.group === targetGroup);
-
-      if (isFav) {
-          // 삭제
-          const { error } = await supabase
-              .from('user_favorite_stocks')
-              .delete()
-              .eq('user_id', user.id)
-              .eq('company_code', currentCompany.code)
-              .eq('group_name', targetGroup);
-          if (!error) {
-              setFavorites(prev => prev.filter(f => !(f.code === currentCompany.code && f.group === targetGroup)));
-          }
-      } else {
-          // 추가
-          const { error } = await supabase
-              .from('user_favorite_stocks')
-              .insert({
-                  user_id: user.id,
-                  company_code: currentCompany.code,
-                  company_name: currentCompany.name,
-                  group_name: targetGroup
-              });
-          if (!error) {
-              setFavorites(prev => [...prev, { code: currentCompany.code, group: targetGroup }]);
-              // 만약 새로운 그룹이면 그룹 목록에도 추가 (UI 즉시 반영)
-              if (!favGroups.includes(targetGroup)) setFavGroups(prev => [...prev, targetGroup].sort());
+  const handlePageInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setInputPage(e.target.value);
+  };
+  const handlePageSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+          const p = parseInt(inputPage);
+          if (!isNaN(p) && p >= 1 && p <= totalPages) {
+              setCurrentPage(p);
+          } else {
+              setInputPage(currentPage.toString());
           }
       }
   };
 
-  // 1. 초기 데이터 로드 (랭킹 리스트)
-  const fetchRankings = useCallback(async () => {
+  const fetchRankingsAndCompanies = useCallback(async () => {
     setTableLoading(true);
     try {
-      // 최신 날짜 확인
+      const { data: allCompanies } = await supabase.from('companies').select('code, name').range(0, 9999);
+      if(allCompanies) setCompanyList(allCompanies);
+
       const { data: dateData } = await supabase
         .from('rs_rankings_v2')
         .select('date')
@@ -198,7 +180,6 @@ export default function ChartPage() {
     }
   }, [supabase, currentPage]);
 
-  // 2. 트렌드 템플릿 검사 (클라이언트 사이드 계산)
   const checkTrendTemplates = async (stocks: TableStock[]) => {
     const results = await Promise.all(stocks.map(async (stock) => {
         try {
@@ -260,23 +241,21 @@ export default function ChartPage() {
   };
 
   useEffect(() => {
-    fetchRankings();
-  }, [fetchRankings]);
+    fetchRankingsAndCompanies();
+  }, [fetchRankingsAndCompanies]);
 
-  // 3. 차트 데이터 로드 (최근 1년치 이상)
   const fetchChartData = useCallback(async (code: string) => {
     setChartLoading(true);
     try {
       const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
       
-      // 차트 줌 기능을 위해 더 많은 데이터 로드 (400일)
-      // StockChart 내부에서 초기 250일만 보여줌
       const dbPromise = supabase.from('daily_prices_v2')
         .select('date, open, high, low, close, volume')
         .eq('code', code)
         .order('date', { ascending: false })
         .limit(400); 
 
+      // [수정] 오타 수정 dbRes -> dbPromise
       const [jsonRes, dbRes] = await Promise.all([jsonPromise, dbPromise]);
       
       let chartData: any[] = [];
@@ -325,7 +304,56 @@ export default function ChartPage() {
     setCurrentCompany({ name: stock.name, code: stock.code });
   };
 
-  // 현재 종목이 활성화된 그룹에 즐겨찾기 되어있는지 확인
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value; 
+    setInputCompany(val);
+    if (val.trim()) { 
+        const filtered = companyList.filter(c => c.name.includes(val) || c.code.includes(val));
+        setFilteredCompanies(filtered); 
+        setShowDropdown(true); 
+    } else { 
+        setShowDropdown(false); 
+    }
+  };
+  const selectCompany = (c: Company) => { 
+      setCurrentCompany(c); 
+      setInputCompany(c.name); 
+      setShowDropdown(false); 
+  };
+
+  const toggleFavorite = async () => {
+      if (!currentCompany) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { alert('로그인이 필요합니다.'); return; }
+
+      const isFav = favorites.some(f => f.code === currentCompany.code && f.group === targetGroup);
+
+      if (isFav) {
+          const { error } = await supabase
+              .from('user_favorite_stocks')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('company_code', currentCompany.code)
+              .eq('group_name', targetGroup);
+          if (!error) {
+              setFavorites(prev => prev.filter(f => !(f.code === currentCompany.code && f.group === targetGroup)));
+          }
+      } else {
+          const { error } = await supabase
+              .from('user_favorite_stocks')
+              .insert({
+                  user_id: user.id,
+                  company_code: currentCompany.code,
+                  company_name: currentCompany.name,
+                  group_name: targetGroup
+              });
+          if (!error) {
+              setFavorites(prev => [...prev, { code: currentCompany.code, group: targetGroup }]);
+              if (!favGroups.includes(targetGroup)) setFavGroups(prev => [...prev, targetGroup].sort());
+          }
+      }
+  };
+
   const isFavorite = currentCompany
     ? favorites.some(f => f.code === currentCompany.code && f.group === targetGroup) 
     : false;
@@ -333,69 +361,113 @@ export default function ChartPage() {
 
   return (
     <div className="h-full bg-gray-50 flex flex-col">
-       {/* 상단바 제거됨 */}
+       <div className="flex justify-between items-center bg-white p-4 shadow-sm border-b shrink-0 z-20 relative">
+           <div className="flex items-center gap-6">
+               <h1 className="text-2xl font-bold text-blue-800">📊 차트 분석 (Admin)</h1>
+               <div className="relative w-72">
+                    <input 
+                        type="text" 
+                        className="w-full border p-2 rounded font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                        value={inputCompany} 
+                        onChange={handleSearchChange} 
+                        onFocus={() => inputCompany && setShowDropdown(true)}
+                        placeholder="종목명 또는 코드 검색..." 
+                    />
+                    {showDropdown && filteredCompanies.length > 0 && (
+                        <ul className="absolute z-30 w-full bg-white border mt-1 rounded max-h-60 overflow-y-auto shadow-xl">
+                            {filteredCompanies.map(c => (
+                                <li key={c.code} onClick={() => selectCompany(c)} className="p-2 hover:bg-gray-100 cursor-pointer text-sm flex justify-between border-b last:border-none">
+                                    <span className="font-bold text-gray-700">{c.name}</span>
+                                    <span className="text-gray-400 text-xs bg-gray-100 px-2 py-1 rounded">{c.code}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+               </div>
+           </div>
+           <div className="text-sm text-gray-500">기준일: {latestDate}</div>
+       </div>
 
        <main className="flex-1 p-4 flex gap-4 overflow-hidden">
-          {/* [좌측] 종목 리스트 테이블 (35%) */}
           <div className="w-[35%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
-             <div className="p-3 border-b bg-gray-50 flex justify-between items-center">
-                <h3 className="font-bold text-gray-700">RS 랭킹 TOP 2000</h3>
-                <div className="flex gap-1 text-xs">
-                   <button disabled={currentPage===1} onClick={()=>setCurrentPage(p=>p-1)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">◀</button>
-                   <span className="px-2 py-1">{currentPage} / {totalPages}</span>
-                   <button disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>p+1)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">▶</button>
+             <div className="p-3 border-b bg-gray-50 flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-gray-700">RS 랭킹 TOP 2000</h3>
+                    <div className="flex gap-1 text-xs items-center">
+                       <button disabled={currentPage===1} onClick={()=>setCurrentPage(p=>p-1)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">◀</button>
+                       <input 
+                          type="text" 
+                          value={inputPage} 
+                          onChange={handlePageInput} 
+                          onKeyDown={handlePageSubmit}
+                          className="w-10 text-center border rounded p-1 outline-none focus:border-blue-500"
+                       />
+                       <span className="text-gray-500">/ {totalPages}</span>
+                       <button disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>p+1)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">▶</button>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                    <span className="font-bold text-gray-600">확인할 그룹:</span>
+                    <select 
+                        value={checkGroup} 
+                        onChange={(e) => setCheckGroup(e.target.value)}
+                        className="border rounded p-1 bg-white outline-none"
+                    >
+                        {favGroups.map(g => (
+                            <option key={g} value={g}>{g}</option>
+                        ))}
+                    </select>
                 </div>
              </div>
 
              <div className="flex-1 overflow-y-auto min-h-0">
                 <table className="w-full text-left border-collapse">
                    <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10">
-                      <tr>
-                         <th className="px-3 py-2">순위</th>
-                         <th className="px-2 py-2">종목</th>
-                         <th className="px-2 py-2 text-right">RS</th>
-                         <th className="px-2 py-2 text-center" title="Minervini Trend Template">Template</th>
-                      </tr>
+                      <tr><th className="px-3 py-2">순위</th><th className="px-2 py-2">종목</th><th className="px-2 py-2 text-right">RS</th><th className="px-2 py-2 text-center">Templ.</th><th className="px-2 py-2 text-center">관심</th></tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 text-xs">
                       {tableLoading ? (
-                        <tr><td colSpan={4} className="p-10 text-center text-gray-400">로딩 중...</td></tr>
-                      ) : tableData.map((stock, idx) => (
-                         <tr 
-                            key={stock.code} 
-                            onClick={() => handleStockClick(stock)}
-                            className={`cursor-pointer hover:bg-blue-50 transition-colors ${currentCompany.code === stock.code ? 'bg-blue-100' : ''}`}
-                         >
-                            <td className="px-3 py-2 text-gray-500">{(currentPage-1)*ITEMS_PER_PAGE + idx + 1}</td>
-                            <td className="px-2 py-2">
-                               <div className="font-bold text-gray-800">{stock.name}</div>
-                               <div className="text-[9px] text-gray-400">{stock.code}</div>
-                            </td>
-                            <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_score}</td>
-                            <td className="px-2 py-2 text-center text-base">
-                               {stock.is_template === null ? (
-                                 <span className="text-gray-300 animate-pulse">●</span>
-                               ) : stock.is_template ? (
-                                 <span className="text-green-500">✅</span>
-                               ) : (
-                                 <span className="text-gray-200">‐</span>
-                               )}
-                            </td>
-                         </tr>
-                      ))}
+                        <tr><td colSpan={5} className="p-10 text-center text-gray-400">로딩 중...</td></tr>
+                      ) : tableData.map((stock, idx) => {
+                         const isIncluded = favorites.some(f => f.code === stock.code && f.group === checkGroup);
+                         return (
+                             <tr 
+                                key={stock.code} 
+                                onClick={() => handleStockClick(stock)}
+                                className={`cursor-pointer hover:bg-blue-50 transition-colors ${currentCompany.code === stock.code ? 'bg-blue-100' : ''}`}
+                             >
+                                <td className="px-3 py-2 text-gray-500">{(currentPage-1)*ITEMS_PER_PAGE + idx + 1}</td>
+                                <td className="px-2 py-2">
+                                   <div className="font-bold text-gray-800">{stock.name}</div>
+                                   <div className="text-[9px] text-gray-400">{stock.code}</div>
+                                </td>
+                                <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_score}</td>
+                                <td className="px-2 py-2 text-center text-base">
+                                   {stock.is_template === null ? (
+                                     <span className="text-gray-300 animate-pulse">●</span>
+                                   ) : stock.is_template ? (
+                                     <span className="text-green-500">✅</span>
+                                   ) : (
+                                     <span className="text-gray-200">‐</span>
+                                   )}
+                                </td>
+                                <td className="px-2 py-2 text-center text-base">
+                                    {isIncluded ? <span className="text-yellow-400">⭐</span> : <span className="text-gray-200">☆</span>}
+                                </td>
+                             </tr>
+                         );
+                      })}
                    </tbody>
                 </table>
              </div>
           </div>
 
-          {/* [우측] 차트 영역 (70%) */}
           <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
               <div className="p-4 border-b flex justify-between items-baseline shrink-0">
                   <div className="flex items-baseline gap-2">
                     <h2 className="text-2xl font-bold text-gray-800">{currentCompany.name}</h2>
                     <span className="text-lg text-gray-500 font-medium">({currentCompany.code})</span>
                     
-                    {/* [신규] 즐겨찾기 그룹 선택 드롭다운 + 별 버튼 */}
                     <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-1">
                         <select 
                             value={targetGroup} 
@@ -415,7 +487,6 @@ export default function ChartPage() {
                         </button>
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500">기준일: {latestDate}</div>
               </div>
 
               <div className="flex-1 relative w-full h-full min-h-0 bg-white">
