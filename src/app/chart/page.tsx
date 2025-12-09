@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 import BandChart, { BandSettings } from '@/components/BandChart';
@@ -81,25 +81,51 @@ export default function BandChartPage() {
         name: item.company_name,
         group_name: item.group_name || '기본 그룹'
       }));
-      setFavorites(loadedFavs);
       
-      const loadedGroups = Array.from(new Set(loadedFavs.map(f => f.group_name)));
-      if (!loadedGroups.includes('기본 그룹')) loadedGroups.unshift('기본 그룹');
-      setGroups(loadedGroups.sort());
+      // --- 그룹 순서 적용 ---
+      let uniqueGroups = Array.from(new Set(loadedFavs.map(f => f.group_name)));
+      if (!uniqueGroups.includes('기본 그룹')) uniqueGroups.unshift('기본 그룹');
+
+      const savedGroupOrder = typeof window !== 'undefined' ? localStorage.getItem('groupOrder') : null;
+      let combinedGroups = [...uniqueGroups]; // Groups found in DB
+      
+      if (savedGroupOrder) {
+          try {
+              const orderFromStorage: string[] = JSON.parse(savedGroupOrder);
+              // Add groups from localStorage that are not in DB
+              orderFromStorage.forEach(g => {
+                  if (!combinedGroups.includes(g)) {
+                      combinedGroups.push(g);
+                  }
+              });
+          } catch (e) {
+              console.error("Failed to parse group order from localStorage", e);
+          }
+      }
+      
+      // Sort combined groups based on localStorage order, or alphabetically if not in localStorage
+      combinedGroups = combinedGroups.sort((a, b) => {
+          const orderFromStorage: string[] = savedGroupOrder ? JSON.parse(savedGroupOrder) : [];
+          const indexA = orderFromStorage.indexOf(a);
+          const indexB = orderFromStorage.indexOf(b);
+
+          if (a === '기본 그룹') return -1;
+          if (b === '기본 그룹') return 1;
+
+          if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+          if (indexA !== -1) return -1;
+          if (indexB !== -1) return 1;
+          return a.localeCompare(b); // Fallback to alphabetical
+      });
+      setGroups(combinedGroups);
+      
+      setFavorites(loadedFavs);
     }
   }, [supabase]);
 
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
-
-  const handleAddGroup = () => {
-    const newGroup = prompt("새로운 그룹 이름을 입력하세요:");
-    if (newGroup && !groups.includes(newGroup)) {
-      setGroups([...groups, newGroup]);
-      setActiveGroup(newGroup);
-    }
-  };
 
   const toggleFavorite = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -462,7 +488,29 @@ export default function BandChartPage() {
   const target27 = calculateTargetInfo(2027);
 
   const isFavorite = favorites.some(f => f.code === currentCompany.code && f.group_name === activeGroup);
-  const currentGroupFavorites = favorites.filter(f => f.group_name === activeGroup);
+  const currentGroupFavorites = useMemo(() => {
+    const filtered = favorites.filter(f => f.group_name === activeGroup);
+    
+    if (typeof window === 'undefined') return filtered;
+
+    const savedStockOrderJson = localStorage.getItem(`stockOrder_${activeGroup}`);
+    if (!savedStockOrderJson) return filtered;
+
+    try {
+        const orderCodes: string[] = JSON.parse(savedStockOrderJson);
+        return filtered.sort((a, b) => {
+            const indexA = orderCodes.indexOf(a.code);
+            const indexB = orderCodes.indexOf(b.code);
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return 0; 
+        });
+    } catch (e) {
+        console.error("Failed to parse stock order from localStorage", e);
+        return filtered;
+    }
+  }, [favorites, activeGroup]);
 
   return (
     <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
@@ -691,32 +739,28 @@ export default function BandChartPage() {
 
         {/* === [3] 우측: 관심 종목 패널 (토글 가능) === */}
         {showFavorites && (
-          <div className="w-64 bg-white p-4 rounded-xl shadow border h-full flex flex-col overflow-hidden transition-all duration-300">
-            <h2 className="text-lg font-bold mb-3 text-gray-800 border-b pb-2 flex justify-between items-center">
-              <span>⭐ 관심 종목</span>
-              <button
-                onClick={handleAddGroup}
-                className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded border"
-              >
-                + 그룹
-              </button>
+          <div className="w-80 bg-white p-4 rounded-xl shadow border h-full flex flex-col overflow-hidden transition-all duration-300">
+            <h2 className="text-lg font-bold mb-3 text-gray-800 border-b pb-2">
+              ⭐ 관심 종목
             </h2>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-2 border-b shrink-0">
+            {/* 그룹 탭 */}
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 border-b shrink-0">
               {groups.map(group => (
                 <button
                   key={group}
                   onClick={() => setActiveGroup(group)}
-                  className={`px-2 py-1 text-xs rounded-full font-bold whitespace-nowrap transition-all
+                  className={`px-3 py-1 text-xs rounded-full font-bold whitespace-nowrap transition-all
                     ${activeGroup === group
                       ? 'bg-yellow-500 text-white shadow-md'
                       : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                 >
-                  {group}
+                  {group} ({favorites.filter(f => f.group_name === group).length})
                 </button>
               ))}
             </div>
 
+            {/* 종목 리스트 */}
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {currentGroupFavorites.length > 0 ? (
                 <ul className="flex flex-col gap-2">
@@ -724,7 +768,7 @@ export default function BandChartPage() {
                     <li
                       key={`${fav.code}-${fav.group_name}`}
                       onClick={() => selectCompany({ name: fav.name, code: fav.code })}
-                      className={`p-2 rounded-lg border cursor-pointer transition-all hover:shadow-md
+                      className={`p-2 rounded-lg border cursor-pointer transition-all
                         ${currentCompany.code === fav.code ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
                     >
                       <div className="font-bold text-gray-800 text-sm">{fav.name}</div>
@@ -735,7 +779,7 @@ export default function BandChartPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-xs border-2 border-dashed rounded-lg bg-gray-50">
                   <span>종목이 없습니다.</span>
-                  <span>별(⭐)을 눌러 추가하세요.</span>
+                  <span>차트에서 별(⭐)을 눌러 추가하세요.</span>
                 </div>
               )}
             </div>

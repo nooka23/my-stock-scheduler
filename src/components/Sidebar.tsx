@@ -68,6 +68,7 @@ export default function Sidebar() {
     { name: '스케줄러', href: '/', icon: '🗓️' },
     { name: '밴드 차트', href: '/chart', icon: '📊' },
     { name: '종목 발굴', href: '/discovery', icon: '🔍' },
+    { name: '관심 종목', href: '/favorites', icon: '⭐' },
   ];
 
   const adminItems = [
