@@ -114,8 +114,77 @@ def get_trading_value_from_kis(code, start_date, end_date, access_token):
         return {}
 
 # ========================================
-# 토큰 발급
+# 지수 데이터 업데이트 (KOSPI, KOSDAQ)
 # ========================================
+def update_indices():
+    print("\n📊 시장 지수(KOSPI, KOSDAQ) 업데이트 중...")
+    
+    # 최근 2년치 데이터 로드 (RS 계산 등을 위해 충분히)
+    start_date = (datetime.now() - timedelta(days=730)).strftime('%Y%m%d')
+    end_date = datetime.now().strftime('%Y%m%d')
+    
+    indices = [
+        {'ticker': '1001', 'code': 'KOSPI', 'name': 'KOSPI'},
+        {'ticker': '2001', 'code': 'KOSDAQ', 'name': 'KOSDAQ'}
+    ]
+    
+    for idx in indices:
+        try:
+            print(f"   - {idx['name']} 데이터 수집 중...")
+            df = krx_stock.get_index_ohlcv_by_date(start_date, end_date, idx['ticker'])
+            
+            if df.empty:
+                print(f"     ⚠️ 데이터 없음")
+                continue
+                
+            # daily_prices_v2 포맷에 맞게 변환
+            upload_list = []
+            for d, row in df.iterrows():
+                date_str = d.strftime('%Y-%m-%d')
+                
+                # pykrx index 데이터 컬럼: 시가, 고가, 저가, 종가, 거래량, 거래대금, 상장시가총액
+                # trading_value가 있으므로 활용
+                
+                upload_list.append({
+                    "code": idx['code'],
+                    "date": date_str,
+                    "open": float(row['시가']),
+                    "high": float(row['고가']),
+                    "low": float(row['저가']),
+                    "close": float(row['종가']),
+                    "volume": float(row['거래량']),
+                    "trading_value": float(row['거래대금']), 
+                    "change": 0 # 등락률은 직접 계산하거나 생략
+                })
+            
+            # 업로드
+            if upload_list:
+                for i in range(0, len(upload_list), 1000):
+                    chunk = upload_list[i:i+1000]
+                    supabase.table("daily_prices_v2").upsert(chunk, on_conflict="code, date").execute()
+                print(f"     ✅ {len(upload_list)}건 업로드 완료")
+                
+                # companies 테이블에도 등록 (이름 표시용)
+                supabase.table("companies").upsert({
+                    "code": idx['code'],
+                    "name": idx['name'],
+                    "market": "INDEX",
+                    "marcap": 0
+                }).execute()
+                
+        except Exception as e:
+            print(f"     ❌ 에러: {e}")
+
+# ========================================
+# 메인 로직 시작
+# ========================================
+
+# 0. 지수 업데이트 먼저 실행
+update_indices()
+
+# ... (이하 기존 종목 업데이트 로직)
+
+# 토큰 발급
 print("\n📌 한국투자증권 API 토큰 발급 중...")
 access_token = get_kis_token()
 

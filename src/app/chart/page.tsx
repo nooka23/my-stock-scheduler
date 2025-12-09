@@ -59,7 +59,12 @@ export default function BandChartPage() {
 
   useEffect(() => {
     const fetchCompanies = async () => {
-      const { data } = await supabase.from('companies').select('*').order('name').range(0, 9999);
+      const { data } = await supabase.from('companies')
+        .select('*')
+        .order('name')
+        .neq('code', 'KOSPI')
+        .neq('code', 'KOSDAQ')
+        .range(0, 9999);
       if (data) setCompanyList(data);
     };
     fetchCompanies();

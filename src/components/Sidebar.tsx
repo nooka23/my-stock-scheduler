@@ -11,6 +11,13 @@ type MyProfile = {
   is_admin: boolean;
 };
 
+type NavItem = {
+  name: string;
+  href: string;
+  icon: string;
+  subItems?: { name: string; href: string }[];
+};
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -20,7 +27,7 @@ export default function Sidebar() {
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Hide sidebar on auth pages logic (Moved hook logic below, but return check later)
+  // Hide sidebar on auth pages logic
   const authPaths = ['/login', '/forgot-password', '/update-password'];
   const isAuthPage = authPaths.some(path => pathname.startsWith(path));
 
@@ -59,15 +66,22 @@ export default function Sidebar() {
     router.push('/login?t=' + Date.now());
   };
 
-  // If it's an auth page, return null AFTER all hooks are defined
   if (isAuthPage) {
     return null;
   }
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { name: '스케줄러', href: '/', icon: '🗓️' },
     { name: '밴드 차트', href: '/chart', icon: '📊' },
-    { name: '종목 발굴', href: '/discovery', icon: '🔍' },
+    { 
+      name: '종목 발굴', 
+      href: '/discovery', 
+      icon: '🔍',
+      subItems: [
+        { name: 'RS', href: '/discovery/rs' },
+        { name: '거래대금', href: '/discovery/volume' }
+      ]
+    },
     { name: '관심 종목', href: '/favorites', icon: '⭐' },
   ];
 
@@ -109,11 +123,15 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href;
+            // 상위 메뉴 활성화 조건: 현재 경로가 href와 같거나 하위 경로 포함
+            const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
+            // 하위 메뉴가 있으면 일단 활성화 시 펼쳐진 상태 유지
+            const isSubOpen = isActive; 
+
             return (
               <li key={item.href}>
                 <Link 
-                  href={item.href}
+                  href={item.subItems ? item.subItems[0].href : item.href}
                   className={`
                     flex items-center gap-3 px-3 py-2 rounded-md transition-colors
                     ${isActive ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}
@@ -122,6 +140,28 @@ export default function Sidebar() {
                   <span className="text-xl">{item.icon}</span>
                   {!isCollapsed && <span className="font-medium">{item.name}</span>}
                 </Link>
+
+                {/* 하위 메뉴 렌더링 */}
+                {!isCollapsed && item.subItems && isSubOpen && (
+                  <ul className="ml-9 mt-1 space-y-1 border-l-2 border-gray-200 pl-2">
+                    {item.subItems.map(sub => {
+                      const isSubActive = pathname === sub.href;
+                      return (
+                        <li key={sub.href}>
+                          <Link
+                            href={sub.href}
+                            className={`
+                              block px-3 py-1.5 text-sm rounded-md transition-colors
+                              ${isSubActive ? 'text-blue-600 font-bold bg-blue-50' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}
+                            `}
+                          >
+                            {sub.name}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
               </li>
             );
           })}

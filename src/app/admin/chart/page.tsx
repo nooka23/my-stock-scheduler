@@ -244,58 +244,70 @@ export default function ChartPage() {
     fetchRankingsAndCompanies();
   }, [fetchRankingsAndCompanies]);
 
-  const fetchChartData = useCallback(async (code: string) => {
-    setChartLoading(true);
-    try {
-      const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
-      
-      const dbPromise = supabase.from('daily_prices_v2')
-        .select('date, open, high, low, close, volume')
-        .eq('code', code)
-        .order('date', { ascending: false })
-        .limit(400); 
-
-      // [수정] 오타 수정 dbRes -> dbPromise
-      const [jsonRes, dbRes] = await Promise.all([jsonPromise, dbPromise]);
-      
-      let chartData: any[] = [];
-      if (jsonRes.data) {
-        chartData = JSON.parse(await jsonRes.data.text());
-      }
-
-      const dataMap = new Map();
-      chartData.forEach(d => { if(d.time) dataMap.set(d.time, d); });
-
-      dbRes.data?.forEach(row => {
-        if (!row.date) return;
-        const existing = dataMap.get(row.date) || { time: row.date };
-        dataMap.set(row.date, { 
-            ...existing, 
-            open: Number(row.open), high: Number(row.high), low: Number(row.low), close: Number(row.close), volume: Number(row.volume)
+    const fetchChartData = useCallback(async (code: string) => {
+      setChartLoading(true);
+      try {
+        const dbPromise = supabase.from('daily_prices_v2')
+          .select('date, open, high, low, close, volume')
+          .eq('code', code)
+          .order('date', { ascending: false })
+          .limit(400);
+  
+        const rsPromise = supabase.from('rs_rankings_v2')
+          .select('date, rank_weighted')
+          .eq('code', code)
+          .order('date', { ascending: false })
+          .limit(400);
+  
+        const [dbRes, rsRes] = await Promise.all([dbPromise, rsPromise]);
+        
+        const dataMap = new Map();
+        
+        dbRes.data?.forEach(row => {
+          if (!row.date) return;
+          let o = Number(row.open);
+          let h = Number(row.high);
+          let l = Number(row.low);
+          const c = Number(row.close);
+  
+          // 거래정지 데이터 보정
+          if (o === 0 && h === 0 && l === 0) { o = c; h = c; l = c; }
+          
+          dataMap.set(row.date, { 
+              time: row.date,
+              open: o, high: h, low: l, close: c, volume: Number(row.volume),
+              rs: undefined // RS는 rsRes에서 가져올 것
+          });
         });
-      });
-
-      const sorted = Array.from(dataMap.values()).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-      const ema20 = calculateEMA(sorted, 20);
-      const wma150 = calculateWMA(sorted, 150);
-      const keltner = calculateKeltner(sorted, 20, 2.25);
-      const macd = calculateMACD(sorted, 3, 10, 16);
-
-      const finalData = sorted.map((d, i) => ({
-          ...d,
-          ema20: ema20[i], wma150: wma150[i], keltner: keltner[i], macd: macd[i]
-      }));
-
-      setData(finalData);
-    } catch (e) {
-      console.error(e);
-      setData([]);
-    } finally {
-      setChartLoading(false);
-    }
-  }, [supabase]);
-
+  
+        rsRes.data?.forEach(row => {
+            if (!row.date) return;
+            const existing = dataMap.get(row.date);
+            if (existing) {
+                dataMap.set(row.date, { ...existing, rs: row.rank_weighted });
+            }
+        });
+  
+        const sorted = Array.from(dataMap.values()).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
+  
+        const ema20 = calculateEMA(sorted, 20);
+        const wma150 = calculateWMA(sorted, 150);
+        const keltner = calculateKeltner(sorted, 20, 2.25);
+        const macd = calculateMACD(sorted, 3, 10, 16);
+  
+        const finalData = sorted.map((d, i) => ({
+            ...d,
+            ema20: ema20[i], wma150: wma150[i], keltner: keltner[i], macd: macd[i]
+        }));
+  
+        setData(finalData);
+      } catch (e) {
+        console.error(e);
+        setData([]);
+      } finally {
+        setChartLoading(false);
+      }
+    }, [supabase]);
   useEffect(() => {
     fetchChartData(currentCompany.code);
   }, [currentCompany, fetchChartData]);
