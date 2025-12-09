@@ -37,7 +37,7 @@ export default function BandChart({ data, settings }: Props) {
     const chart = createChart(chartContainerRef.current, {
       layout: { background: { type: ColorType.Solid, color: 'white' }, textColor: 'black' },
       width: chartContainerRef.current.clientWidth,
-      height: 500,
+      height: chartContainerRef.current.clientHeight,
       grid: { vertLines: { color: '#f0f3fa' }, horzLines: { color: '#f0f3fa' } },
       rightPriceScale: { visible: true, borderColor: '#cccccc' },
       timeScale: { borderColor: '#cccccc', timeVisible: true },
@@ -201,7 +201,10 @@ export default function BandChart({ data, settings }: Props) {
 
     const handleResize = () => {
       if (chartRef.current && chartContainerRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+        chartRef.current.applyOptions({
+          width: chartContainerRef.current.clientWidth,
+          height: chartContainerRef.current.clientHeight
+        });
       }
     };
     window.addEventListener('resize', handleResize);
@@ -212,5 +215,5 @@ export default function BandChart({ data, settings }: Props) {
     };
   }, [data, settings]);
 
-  return <div ref={chartContainerRef} className="w-full relative" />;
+  return <div ref={chartContainerRef} className="w-full h-full relative" />;
 }

@@ -35,11 +35,11 @@ export default function BandChartPage() {
 
   const [stockData, setStockData] = useState<any[]>([]);
   
-  const [serverFinancials, setServerFinancials] = useState<FinancialData[]>([]); 
-  const [userFinancials, setUserFinancials] = useState<FinancialData[]>([]);     
-  const [financialHistory, setFinancialHistory] = useState<FinancialData[]>([]); 
-  
-  const [viewMode, setViewMode] = useState<'server' | 'user' | 'favorites'>('server');
+  const [serverFinancials, setServerFinancials] = useState<FinancialData[]>([]);
+  const [userFinancials, setUserFinancials] = useState<FinancialData[]>([]);
+  const [financialHistory, setFinancialHistory] = useState<FinancialData[]>([]);
+
+  const [viewMode, setViewMode] = useState<'server' | 'user'>('server');
   const [isSaving, setIsSaving] = useState(false);
 
   const [companyList, setCompanyList] = useState<Company[]>([]);
@@ -51,6 +51,7 @@ export default function BandChartPage() {
   const [favorites, setFavorites] = useState<FavoriteStock[]>([]);
   const [groups, setGroups] = useState<string[]>(['기본 그룹']);
   const [activeGroup, setActiveGroup] = useState<string>('기본 그룹');
+  const [showFavorites, setShowFavorites] = useState(false);
 
   const [bandType, setBandType] = useState<'PER' | 'PBR' | 'POR'>('PER');
   
@@ -314,31 +315,52 @@ export default function BandChartPage() {
 
 
   const handleFinancialChange = (year: number, newValInBillions: string) => {
-    if (viewMode !== 'user') return; 
+    if (viewMode !== 'user') return;
 
     const val = parseFloat(newValInBillions);
-    if (isNaN(val)) return; 
+    if (isNaN(val)) return;
 
-    const newValInWon = val * 100000000; 
+    const newValInWon = val * 100000000;
 
-    const getUpdatedList = (list: FinancialData[]) => list.map(item => {
-      if (item.year !== year) return item;
+    const getUpdatedList = (list: FinancialData[]) => {
+      const existingItem = list.find(item => item.year === year);
 
-      const newItem = { ...item };
-      const shares = newItem.shares;
+      if (existingItem) {
+        // 기존 연도 수정
+        return list.map(item => {
+          if (item.year !== year) return item;
 
-      if (bandType === 'PER') {
-        newItem.net_income = newValInWon;
-        if (shares > 0) newItem.eps = Math.floor(newItem.net_income / shares);
-      } else if (bandType === 'PBR') {
-        newItem.equity = newValInWon;
-        if (shares > 0) newItem.bps = Math.floor(newItem.equity / shares);
-      } else if (bandType === 'POR') {
-        newItem.op_income = newValInWon;
-        if (shares > 0) newItem.ops = Math.floor(newItem.op_income / shares);
+          const newItem = { ...item };
+          const shares = newItem.shares;
+
+          if (bandType === 'PER') {
+            newItem.net_income = newValInWon;
+            if (shares > 0) newItem.eps = Math.floor(newItem.net_income / shares);
+          } else if (bandType === 'PBR') {
+            newItem.equity = newValInWon;
+            if (shares > 0) newItem.bps = Math.floor(newItem.equity / shares);
+          } else if (bandType === 'POR') {
+            newItem.op_income = newValInWon;
+            if (shares > 0) newItem.ops = Math.floor(newItem.op_income / shares);
+          }
+          return newItem;
+        });
+      } else {
+        // 새로운 연도 추가
+        const newItem: FinancialData = {
+          year: year,
+          net_income: bandType === 'PER' ? newValInWon : 0,
+          equity: bandType === 'PBR' ? newValInWon : 0,
+          op_income: bandType === 'POR' ? newValInWon : 0,
+          shares: 0,
+          eps: 0,
+          bps: 0,
+          ops: 0
+        };
+
+        return [...list, newItem].sort((a, b) => a.year - b.year);
       }
-      return newItem;
-    });
+    };
 
     setUserFinancials(prev => getUpdatedList(prev));
     setFinancialHistory(prev => getUpdatedList(prev));
@@ -445,99 +467,50 @@ export default function BandChartPage() {
   return (
     <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
       {/* Header removed - now using Sidebar */}
-      
-      <main className="flex-1 p-6 flex gap-6 overflow-hidden">
-        {/* 컨트롤 패널 */}
-        <div className="w-96 bg-white p-6 rounded-xl shadow border h-full flex flex-col relative transition-all overflow-y-auto">
-          
-          {/* ... 컨트롤 패널 내부 내용 ... */}
-          <div className="flex mb-4 border bg-gray-100 p-1 rounded-lg">
-             <button 
-                onClick={() => setViewMode('server')}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'server' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-             >
-                🏢 서버
-             </button>
-             <button 
-                onClick={() => setViewMode('user')}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'user' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-             >
-                ✏️ 편집
-             </button>
-             <button 
-                onClick={() => setViewMode('favorites')}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'favorites' ? 'bg-white text-yellow-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-             >
-                ⭐ 관심
-             </button>
+
+      <main className="flex-1 p-6 flex gap-6 overflow-hidden relative">
+        {/* === [1] 좌측: 밴드 설정 패널 === */}
+        <div className="w-96 bg-white p-6 rounded-xl shadow border h-full flex flex-col overflow-y-auto">
+          {/* 종목 검색 */}
+          <div className="mb-4 relative">
+            <input
+              type="text"
+              className="w-full border p-2 rounded font-bold"
+              value={inputCompany}
+              onChange={handleSearchChange}
+              placeholder="종목 검색..."
+            />
+            {showDropdown && (
+              <ul className="absolute z-20 w-full bg-white border mt-1 rounded max-h-60 overflow-y-auto shadow-xl">
+                {filteredCompanies.map(c => (
+                  <li
+                    key={c.code}
+                    onClick={() => selectCompany(c)}
+                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                  >
+                    {c.name} ({c.code})
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {/* === [1] 관심 종목 탭 컨텐츠 === */}
-          {viewMode === 'favorites' && (
-            <div className="flex flex-col h-full min-h-0">
-                <h2 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
-                    <span>⭐ 관심 종목 관리</span>
-                    <button 
-                        onClick={handleAddGroup}
-                        className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded border"
-                    >
-                        + 그룹 추가
-                    </button>
-                </h2>
+          <div className="flex mb-4 border bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => setViewMode('server')}
+              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'server' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              🏢 서버
+            </button>
+            <button
+              onClick={() => setViewMode('user')}
+              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'user' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              ✏️ 편집
+            </button>
+          </div>
 
-                <div className="flex gap-2 overflow-x-auto pb-2 mb-2 border-b shrink-0">
-                    {groups.map(group => (
-                        <button
-                            key={group}
-                            onClick={() => setActiveGroup(group)}
-                            className={`px-3 py-1 text-xs rounded-full font-bold whitespace-nowrap transition-all
-                                ${activeGroup === group 
-                                    ? 'bg-yellow-500 text-white shadow-md' 
-                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                        >
-                            {group}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex-1 overflow-y-auto min-h-0 pr-1">
-                    {currentGroupFavorites.length > 0 ? (
-                        <ul className="flex flex-col gap-2">
-                            {currentGroupFavorites.map(fav => (
-                                <li 
-                                    key={`${fav.code}-${fav.group_name}`} 
-                                    onClick={() => selectCompany({ name: fav.name, code: fav.code })}
-                                    className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md flex justify-between items-center
-                                        ${currentCompany.code === fav.code ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
-                                >
-                                    <div>
-                                        <div className="font-bold text-gray-800 text-sm">{fav.name}</div>
-                                        <div className="text-xs text-gray-400">{fav.code}</div>
-                                    </div>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation(); 
-                                        }}
-                                        className="text-gray-300"
-                                    >
-                                        👉
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-xs border-2 border-dashed rounded-lg bg-gray-50">
-                            <span>종목이 없습니다.</span>
-                            <span>상단 별(⭐)을 눌러 추가하세요.</span>
-                        </div>
-                    )}
-                </div>
-            </div>
-          )}
-
-          {/* === [2] 서버/유저 데이터 탭 컨텐츠 === */}
-          {viewMode !== 'favorites' && (
-            <>
+          <>
                 <h2 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
                     <span>🛠️ 밴드 설정</span>
                     {viewMode === 'user' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">편집 모드</span>}
@@ -570,27 +543,33 @@ export default function BandChartPage() {
                         <div className="max-h-48 overflow-y-auto">
                         <table className="w-full text-sm">
                             <tbody>
-                            {financialHistory.map((item) => {
+                            {[2023, 2024, 2025, 2026, 2027].map((year) => {
+                                // financialHistory에서 해당 연도 데이터 찾기
+                                const item = financialHistory.find(f => f.year === year);
+
                                 let valInWon = 0;
-                                if (bandType === 'PER') valInWon = item.net_income;
-                                else if (bandType === 'PBR') valInWon = item.equity;
-                                else if (bandType === 'POR') valInWon = item.op_income;
-                                
-                                const valInBillions = Math.round(valInWon / 100000000).toLocaleString(); 
+                                if (item) {
+                                    if (bandType === 'PER') valInWon = item.net_income;
+                                    else if (bandType === 'PBR') valInWon = item.equity;
+                                    else if (bandType === 'POR') valInWon = item.op_income;
+                                }
+
+                                const valInBillions = Math.round(valInWon / 100000000).toLocaleString();
+                                const yearLabel = year >= 2025 ? `${year}(E)` : `${year}`;
 
                                 return (
-                                <tr key={item.year} className="border-b last:border-none">
-                                    <td className="p-2 border-r bg-gray-50 font-bold text-center w-16">{item.year}</td>
+                                <tr key={year} className="border-b last:border-none">
+                                    <td className="p-2 border-r bg-gray-50 font-bold text-center w-16">{yearLabel}</td>
                                     <td className="p-1">
-                                    <input 
-                                        type="text" 
+                                    <input
+                                        type="text"
                                         readOnly={viewMode === 'server'}
-                                        className={`w-full text-right p-1 outline-none font-mono border border-transparent rounded transition-all font-bold 
+                                        className={`w-full text-right p-1 outline-none font-mono border border-transparent rounded transition-all font-bold
                                             ${viewMode === 'server' ? 'bg-transparent text-gray-500 cursor-default' : 'bg-white focus:border-green-400 focus:bg-green-50 text-gray-800'}`}
                                         value={valInBillions}
                                         onChange={(e) => {
                                             const rawValue = e.target.value.replace(/,/g, '');
-                                            handleFinancialChange(item.year, rawValue);
+                                            handleFinancialChange(year, rawValue);
                                         }}
                                         placeholder="0"
                                     />
@@ -644,72 +623,124 @@ export default function BandChartPage() {
                 )}
 
                 {/* [삭제됨] 하단 계산된 지표 테이블 */}
-            </>
-          )}
+          </>
         </div>
 
-        {/* 차트 영역 */}
-        <div className="flex-1 flex flex-col gap-6 min-w-0"> 
+        {/* === [2] 중앙: 차트 영역 === */}
+        <div className="flex-1 flex flex-col min-w-0 h-full">
             {/* Header style control bar */}
-            <div className="bg-white p-6 rounded-xl shadow border flex flex-col min-h-[650px]"> {/* min-h 늘림 */}
-              <div className="mb-4 flex justify-between items-end">
-                 <div className="flex flex-col gap-3"> {/* [수정] 세로 정렬 */}
-                   <div className="flex items-center gap-3">
-                     <h2 className="text-3xl font-bold text-gray-800">{currentCompany.name} <span className="text-xl text-gray-400 font-normal">({currentCompany.code})</span></h2>
-                     <button 
-                       onClick={toggleFavorite} 
-                       className={`text-xl focus:outline-none transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
-                       title={`${activeGroup}에 ${isFavorite ? '삭제' : '추가'}`}
-                     >
-                       {isFavorite ? '⭐' : '☆'}
-                     </button>
-                   </div>
-                   {/* 목표가 및 수익률 표시 (한 줄 아래로) */}
-                   <div className="flex gap-4 text-sm">
-                      <div className="flex gap-2 items-center bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
-                        <span className="font-bold text-blue-800">{target26.label}:</span>
-                        <span className="font-mono text-gray-800">{target26.price.toLocaleString()}원</span>
-                        <span className={`font-bold ${target26.yield > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          ({target26.yield > 0 ? '+' : ''}{target26.yield.toFixed(1)}%)
-                        </span>
-                      </div>
-                      <div className="flex gap-2 items-center bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
-                        <span className="font-bold text-purple-800">{target27.label}:</span>
-                        <span className="font-mono text-gray-800">{target27.price.toLocaleString()}원</span>
-                        <span className={`font-bold ${target27.yield > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          ({target27.yield > 0 ? '+' : ''}{target27.yield.toFixed(1)}%)
-                        </span>
-                      </div>
-                   </div>
-                 </div>
+            <div className="bg-white p-6 rounded-xl shadow border flex flex-col h-full">
+              <div className="mb-4 flex-shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-3xl font-bold text-gray-800">
+                      {currentCompany.name}
+                      <span className="text-xl text-gray-400 font-normal ml-2">({currentCompany.code})</span>
+                    </h2>
+                    <button
+                      onClick={toggleFavorite}
+                      className={`text-2xl focus:outline-none transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                      title={`${activeGroup}에 ${isFavorite ? '삭제' : '추가'}`}
+                    >
+                      {isFavorite ? '⭐' : '☆'}
+                    </button>
+                  </div>
 
-                 <div className="flex items-center gap-4">
-                     <div className="relative w-64">
-                        <input type="text" className="w-full border p-2 rounded font-bold" value={inputCompany} onChange={handleSearchChange} placeholder="종목 검색..." />
-                        {showDropdown && (
-                          <ul className="absolute z-20 w-full bg-white border mt-1 rounded max-h-60 overflow-y-auto shadow-xl">
-                            {filteredCompanies.map(c => (
-                              <li key={c.code} onClick={() => selectCompany(c)} className="p-2 hover:bg-gray-100 cursor-pointer">{c.name}</li>
-                            ))}
-                          </ul>
-                        )}
-                    </div>
-                    {/* [삭제됨] Server/Custom 표시창 */}
-                 </div>
+                  {/* 관심종목 토글 버튼 */}
+                  <button
+                    onClick={() => setShowFavorites(!showFavorites)}
+                    className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${showFavorites ? 'bg-yellow-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >
+                    {showFavorites ? '✕ 관심종목 닫기' : '⭐ 관심종목'}
+                  </button>
+                </div>
+
+                {/* 목표가 및 수익률 표시 */}
+                <div className="flex gap-4 text-sm">
+                  <div className="flex gap-2 items-center bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
+                    <span className="font-bold text-blue-800">{target26.label}:</span>
+                    <span className="font-mono text-gray-800">{target26.price.toLocaleString()}원</span>
+                    <span className={`font-bold ${target26.yield > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                      ({target26.yield > 0 ? '+' : ''}{target26.yield.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className="flex gap-2 items-center bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
+                    <span className="font-bold text-purple-800">{target27.label}:</span>
+                    <span className="font-mono text-gray-800">{target27.price.toLocaleString()}원</span>
+                    <span className={`font-bold ${target27.yield > 0 ? 'text-red-500' : 'text-blue-500'}`}>
+                      ({target27.yield > 0 ? '+' : ''}{target27.yield.toFixed(1)}%)
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="mb-2 text-gray-500 text-sm">
+              <div className="mb-2 text-gray-500 text-sm flex-shrink-0">
                  {financialHistory.length > 0 && `최신 ${labels.output}: ${currentBaseValue.toLocaleString()}원`} × [{multipliers.join(', ')}] 배
               </div>
-              
-              <div className="flex-1 relative w-full border rounded-lg overflow-hidden bg-gray-50">
+
+              <div className="flex-1 w-full border rounded-lg overflow-hidden bg-gray-50 min-h-0 relative">
                  {stockData.length > 0 ? (
-                   <BandChart data={stockData} settings={bandSettings} />
+                   <div className="absolute inset-0">
+                     <BandChart data={stockData} settings={bandSettings} />
+                   </div>
                  ) : (
                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">데이터 로딩 중...</div>
                  )}
               </div>
             </div>
         </div>
+
+        {/* === [3] 우측: 관심 종목 패널 (토글 가능) === */}
+        {showFavorites && (
+          <div className="w-64 bg-white p-4 rounded-xl shadow border h-full flex flex-col overflow-hidden transition-all duration-300">
+            <h2 className="text-lg font-bold mb-3 text-gray-800 border-b pb-2 flex justify-between items-center">
+              <span>⭐ 관심 종목</span>
+              <button
+                onClick={handleAddGroup}
+                className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded border"
+              >
+                + 그룹
+              </button>
+            </h2>
+
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-2 border-b shrink-0">
+              {groups.map(group => (
+                <button
+                  key={group}
+                  onClick={() => setActiveGroup(group)}
+                  className={`px-2 py-1 text-xs rounded-full font-bold whitespace-nowrap transition-all
+                    ${activeGroup === group
+                      ? 'bg-yellow-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                >
+                  {group}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+              {currentGroupFavorites.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {currentGroupFavorites.map(fav => (
+                    <li
+                      key={`${fav.code}-${fav.group_name}`}
+                      onClick={() => selectCompany({ name: fav.name, code: fav.code })}
+                      className={`p-2 rounded-lg border cursor-pointer transition-all hover:shadow-md
+                        ${currentCompany.code === fav.code ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                    >
+                      <div className="font-bold text-gray-800 text-sm">{fav.name}</div>
+                      <div className="text-xs text-gray-400">{fav.code}</div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-xs border-2 border-dashed rounded-lg bg-gray-50">
+                  <span>종목이 없습니다.</span>
+                  <span>별(⭐)을 눌러 추가하세요.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

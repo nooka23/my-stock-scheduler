@@ -157,12 +157,37 @@ for i in range(0, len(company_upload_list), 1000):
 # 기준일 설정
 # ========================================
 TODAY = datetime.now().strftime('%Y%m%d')
-CHECK_START_DATE = (datetime.now() - timedelta(days=10)).strftime('%Y%m%d')
+CHECK_START_DATE = (datetime.now() - timedelta(days=3)).strftime('%Y%m%d')  # 10일 → 3일 (주말 고려)
 FULL_START_DATE = '20150101'
 
 success_count = 0
 updated_count = 0
 api_call_count = 0
+
+# ========================================
+# DB 최신 데이터 배치 조회 (성능 최적화)
+# ========================================
+print("📊 DB 최신 데이터 배치 조회 중...")
+db_latest_data = {}
+
+try:
+    # 모든 종목의 최신 데이터를 한 번의 쿼리로 가져오기
+    res = supabase.rpc('get_latest_prices_by_code').execute()
+
+    if res.data:
+        for row in res.data:
+            db_latest_data[row['code']] = {
+                'date': row['date'],
+                'close': float(row['close'])
+            }
+        print(f"✅ {len(db_latest_data)}개 종목의 최신 데이터 조회 완료")
+    else:
+        # RPC 함수가 없는 경우 기존 방식으로 대체
+        print("⚠️  RPC 함수 없음. 개별 조회 방식 사용...")
+        db_latest_data = None
+except Exception as e:
+    print(f"⚠️  배치 조회 실패 ({e}). 개별 조회 방식 사용...")
+    db_latest_data = None
 
 # ========================================
 # 종목별 업데이트
@@ -175,15 +200,24 @@ for idx, stock in enumerate(target_stocks):
         print(f"[{idx+1}/{len(target_stocks)}] {name}({code}) 진행 중... (API 호출: {api_call_count}회)")
 
     try:
-        # 1. DB 최신 데이터 조회
-        res = supabase.table('daily_prices_v2') \
-            .select('date, close') \
-            .eq('code', code) \
-            .order('date', desc=True) \
-            .limit(1) \
-            .execute()
-
-        db_last_data = res.data[0] if res.data else None
+        # 1. DB 최신 데이터 조회 (배치 조회 결과 사용)
+        if db_latest_data is not None:
+            # 배치 조회 결과에서 가져오기
+            db_last_data = db_latest_data.get(code)
+            if db_last_data:
+                db_last_data = {
+                    'date': db_last_data['date'],
+                    'close': db_last_data['close']
+                }
+        else:
+            # 배치 조회 실패 시 개별 조회
+            res = supabase.table('daily_prices_v2') \
+                .select('date, close') \
+                .eq('code', code) \
+                .order('date', desc=True) \
+                .limit(1) \
+                .execute()
+            db_last_data = res.data[0] if res.data else None
 
         # 2. pykrx 데이터 조회 (가격 데이터만)
         try:
@@ -282,16 +316,22 @@ for idx, stock in enumerate(target_stocks):
                 continue
 
             # 한국투자증권 API로 최근 거래대금 조회
-            start_date_str = df_new.index.min().strftime('%Y%m%d')
-            end_date_str = df_new.index.max().strftime('%Y%m%d')
+            # 거래량이 0인 경우 API 호출 스킵 (성능 최적화)
+            has_trading_volume = (df_new['거래량'] > 0).any()
 
-            trading_value_dict = get_trading_value_from_kis(
-                code,
-                start_date_str,
-                end_date_str,
-                access_token
-            )
-            api_call_count += 1
+            if has_trading_volume:
+                start_date_str = df_new.index.min().strftime('%Y%m%d')
+                end_date_str = df_new.index.max().strftime('%Y%m%d')
+
+                trading_value_dict = get_trading_value_from_kis(
+                    code,
+                    start_date_str,
+                    end_date_str,
+                    access_token
+                )
+                api_call_count += 1
+            else:
+                trading_value_dict = {}
 
             upload_list = []
             for d, r in df_new.iterrows():
