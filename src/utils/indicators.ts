@@ -18,18 +18,23 @@ export const calculateSMA = (data: any[], count: number) => {
 };
 
 // EMA 계산
-export const calculateEMA = (data: any[], count: number) => {
+export const calculateEMA = (data: any[], period: number): number[] => {
   const result: number[] = [];
-  const k = 2 / (count + 1);
+  const k = 2 / (period + 1);
   
+  // 데이터가 기간보다 짧으면 전체 NaN 반환
+  if (data.length < period) {
+      return new Array(data.length).fill(NaN);
+  }
+
   let initialSum = 0;
-  for(let i=0; i<count; i++) initialSum += data[i].close;
-  let prevEma = initialSum / count;
+  for(let i=0; i<period; i++) initialSum += data[i].close;
+  let prevEma = initialSum / period;
   
-  for(let i=0; i<count-1; i++) result.push(NaN);
+  for(let i=0; i<period-1; i++) result.push(NaN);
   result.push(prevEma);
 
-  for (let i = count; i < data.length; i++) {
+  for (let i = period; i < data.length; i++) {
     const close = data[i].close;
     const ema = close * k + prevEma * (1 - k);
     result.push(ema);

@@ -87,7 +87,16 @@ export default function Sidebar() {
 
   const adminItems = [
     { name: '관리자 홈', href: '/admin', icon: '⚙️' },
-    { name: '분석(Admin)', href: '/admin/chart', icon: '📈' },
+    {
+      name: 'MH 분석',
+      href: '/admin/MH',
+      icon: '📈',
+      subItems: [
+        { name: '차트 분석', href: '/admin/MH/chart' },
+        { name: '거래대금 상위', href: '/admin/MH/volume' },
+        { name: '업종 지수 관리', href: '/admin/MH/index' }
+      ]
+    },
   ];
 
   return (
@@ -171,11 +180,13 @@ export default function Sidebar() {
               <div className="my-4 border-t border-gray-300 mx-2"></div>
               {!isCollapsed && <div className="px-3 mb-2 text-xs font-bold text-gray-400 uppercase">Admin</div>}
               {adminItems.map((item) => {
-                const isActive = pathname === item.href;
+                const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
+                const isSubOpen = isActive;
+
                 return (
                   <li key={item.href}>
                     <Link 
-                      href={item.href}
+                      href={item.subItems ? item.subItems[0].href : item.href}
                       className={`
                         flex items-center gap-3 px-3 py-2 rounded-md transition-colors
                         ${isActive ? 'bg-purple-50 text-purple-700 shadow-sm' : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}
@@ -184,6 +195,27 @@ export default function Sidebar() {
                       <span className="text-xl">{item.icon}</span>
                       {!isCollapsed && <span className="font-medium">{item.name}</span>}
                     </Link>
+
+                    {!isCollapsed && item.subItems && isSubOpen && (
+                      <ul className="ml-9 mt-1 space-y-1 border-l-2 border-gray-200 pl-2">
+                        {item.subItems.map(sub => {
+                          const isSubActive = pathname === sub.href;
+                          return (
+                            <li key={sub.href}>
+                              <Link
+                                href={sub.href}
+                                className={`
+                                  block px-3 py-1.5 text-sm rounded-md transition-colors
+                                  ${isSubActive ? 'text-purple-700 font-bold bg-purple-100' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}
+                                `}
+                              >
+                                {sub.name}
+                              </Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
                   </li>
                 );
               })}

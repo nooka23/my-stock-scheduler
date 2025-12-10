@@ -47,6 +47,16 @@ export default function VolumeDiscoveryPage() {
   const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
   const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
 
+  const [currentDate, setCurrentDate] = useState('');
+
+  useEffect(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0'); // 월은 0부터 시작
+    const day = String(today.getDate()).padStart(2, '0');
+    setCurrentDate(`${year}-${month}-${day}`);
+  }, []);
+
   // 사용자 정보 및 즐겨찾기 로드
   useEffect(() => {
     const getUserAndFavs = async () => {
@@ -136,21 +146,50 @@ export default function VolumeDiscoveryPage() {
     setLoading(true);
     setError(null);
     try {
-      // RPC 함수 호출: 60일 누적 거래대금 2조원 이상
-      const { data, error } = await supabase.rpc('get_volume_rank_60d', { min_amount: 2000000000000 });
+      // 1. 최신 날짜 가져오기
+      const { data: dateData } = await supabase
+        .from('trading_value_rankings')
+        .select('date')
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
 
-      if (error) {
-          // RPC 함수가 없을 경우 처리
-          if (error.message.includes('function') && error.message.includes('does not exist')) {
-              throw new Error("DB 함수가 없습니다. 'scripts/create_volume_rank_rpc.sql'을 실행해주세요.");
-          }
-          throw error;
+      if (!dateData) {
+          setStocks([]);
+          setLoading(false);
+          return;
       }
+      setCurrentDate(dateData.date);
 
-      if (data && data.length > 0) {
-        const filteredData = data.filter((item: any) => item.code !== 'KOSPI' && item.code !== 'KOSDAQ');
-        const mappedData = await mapCompanyNames(filteredData);
-        setStocks(mappedData);
+      // 2. 해당 날짜의 60일 평균 거래대금 랭킹 조회 (상위 100개)
+      // 거래대금 랭킹 테이블과 회사 정보 조인
+      // Supabase Join 문법: trading_value_rankings!inner(..., companies(...))
+      // 하지만 여기서는 trading_value_rankings를 메인으로 하고 companies를 가져오는게 편함
+      const { data: rankData, error } = await supabase
+        .from('trading_value_rankings')
+        .select(`
+            code, 
+            avg_amount_60,
+            companies (name, marcap)
+        `)
+        .eq('date', dateData.date)
+        .order('avg_amount_60', { ascending: false })
+        .limit(100); // 상위 100개만
+
+      if (error) throw error;
+
+      if (rankData && rankData.length > 0) {
+        // 데이터 매핑
+        const mappedData: VolumeStock[] = rankData.map((item: any) => ({
+            code: item.code,
+            total_value: item.avg_amount_60 * 60, // 60일 누적 추정치 (평균 * 60)
+            companies: item.companies,
+            marcap: item.companies?.marcap || 0
+        }));
+        
+        // 지수 제외
+        const filteredData = mappedData.filter(item => item.code !== 'KOSPI' && item.code !== 'KOSDAQ' && item.code !== 'KS11' && item.code !== 'KQ11');
+        setStocks(filteredData);
       } else {
         setStocks([]);
       }
@@ -243,9 +282,9 @@ export default function VolumeDiscoveryPage() {
         {/* [왼쪽] 리스트 영역 */}
         <div className="w-[30%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
             <div className="p-4 border-b bg-gray-50">
-                <h2 className="text-lg font-bold text-gray-800">💰 거래대금 상위 (최근 60일)</h2>
+                <h2 className="text-lg font-bold text-gray-800">💰 거래대금 합 2조원 이상 (최근 60일)</h2>
                 <div className="text-[10px] text-gray-500 mt-1 flex justify-between">
-                    <span>기준: 누적 2조원 이상</span>
+                    <span>기준: {currentDate} 종가</span>
                     <span>총 {stocks.length}개 종목</span>
                 </div>
                 {error && <div className="mt-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded">{error}</div>}

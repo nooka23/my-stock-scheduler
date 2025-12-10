@@ -36,6 +36,7 @@ try:
     
     while True:
         # 날짜 범위로 필터링하여 데이터 조회
+        # RS 계산에는 종가(close)만 있으면 충분함
         res = supabase.table('daily_prices_v2') \
             .select('code, date, close') \
             .gte('date', FETCH_START_DATE) \
@@ -83,11 +84,6 @@ P9 = 189
 P12 = 252
 
 # 각 종목별로 계산
-# 전체 기간에 대해 pct_change를 계산하면 느리므로, 
-# tail을 이용해서 마지막 날짜(TARGET_DATE)가 포함된 그룹만 처리하면 좋지만,
-# pandas pct_change 특성상 전체에 대해 하고 마지막 날만 뽑는 게 코드는 간단함.
-# 데이터가 1년치라 빠름.
-
 df['ret_3m'] = df.groupby('code')['close'].pct_change(P3)
 df['ret_6m'] = df.groupby('code')['close'].pct_change(P6)
 df['ret_12m'] = df.groupby('code')['close'].pct_change(P12)

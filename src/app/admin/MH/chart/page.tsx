@@ -38,6 +38,7 @@ type TableStock = {
   close: number;
   marcap: number;
   is_template?: boolean | null; 
+  rank_amount?: number; // 거래대금 순위 추가
 };
 
 type FavItem = {
@@ -50,6 +51,7 @@ export default function ChartPage() {
   const router = useRouter();
   
   const [data, setData] = useState<ChartData[]>([]);
+  const [rawDailyData, setRawDailyData] = useState<ChartData[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930' });
   const [chartLoading, setChartLoading] = useState(false);
 
@@ -70,6 +72,50 @@ export default function ChartPage() {
   const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
   const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
   const [checkGroup, setCheckGroup] = useState<string>('기본 그룹');
+
+  const [minRS, setMinRS] = useState(0);
+  const [indicesRS, setIndicesRS] = useState<{ kospi: number | null, kosdaq: number | null }>({ kospi: null, kosdaq: null });
+  const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('daily');
+
+  // 주봉 변환 함수
+  const convertToWeekly = (dailyData: ChartData[]): ChartData[] => {
+      if (dailyData.length === 0) return [];
+      
+      const weeklyMap = new Map<string, ChartData>();
+      
+      // 날짜 오름차순 정렬 (과거 -> 미래)
+      const sortedDaily = [...dailyData].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+      sortedDaily.forEach(day => {
+          const date = new Date(day.time);
+          const dayOfWeek = date.getDay(); // 0(일) ~ 6(토)
+          // 해당 주의 월요일 계산 (일요일이면 -6, 월~토면 1-요일)
+          const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); 
+          const monday = new Date(date.setDate(diff));
+          const weekKey = monday.toISOString().split('T')[0];
+
+          if (!weeklyMap.has(weekKey)) {
+              weeklyMap.set(weekKey, { 
+                  ...day, 
+                  time: weekKey,
+                  volume: 0, // 누적을 위해 0으로 초기화
+                  high: -Infinity,
+                  low: Infinity
+              });
+          }
+
+          const weekData = weeklyMap.get(weekKey)!;
+          weekData.high = Math.max(weekData.high, day.high);
+          weekData.low = Math.min(weekData.low, day.low);
+          weekData.close = day.close; // 마지막 날짜의 종가가 그 주의 종가
+          weekData.volume += day.volume;
+          
+          // 첫 데이터가 시가 (이미 초기화 시 들어감, 하지만 확실히 하기 위해)
+          // 정렬되어 있으므로 weekData 생성 시점의 open이 시가가 됨.
+      });
+
+      return Array.from(weeklyMap.values());
+  };
 
   useEffect(() => {
     const getUserAndFavs = async () => {
@@ -118,7 +164,7 @@ export default function ChartPage() {
       if(allCompanies) setCompanyList(allCompanies);
 
       const { data: dateData } = await supabase
-        .from('rs_rankings_v2')
+        .from('rs_rankings_with_volume')
         .select('date')
         .order('date', { ascending: false })
         .limit(1)
@@ -127,18 +173,33 @@ export default function ChartPage() {
       if (!dateData) return;
       setLatestDate(dateData.date);
 
+      // 지수 RS 조회 (KOSPI, KOSDAQ, KS11, KQ11)
+      const { data: indexData } = await supabase
+        .from('rs_rankings_with_volume')
+        .select('code, rank_weighted')
+        .eq('date', dateData.date)
+        .in('code', ['KOSPI', 'KOSDAQ', 'KS11', 'KQ11']);
+      
+      if (indexData) {
+          const kospi = indexData.find(i => i.code === 'KOSPI' || i.code === 'KS11')?.rank_weighted || null;
+          const kosdaq = indexData.find(i => i.code === 'KOSDAQ' || i.code === 'KQ11')?.rank_weighted || null;
+          setIndicesRS({ kospi, kosdaq });
+      }
+
+      // 뷰(View) 조회: rs_rankings_with_volume
       const start = (currentPage - 1) * ITEMS_PER_PAGE;
       const end = start + ITEMS_PER_PAGE - 1;
 
-      const { data: rankData, count } = await supabase
-        .from('rs_rankings_v2')
+      const { data: rankData, count: totalRowCount } = await supabase
+        .from('rs_rankings_with_volume')
         .select('*', { count: 'exact' })
         .eq('date', dateData.date)
+        .gte('rank_amount', 60) // 거래대금 상위 40%
         .order('rank_weighted', { ascending: false })
         .range(start, end);
 
       if (rankData && rankData.length > 0) {
-        if (count) setTotalPages(Math.ceil(count / ITEMS_PER_PAGE));
+        if (totalRowCount !== null) setTotalPages(Math.ceil(totalRowCount / ITEMS_PER_PAGE));
 
         const codes = rankData.map(r => r.code);
 
@@ -163,22 +224,25 @@ export default function ChartPage() {
           code: r.code,
           name: compMap.get(r.code)?.name || r.code,
           rank: r.rank_weighted, 
-          rs_score: r.rank_weighted, 
+          rs_score: r.rank_weighted, // RS 점수를 랭킹으로 변경 (점수 -> 순위)
           close: priceMap.get(r.code) || 0,
           marcap: compMap.get(r.code)?.marcap || 0,
-          is_template: null 
+          is_template: null,
+          rank_amount: r.rank_amount // 거래대금 순위
         }));
 
         setTableData(formatted);
         
         checkTrendTemplates(formatted);
+      } else {
+          setTableData([]);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setTableLoading(false);
     }
-  }, [supabase, currentPage]);
+  }, [supabase, currentPage, minRS]);
 
   const checkTrendTemplates = async (stocks: TableStock[]) => {
     const results = await Promise.all(stocks.map(async (stock) => {
@@ -251,13 +315,13 @@ export default function ChartPage() {
           .select('date, open, high, low, close, volume')
           .eq('code', code)
           .order('date', { ascending: false })
-          .limit(400);
+          .limit(1000);
   
-        const rsPromise = supabase.from('rs_rankings_v2')
+        const rsPromise = supabase.from('rs_rankings_with_volume')
           .select('date, rank_weighted')
           .eq('code', code)
           .order('date', { ascending: false })
-          .limit(400);
+          .limit(1000);
   
         const [dbRes, rsRes] = await Promise.all([dbPromise, rsPromise]);
         
@@ -290,20 +354,10 @@ export default function ChartPage() {
   
         const sorted = Array.from(dataMap.values()).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
   
-        const ema20 = calculateEMA(sorted, 20);
-        const wma150 = calculateWMA(sorted, 150);
-        const keltner = calculateKeltner(sorted, 20, 2.25);
-        const macd = calculateMACD(sorted, 3, 10, 16);
-  
-        const finalData = sorted.map((d, i) => ({
-            ...d,
-            ema20: ema20[i], wma150: wma150[i], keltner: keltner[i], macd: macd[i]
-        }));
-  
-        setData(finalData);
+        setRawDailyData(sorted);
       } catch (e) {
         console.error(e);
-        setData([]);
+        setRawDailyData([]);
       } finally {
         setChartLoading(false);
       }
@@ -311,6 +365,41 @@ export default function ChartPage() {
   useEffect(() => {
     fetchChartData(currentCompany.code);
   }, [currentCompany, fetchChartData]);
+
+  useEffect(() => {
+      if (rawDailyData.length === 0) {
+          setData([]);
+          return;
+      }
+
+      let targetData = [...rawDailyData];
+      if (timeframe === 'weekly') {
+          targetData = convertToWeekly(targetData);
+      }
+
+      let ema, wma;
+      
+      ema = calculateEMA(targetData, 20); // EMA는 일봉/주봉 모두 20기간으로 유지
+
+      if (timeframe === 'weekly') {
+          wma = calculateWMA(targetData, 30);  // 주봉: WMA 30
+      } else {
+          wma = calculateWMA(targetData, 150); // 일봉: WMA 150
+      }
+
+      const keltner = calculateKeltner(targetData, 20, 2.25);
+      const macd = calculateMACD(targetData, 3, 10, 16);
+
+      const finalData = targetData.map((d, i) => ({
+          ...d,
+          ema20: ema[i],   // 차트 컴포넌트 호환성을 위해 키 이름 유지 (일봉/주봉 20)
+          wma150: wma[i],  // 차트 컴포넌트 호환성을 위해 키 이름 유지 (주봉 30, 일봉 150)
+          keltner: keltner[i], 
+          macd: macd[i]
+      }));
+
+      setData(finalData);
+  }, [rawDailyData, timeframe]);
 
   const handleStockClick = (stock: TableStock) => {
     setCurrentCompany({ name: stock.name, code: stock.code });
@@ -375,7 +464,6 @@ export default function ChartPage() {
     <div className="h-full bg-gray-50 flex flex-col">
        <div className="flex justify-between items-center bg-white p-4 shadow-sm border-b shrink-0 z-20 relative">
            <div className="flex items-center gap-6">
-               <h1 className="text-2xl font-bold text-blue-800">📊 차트 분석 (Admin)</h1>
                <div className="relative w-72">
                     <input 
                         type="text" 
@@ -404,7 +492,14 @@ export default function ChartPage() {
           <div className="w-[35%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
              <div className="p-3 border-b bg-gray-50 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-gray-700">RS 랭킹 TOP 2000</h3>
+                    <div className="flex items-baseline gap-2">
+                        <h3 className="font-bold text-gray-700">종목발굴</h3>
+                        {indicesRS.kospi !== null && (
+                            <span className="text-[10px] text-gray-400 font-normal">
+                                (KOSPI: <span className="font-bold">{indicesRS.kospi}</span> / KOSDAQ: <span className="font-bold">{indicesRS.kosdaq}</span>)
+                            </span>
+                        )}
+                    </div>
                     <div className="flex gap-1 text-xs items-center">
                        <button disabled={currentPage===1} onClick={()=>setCurrentPage(p=>p-1)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">◀</button>
                        <input 
@@ -418,28 +513,47 @@ export default function ChartPage() {
                        <button disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>p+1)} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">▶</button>
                     </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs">
-                    <span className="font-bold text-gray-600">확인할 그룹:</span>
-                    <select 
-                        value={checkGroup} 
-                        onChange={(e) => setCheckGroup(e.target.value)}
-                        className="border rounded p-1 bg-white outline-none"
-                    >
-                        {favGroups.map(g => (
-                            <option key={g} value={g}>{g}</option>
-                        ))}
-                    </select>
+                
+                <div className="flex justify-between items-center text-xs">
+                    <div className="flex items-center gap-2">
+                        <label className="font-bold text-gray-600 flex items-center gap-1">
+                            RS 지수 
+                            <input 
+                                type="number" 
+                                min="0" 
+                                max="99" 
+                                value={minRS} 
+                                onChange={(e) => setMinRS(Number(e.target.value))}
+                                className="w-12 border rounded p-1 bg-white outline-none focus:border-blue-500 text-center"
+                            />
+                            이상
+                        </label>
+                        <span className="text-gray-400 ml-2">기준일: {latestDate}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-600">그룹:</span>
+                        <select 
+                            value={checkGroup} 
+                            onChange={(e) => setCheckGroup(e.target.value)}
+                            className="border rounded p-1 bg-white outline-none max-w-[100px]"
+                        >
+                            {favGroups.map(g => (
+                                <option key={g} value={g}>{g}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
              </div>
 
              <div className="flex-1 overflow-y-auto min-h-0">
                 <table className="w-full text-left border-collapse">
                    <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10">
-                      <tr><th className="px-3 py-2">순위</th><th className="px-2 py-2">종목</th><th className="px-2 py-2 text-right">RS</th><th className="px-2 py-2 text-center">Templ.</th><th className="px-2 py-2 text-center">관심</th></tr>
+                      <tr><th className="px-3 py-2">순위</th><th className="px-2 py-2">종목</th><th className="px-2 py-2 text-right">RS</th><th className="px-2 py-2 text-center">거래대금</th><th className="px-2 py-2 text-center">Templ.</th><th className="px-2 py-2 text-center">관심</th></tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 text-xs">
                       {tableLoading ? (
-                        <tr><td colSpan={5} className="p-10 text-center text-gray-400">로딩 중...</td></tr>
+                        <tr><td colSpan={6} className="p-10 text-center text-gray-400">로딩 중...</td></tr>
                       ) : tableData.map((stock, idx) => {
                          const isIncluded = favorites.some(f => f.code === stock.code && f.group === checkGroup);
                          return (
@@ -454,6 +568,9 @@ export default function ChartPage() {
                                    <div className="text-[9px] text-gray-400">{stock.code}</div>
                                 </td>
                                 <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_score}</td>
+                                <td className="px-2 py-2 text-center font-medium text-gray-600">
+                                   {stock.rank_amount ? <span title="50일 평균 거래대금 순위 (0~99)">{stock.rank_amount}</span> : '-'}
+                                </td>
                                 <td className="px-2 py-2 text-center text-base">
                                    {stock.is_template === null ? (
                                      <span className="text-gray-300 animate-pulse">●</span>
@@ -481,6 +598,22 @@ export default function ChartPage() {
                     <span className="text-lg text-gray-500 font-medium">({currentCompany.code})</span>
                     
                     <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-1">
+                        {/* 주봉/일봉 토글 */}
+                        <div className="flex bg-white rounded border border-gray-200 p-[2px] mr-2">
+                            <button 
+                                onClick={() => setTimeframe('daily')}
+                                className={`px-2 py-0.5 text-xs font-bold rounded ${timeframe === 'daily' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                일
+                            </button>
+                            <button 
+                                onClick={() => setTimeframe('weekly')}
+                                className={`px-2 py-0.5 text-xs font-bold rounded ${timeframe === 'weekly' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                            >
+                                주
+                            </button>
+                        </div>
+
                         <select 
                             value={targetGroup} 
                             onChange={(e) => setTargetGroup(e.target.value)}
