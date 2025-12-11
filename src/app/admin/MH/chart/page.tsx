@@ -195,7 +195,9 @@ export default function ChartPage() {
         .select('*', { count: 'exact' })
         .eq('date', dateData.date)
         .gte('rank_amount', 60) // 거래대금 상위 40%
+        .gte('rank_weighted', minRS) // RS 지수 필터링
         .order('rank_weighted', { ascending: false })
+        .order('code', { ascending: true }) // 동점자 처리: 코드순 정렬로 순서 고정
         .range(start, end);
 
       if (rankData && rankData.length > 0) {

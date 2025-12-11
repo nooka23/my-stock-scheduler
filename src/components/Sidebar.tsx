@@ -93,7 +93,7 @@ export default function Sidebar() {
       icon: '📈',
       subItems: [
         { name: '차트 분석', href: '/admin/MH/chart' },
-        { name: '거래대금 상위', href: '/admin/MH/volume' },
+        { name: '2차 필터링', href: '/admin/MH/volume' },
         { name: '업종 지수 관리', href: '/admin/MH/index' }
       ]
     },
