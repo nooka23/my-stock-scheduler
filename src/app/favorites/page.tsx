@@ -249,6 +249,13 @@ export default function FavoritesPage() {
       return;
     }
 
+    // trading_candidates 테이블에서도 해당 그룹 삭제
+    await supabase
+      .from('trading_candidates')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('group_name', groupName);
+
     // UI 업데이트
     const newGroups = groups.filter(g => g !== groupName);
     setGroups(newGroups);

@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import StockChartDiscovery from '@/components/StockChartDiscovery';
+import StockChartVolume from '@/components/StockChartVolume';
 
 type VolumeStock = {
   code: string;
-  total_value: number; // 60일 누적 거래대금
+  total_value: number; // 60일 누적 거래대금 (추정)
   companies: {
     name: string;
   } | null;
   marcap?: number;
+  rank_amount_60?: number; // 0-99 점수
+  rank_diff?: number;      // 상승폭
+  prev_rank?: number;      // 이전 점수
 };
 
 type ChartData = {
@@ -20,6 +23,11 @@ type ChartData = {
   low: number;
   close: number;
   volume: number;
+  ema20?: number;
+  wma150?: number;
+  keltner?: { upper: number; lower: number; middle: number };
+  macd?: { macd: number; signal: number; histogram: number };
+  volumeRank60?: number; // 거래량 순위 지수
 };
 
 type FavItem = {
@@ -27,9 +35,13 @@ type FavItem = {
   group: string;
 };
 
+type TabType = 'top200' | 'weekly_risers' | 'monthly_risers';
+
 export default function VolumeDiscoveryPage() {
   const supabase = createClientComponentClient();
   
+  const [activeTab, setActiveTab] = useState<TabType>('top200');
+
   const [stocks, setStocks] = useState<VolumeStock[]>([]);
   const [displayedStocks, setDisplayedStocks] = useState<VolumeStock[]>([]);
   
@@ -48,11 +60,12 @@ export default function VolumeDiscoveryPage() {
   const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
 
   const [currentDate, setCurrentDate] = useState('');
+  const [referenceDate, setReferenceDate] = useState(''); // 비교 시점 날짜
 
   useEffect(() => {
     const today = new Date();
     const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0'); // 월은 0부터 시작
+    const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     setCurrentDate(`${year}-${month}-${day}`);
   }, []);
@@ -113,40 +126,12 @@ export default function VolumeDiscoveryPage() {
       }
   };
 
-  const mapCompanyNames = async (rawStocks: any[]) => {
-    const codes = rawStocks.map((s: any) => s.code);
-    let companyInfoMap = new Map();
-    const chunkSize = 1000;
-    
-    for (let i = 0; i < codes.length; i += chunkSize) {
-        const chunk = codes.slice(i, i + chunkSize);
-        const { data: companiesData } = await supabase
-        .from('companies')
-        .select('code, name, marcap')
-        .in('code', chunk);
-
-        if (companiesData) {
-            companiesData.forEach((c: any) => {
-                companyInfoMap.set(c.code, { name: c.name, marcap: c.marcap });
-            });
-        }
-    }
-    
-    return rawStocks.map((stock: any) => {
-        const info = companyInfoMap.get(stock.code) || { name: '알 수 없음', marcap: 0 };
-        return {
-            ...stock,
-            marcap: info.marcap,
-            companies: { name: info.name }
-        };
-    });
-  };
-
-  const fetchVolumeStocks = useCallback(async () => {
+  // 상위 200 로드
+  const fetchTop200 = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setReferenceDate(''); 
     try {
-      // 1. 최신 날짜 가져오기
       const { data: dateData } = await supabase
         .from('trading_value_rankings')
         .select('date')
@@ -161,10 +146,6 @@ export default function VolumeDiscoveryPage() {
       }
       setCurrentDate(dateData.date);
 
-      // 2. 해당 날짜의 60일 평균 거래대금 랭킹 조회 (상위 100개)
-      // 거래대금 랭킹 테이블과 회사 정보 조인
-      // Supabase Join 문법: trading_value_rankings!inner(..., companies(...))
-      // 하지만 여기서는 trading_value_rankings를 메인으로 하고 companies를 가져오는게 편함
       const { data: rankData, error } = await supabase
         .from('trading_value_rankings')
         .select(`
@@ -174,41 +155,163 @@ export default function VolumeDiscoveryPage() {
         `)
         .eq('date', dateData.date)
         .order('avg_amount_60', { ascending: false })
-        .limit(100); // 상위 100개만
+        .limit(210);
 
       if (error) throw error;
 
       if (rankData && rankData.length > 0) {
-        // 데이터 매핑
         const mappedData: VolumeStock[] = rankData.map((item: any) => ({
             code: item.code,
-            total_value: item.avg_amount_60 * 60, // 60일 누적 추정치 (평균 * 60)
+            total_value: item.avg_amount_60 * 60,
             companies: item.companies,
             marcap: item.companies?.marcap || 0
         }));
         
-        // 지수 제외
-        const filteredData = mappedData.filter(item => item.code !== 'KOSPI' && item.code !== 'KOSDAQ' && item.code !== 'KS11' && item.code !== 'KQ11');
-        setStocks(filteredData);
+        const filteredData = mappedData.filter(item => !['KOSPI', 'KOSDAQ', 'KS11', 'KQ11'].includes(item.code));
+        setStocks(filteredData.slice(0, 200));
       } else {
         setStocks([]);
       }
     } catch (err: any) {
-      console.error("Volume Data Load Error:", err.message);
+      console.error("Top 200 Load Error:", err.message);
       setError(err.message || '데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
   }, [supabase]);
 
-  // 차트 데이터 로드 (기존 재사용)
+  // 급등 로드 (주간/월간)
+  const fetchRankChanges = useCallback(async (period: 'week' | 'month') => {
+      setLoading(true);
+      setError(null);
+      try {
+        // 1. 최신 날짜
+        const { data: dateData } = await supabase
+            .from('trading_value_rankings')
+            .select('date')
+            .order('date', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (!dateData) {
+            setStocks([]);
+            setLoading(false);
+            return;
+        }
+        const latestDate = dateData.date;
+        setCurrentDate(latestDate);
+
+        // 2. 비교 날짜 찾기
+        // week: 5~7일 전, month: 25~35일 전
+        const daysOffset = period === 'week' ? 5 : 25;
+
+        const { data: prevDateData } = await supabase
+            .from('trading_value_rankings')
+            .select('date')
+            .lt('date', new Date(new Date(latestDate).setDate(new Date(latestDate).getDate() - daysOffset)).toISOString().split('T')[0])
+            .order('date', { ascending: false })
+            .limit(1)
+            .single();
+
+        const prevDate = prevDateData?.date;
+        setReferenceDate(prevDate || '');
+
+        if (!prevDate) {
+            setError(`비교할 과거 데이터(${period})가 부족합니다.`);
+            setStocks([]);
+            setLoading(false);
+            return;
+        }
+
+        // 3. 두 날짜의 데이터 가져오기 (rank_amount_60 필요)
+        const { data: currentData } = await supabase
+            .from('trading_value_rankings')
+            .select('code, avg_amount_60, rank_amount_60, companies(name, marcap)')
+            .eq('date', latestDate)
+            .not('rank_amount_60', 'is', null);
+
+        const { data: prevData } = await supabase
+            .from('trading_value_rankings')
+            .select('code, rank_amount_60')
+            .eq('date', prevDate)
+            .not('rank_amount_60', 'is', null);
+
+        if (!currentData || !prevData) {
+            throw new Error('데이터 로드 실패');
+        }
+
+        // 4. Map 생성 및 Diff 계산
+        const prevMap = new Map();
+        prevData.forEach((d: any) => prevMap.set(d.code, d.rank_amount_60));
+
+        let risers: VolumeStock[] = [];
+
+        currentData.forEach((curr: any) => {
+            if (prevMap.has(curr.code)) {
+                const prevRank = prevMap.get(curr.code);
+                const diff = curr.rank_amount_60 - prevRank;
+
+                // 상승한 종목만, 그리고 지수 제외
+                if (diff > 0 && !['KOSPI', 'KOSDAQ', 'KS11', 'KQ11'].includes(curr.code)) {
+                    risers.push({
+                        code: curr.code,
+                        total_value: curr.avg_amount_60 * 60,
+                        companies: curr.companies,
+                        marcap: curr.companies?.marcap,
+                        rank_amount_60: curr.rank_amount_60,
+                        prev_rank: prevRank,
+                        rank_diff: diff
+                    });
+                }
+            }
+        });
+
+        // 5. 정렬: 점수 상승폭 DESC, 거래대금 DESC
+        risers.sort((a, b) => {
+            if ((b.rank_diff || 0) !== (a.rank_diff || 0)) {
+                return (b.rank_diff || 0) - (a.rank_diff || 0);
+            }
+            return b.total_value - a.total_value;
+        });
+
+        setStocks(risers.slice(0, 200));
+
+      } catch (err: any) {
+          console.error("Risers Load Error:", err.message);
+          setError(err.message || '데이터 계산 실패');
+      } finally {
+          setLoading(false);
+      }
+  }, [supabase]);
+
+
+  useEffect(() => {
+      setCurrentPage(1); // 탭 변경 시 페이지 초기화
+      if (activeTab === 'top200') {
+          fetchTop200();
+      } else if (activeTab === 'weekly_risers') {
+          fetchRankChanges('week');
+      } else if (activeTab === 'monthly_risers') {
+          fetchRankChanges('month');
+      }
+  }, [activeTab, fetchTop200, fetchRankChanges]);
+
+
+  // 차트 데이터 로드
   const fetchChartData = async (code: string) => {
     setIsChartLoading(true);
     try {
         const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
         const dbPromise = supabase.from('daily_prices_v2').select('date, open, high, low, close, volume').eq('code', code).order('date', { ascending: false }).limit(100);
+        
+        // 60일 거래량 순위 지수 데이터 로드
+        const volumeRankPromise = supabase.from('trading_value_rankings')
+            .select('date, rank_amount_60')
+            .eq('code', code)
+            .order('date', { ascending: false })
+            .limit(100);
 
-        const [jsonResult, dbResult] = await Promise.all([jsonPromise, dbPromise]);
+        const [jsonResult, dbResult, volumeRankResult] = await Promise.all([jsonPromise, dbPromise, volumeRankPromise]);
 
         let resultData: any[] = [];
         if (jsonResult.data) {
@@ -216,7 +319,8 @@ export default function VolumeDiscoveryPage() {
             resultData = JSON.parse(textData);
         }
 
-        const dataMap = new Map();
+        const dataMap = new Map<string, ChartData>(); 
+        
         resultData.forEach(item => {
             if (item.time) {
                 let o = Number(item.open), h = Number(item.high), l = Number(item.low), c = Number(item.close);
@@ -236,6 +340,17 @@ export default function VolumeDiscoveryPage() {
             });
         }
 
+        if (volumeRankResult.data) {
+            volumeRankResult.data.forEach(row => {
+                const time = row.date;
+                if (!time) return;
+                const existing = dataMap.get(time);
+                if (existing) {
+                    dataMap.set(time, { ...existing, volumeRank60: row.rank_amount_60 });
+                }
+            });
+        }
+
         const sortedData = Array.from(dataMap.values()).sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime());
         setChartData(sortedData);
     } catch (e) {
@@ -250,10 +365,6 @@ export default function VolumeDiscoveryPage() {
       setSelectedStock({ code: stock.code, name: stock.companies?.name || '알 수 없음' });
       fetchChartData(stock.code);
   };
-
-  useEffect(() => {
-      fetchVolumeStocks();
-  }, [fetchVolumeStocks]);
 
   useEffect(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -281,22 +392,50 @@ export default function VolumeDiscoveryPage() {
         
         {/* [왼쪽] 리스트 영역 */}
         <div className="w-[30%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
-            <div className="p-4 border-b bg-gray-50">
-                <h2 className="text-lg font-bold text-gray-800">💰 거래대금 합 2조원 이상 (최근 60일)</h2>
-                <div className="text-[10px] text-gray-500 mt-1 flex justify-between">
-                    <span>기준: {currentDate} 종가</span>
-                    <span>총 {stocks.length}개 종목</span>
+            {/* 헤더 및 탭 */}
+            <div className="p-4 border-b bg-gray-50 pb-0">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">💰 거래대금 분석</h2>
+                <div className="flex gap-2 border-b border-gray-200">
+                    <button 
+                        onClick={() => setActiveTab('top200')}
+                        className={`pb-2 px-1 text-sm font-bold transition-colors ${activeTab === 'top200' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        상위 200
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('weekly_risers')}
+                        className={`pb-2 px-1 text-sm font-bold transition-colors ${activeTab === 'weekly_risers' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        주간 급상승
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('monthly_risers')}
+                        className={`pb-2 px-1 text-sm font-bold transition-colors ${activeTab === 'monthly_risers' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        월간 급상승
+                    </button>
                 </div>
-                {error && <div className="mt-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded">{error}</div>}
+
+                <div className="text-[10px] text-gray-500 mt-2 mb-2 flex justify-between items-center">
+                    <span>
+                        기준: {currentDate} 
+                        {activeTab !== 'top200' && referenceDate && ` (vs ${referenceDate})`}
+                    </span>
+                    <span>총 {stocks.length}개</span>
+                </div>
+                {error && <div className="mb-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded">{error}</div>}
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th className="px-2 py-2 font-medium w-10">순위</th>
+                            <th className="px-2 py-2 font-medium w-10 text-center">#</th>
                             <th className="px-2 py-2 font-medium">종목명</th>
-                            <th className="px-2 py-2 font-medium text-right">누적 거래대금</th>
+                            {activeTab !== 'top200' && (
+                                <th className="px-2 py-2 font-medium text-center">점수변화</th>
+                            )}
+                            <th className="px-2 py-2 font-medium text-right">거래대금(60일)</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-xs">
@@ -307,18 +446,26 @@ export default function VolumeDiscoveryPage() {
                                 className={`cursor-pointer hover:bg-blue-50 transition-colors ${selectedStock?.code === stock.code ? 'bg-blue-100' : ''}`}
                             >
                                 <td className="px-2 py-2 text-gray-500 text-center">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-                                <td className="px-2 py-2 font-bold text-gray-800 truncate">
+                                <td className="px-2 py-2 font-bold text-gray-800 truncate max-w-[120px]">
                                     {stock.companies?.name}
                                     <div className="text-[9px] text-gray-400 font-normal">{stock.code}</div>
                                 </td>
+                                {activeTab !== 'top200' && (
+                                    <td className="px-2 py-2 text-center">
+                                        <span className="text-red-500 font-bold">+{stock.rank_diff}</span>
+                                        <div className="text-[9px] text-gray-400">
+                                            ({stock.prev_rank}→{stock.rank_amount_60})
+                                        </div>
+                                    </td>
+                                )}
                                 <td className="px-2 py-2 text-right font-mono text-blue-600 font-bold">
                                     {formatMoney(stock.total_value)}
                                 </td>
                             </tr>
                         ))}
-                        {loading && <tr><td colSpan={3} className="p-4 text-center text-gray-400 text-xs">데이터 로딩 중...</td></tr>}
+                        {loading && <tr><td colSpan={activeTab !== 'top200' ? 4 : 3} className="p-4 text-center text-gray-400 text-xs">데이터 로딩 중...</td></tr>}
                         {!loading && stocks.length === 0 && !error && (
-                            <tr><td colSpan={3} className="p-8 text-center text-gray-400 text-xs">조건에 맞는 종목이 없습니다.</td></tr>
+                            <tr><td colSpan={activeTab !== 'top200' ? 4 : 3} className="p-8 text-center text-gray-400 text-xs">조건에 맞는 종목이 없습니다.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -363,7 +510,7 @@ export default function VolumeDiscoveryPage() {
                     </div>
                     <div className="flex-1 relative w-full h-full bg-white min-h-0">
                         {chartData.length > 0 ? (
-                            <StockChartDiscovery data={chartData} />
+                            <StockChartVolume data={chartData} />
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center text-gray-400">
                                 {isChartLoading ? '차트 그리는 중...' : '데이터가 없습니다.'}
