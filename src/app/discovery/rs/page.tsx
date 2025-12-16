@@ -38,8 +38,9 @@ type FavItem = {
 export default function RsDiscoveryPage() {
   const supabase = createClientComponentClient();
   
-  const [currentTab, setCurrentTab] = useState<'TOP' | 'RISING'>('TOP');
+  const [currentTab, setCurrentTab] = useState<'TOP' | 'RISING' | 'FALLING'>('TOP');
   const [risingPeriod, setRisingPeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
+  const [fallingPeriod, setFallingPeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
 
   const [excludeHighRise, setExcludeHighRise] = useState(false); 
   const [minRs50, setMinRs50] = useState(false);
@@ -309,6 +310,108 @@ export default function RsDiscoveryPage() {
     }
   }, [supabase, risingPeriod]);
 
+  const fetchFallingStocks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: dateData } = await supabase
+        .from('rs_rankings_v2')
+        .select('date')
+        .order('date', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!dateData) throw new Error('랭킹 데이터가 없습니다.');
+      const latestDate = dateData.date;
+      setReferenceDate(latestDate);
+
+      const daysAgo = fallingPeriod === 'WEEKLY' ? 5 : 20;
+
+      const { data: pastDateData } = await supabase
+        .from('rs_rankings_v2')
+        .select('date')
+        .lt('date', latestDate)
+        .eq('code', '005930')
+        .order('date', { ascending: false })
+        .range(daysAgo - 1, daysAgo - 1)
+        .limit(1)
+        .maybeSingle();
+
+      if (!pastDateData) throw new Error('비교할 과거 데이터가 부족합니다.');
+      const pastDate = pastDateData.date;
+      setComparisonDate(pastDate);
+
+      const { data: currData } = await supabase
+        .from('rs_rankings_v2')
+        .select('code, rank_weighted')
+        .eq('date', latestDate);
+
+      const { data: pastData } = await supabase
+        .from('rs_rankings_v2')
+        .select('code, rank_weighted')
+        .eq('date', pastDate);
+
+      if (!currData || !pastData) throw new Error('랭킹 조회 실패');
+
+      const pastMap = new Map();
+      pastData.forEach((p: any) => pastMap.set(p.code, p.rank_weighted));
+
+      let fallingList: any[] = [];
+      const codes: string[] = [];
+
+      currData.forEach((curr: any) => {
+          const prevRank = pastMap.get(curr.code);
+          if (prevRank !== undefined && prevRank !== null) {
+              const diff = curr.rank_weighted - prevRank;
+              if (diff < 0) {  // 하락한 종목만
+                  fallingList.push({
+                      date_str: latestDate,
+                      code: curr.code,
+                      rs_rating: curr.rank_weighted,
+                      prev_rs: prevRank,
+                      rs_diff: diff,
+                      companies: null
+                  });
+                  codes.push(curr.code);
+              }
+          }
+      });
+
+      if (codes.length > 0) {
+          fallingList.sort((a: any, b: any) => a.rs_diff - b.rs_diff); // 하락폭이 큰 순
+
+          const topFalling = fallingList
+            .filter((r: any) => r.code !== 'KOSPI' && r.code !== 'KOSDAQ')
+            .slice(0, 200);
+          const topCodes = topFalling.map((r: any) => r.code);
+
+          const { data: priceData } = await supabase
+            .from('daily_prices_v2')
+            .select('code, close')
+            .eq('date', latestDate)
+            .in('code', topCodes);
+
+          const priceMap = new Map();
+          priceData?.forEach((p: any) => priceMap.set(p.code, p.close));
+
+          topFalling.forEach((r: any) => {
+              r.close = priceMap.get(r.code) || 0;
+          });
+
+          const combinedData = await mapCompanyNames(topFalling);
+          setAllRankedStocks(combinedData as DailyPrice[]);
+      } else {
+          setAllRankedStocks([]);
+      }
+
+    } catch (err: any) {
+      console.error("FALLING 로딩 실패:", err.message);
+      setError('급하락 데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase, fallingPeriod]);
+
   const fetchChartData = async (code: string) => {
     setIsChartLoading(true);
     try {
@@ -412,11 +515,12 @@ export default function RsDiscoveryPage() {
       fetchChartData(stock.code);
   };
 
-  useEffect(() => { setCurrentPage(1); setInputPage('1'); }, [currentTab, risingPeriod, excludeHighRise, minRs50]);
+  useEffect(() => { setCurrentPage(1); setInputPage('1'); }, [currentTab, risingPeriod, fallingPeriod, excludeHighRise, minRs50]);
   useEffect(() => {
     let filtered = allRankedStocks;
     if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
     if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
+    if (excludeHighRise && currentTab === 'FALLING') filtered = filtered.filter(s => (s.rs_diff || 0) > -90);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     setDisplayedStocks(filtered.slice(startIndex, endIndex));
@@ -425,13 +529,15 @@ export default function RsDiscoveryPage() {
 
   useEffect(() => {
     if (currentTab === 'TOP') fetchRankedStocks();
-    else fetchRisingStocks();
-  }, [currentTab, risingPeriod, fetchRankedStocks, fetchRisingStocks]);
+    else if (currentTab === 'RISING') fetchRisingStocks();
+    else fetchFallingStocks();
+  }, [currentTab, risingPeriod, fallingPeriod, fetchRankedStocks, fetchRisingStocks, fetchFallingStocks]);
 
   const getFilteredCount = () => {
       let filtered = allRankedStocks;
       if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
       if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
+      if (excludeHighRise && currentTab === 'FALLING') filtered = filtered.filter(s => (s.rs_diff || 0) > -90);
       return filtered.length;
   };
   const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
@@ -459,19 +565,30 @@ export default function RsDiscoveryPage() {
                     <div className="flex gap-1">
                         <button onClick={() => setCurrentTab('TOP')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'TOP' ? 'bg-blue-600 text-white shadow' : 'bg-white border text-gray-500'}`}>TOP</button>
                         <button onClick={() => setCurrentTab('RISING')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow' : 'bg-white border text-gray-500'}`}>급상승</button>
+                        <button onClick={() => setCurrentTab('FALLING')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'FALLING' ? 'bg-blue-800 text-white shadow' : 'bg-white border text-gray-500'}`}>급하락</button>
                     </div>
                     <div className="flex flex-col gap-1 items-end">
                         {currentTab === 'RISING' && (
                             <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-red-500"/> 90점↑ 제외</label>
                         )}
+                        {currentTab === 'FALLING' && (
+                            <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-blue-800"/> 90점↓ 제외</label>
+                        )}
                         <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={minRs50} onChange={(e) => setMinRs50(e.target.checked)} className="accent-blue-500"/> RS 50↑</label>
                     </div>
                 </div>
-                
+
                 {currentTab === 'RISING' && (
                     <div className="flex gap-2 mb-2">
                         <button onClick={() => setRisingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${risingPeriod === 'WEEKLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-gray-500'}`}>📅 주간</button>
                         <button onClick={() => setRisingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${risingPeriod === 'MONTHLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-gray-500'}`}>🗓️ 월간</button>
+                    </div>
+                )}
+
+                {currentTab === 'FALLING' && (
+                    <div className="flex gap-2 mb-2">
+                        <button onClick={() => setFallingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${fallingPeriod === 'WEEKLY' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white text-gray-500'}`}>📅 주간</button>
+                        <button onClick={() => setFallingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${fallingPeriod === 'MONTHLY' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white text-gray-500'}`}>🗓️ 월간</button>
                     </div>
                 )}
                 
@@ -490,8 +607,10 @@ export default function RsDiscoveryPage() {
                             <th className="px-2 py-2 font-medium">종목명</th>
                             {currentTab === 'TOP' ? (
                                 <th className="px-2 py-2 font-medium text-right">RS</th>
+                            ) : currentTab === 'RISING' ? (
+                                <th className="px-2 py-2 font-medium text-right">상승</th>
                             ) : (
-                                <th className="px-2 py-2 font-medium text-right">변화</th>
+                                <th className="px-2 py-2 font-medium text-right">하락</th>
                             )}
                             <th className="px-2 py-2 font-medium text-right">시총(억)</th>
                         </tr>
@@ -510,8 +629,10 @@ export default function RsDiscoveryPage() {
                                 </td>
                                 {currentTab === 'TOP' ? (
                                     <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_rating}</td>
-                                ) : (
+                                ) : currentTab === 'RISING' ? (
                                     <td className="px-2 py-2 text-right font-bold text-red-500">+{stock.rs_diff}</td>
+                                ) : (
+                                    <td className="px-2 py-2 text-right font-bold text-blue-800">{stock.rs_diff}</td>
                                 )}
                                 <td className="px-2 py-2 text-right text-gray-600">
                                     {stock.marcap ? Math.round(stock.marcap / 100000000).toLocaleString() : '-'}

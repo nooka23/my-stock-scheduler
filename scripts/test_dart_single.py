@@ -160,7 +160,7 @@ for item in financial_list:
     if thstrm_amount and thstrm_amount != '-':
         try:
             amount = int(thstrm_amount.replace(',', ''))
-            amount_in_won = amount * 1000000  # 백만원 -> 원
+            amount_in_billion = amount // 100  # 백만원 -> 억원
 
             for key, account_names in account_map.items():
                 if any(name in account_nm for name in account_names):
@@ -168,8 +168,7 @@ for item in financial_list:
                         result[key] = {
                             'account_nm': account_nm,
                             'amount_million': amount,
-                            'amount_won': amount_in_won,
-                            'amount_billion': amount / 100  # 억원
+                            'amount_billion': amount_in_billion
                         }
                     break
         except ValueError:
@@ -180,7 +179,8 @@ for key, value in result.items():
     print(f"\n{key}:")
     print(f"  - 계정명: {value['account_nm']}")
     print(f"  - 금액(백만원): {value['amount_million']:,}")
-    print(f"  - 금액(억원): {value['amount_billion']:,.0f}")
+    print(f"  - 금액(억원): {value['amount_billion']:,}")
+    print(f"  - DB 저장값: {value['amount_billion']} (억원)")
 
 print("\n" + "="*60)
 print("✅ 테스트 완료!")

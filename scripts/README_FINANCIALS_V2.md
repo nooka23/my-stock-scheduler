@@ -59,15 +59,20 @@ company_financials_v2
 ├── company_code (종목코드)
 ├── year (회계연도)
 ├── quarter (분기: 1~4=분기별, 0=연간 예측치) ⭐
-├── revenue (매출액)
-├── op_income (영업이익)
-├── net_income (당기순이익)
-├── assets (자산총계)
-├── equity (자본총계)
+├── revenue (매출액, 억원) 💰
+├── op_income (영업이익, 억원) 💰
+├── net_income (당기순이익, 억원) 💰
+├── assets (자산총계, 억원) 💰
+├── equity (자본총계, 억원) 💰
+├── shares_outstanding (발행주식수, 주)
 ├── data_source ('dart' 또는 'forecast') ⭐
 ├── is_consolidated (연결재무제표 여부)
 └── PRIMARY KEY (company_code, year, quarter, data_source)
 ```
+
+**⚠️ 중요: 모든 금액 데이터는 억원 단위로 저장됩니다**
+- DART API: 백만원 → 억원 (÷ 100)
+- 네이버: 이미 억원 단위
 
 ## 🔍 데이터 확인
 
@@ -77,8 +82,8 @@ SELECT
     year,
     quarter,
     data_source,
-    revenue / 100000000 as revenue_억원,
-    op_income / 100000000 as op_income_억원
+    revenue as revenue_억원,
+    op_income as op_income_억원
 FROM company_financials_v2
 WHERE company_code = '005930'  -- 삼성전자
 ORDER BY year, quarter, data_source;
@@ -87,8 +92,8 @@ ORDER BY year, quarter, data_source;
 SELECT
     year,
     quarter,
-    revenue / 100000000 as revenue_억원,
-    op_income / 100000000 as op_income_억원,
+    revenue as revenue_억원,
+    op_income as op_income_억원,
     is_consolidated
 FROM company_financials_v2
 WHERE company_code = '005930' AND year = 2024 AND data_source = 'dart'
@@ -98,8 +103,8 @@ ORDER BY quarter;
 SELECT
     company_code,
     year,
-    revenue / 100000000 as revenue_억원,
-    op_income / 100000000 as op_income_억원
+    revenue as revenue_억원,
+    op_income as op_income_억원
 FROM company_financials_v2
 WHERE data_source = 'forecast' AND quarter = 0
 ORDER BY company_code, year;
@@ -108,8 +113,8 @@ ORDER BY company_code, year;
 SELECT
     year,
     quarter,
-    revenue / 100000000 as revenue_억원,
-    op_income / 100000000 as op_income_억원
+    revenue as revenue_억원,
+    op_income as op_income_억원
 FROM company_financials_v2
 WHERE company_code = '005930'
   AND data_source = 'dart'

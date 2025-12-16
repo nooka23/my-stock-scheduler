@@ -129,9 +129,9 @@ def get_forecast_data(driver, code):
                         raw_val = df.loc[matches[0], col_name]
                         val = clean_value(raw_val)
 
-                        # 정수로 변환 (억원 단위를 원 단위로)
+                        # 정수로 변환 (이미 억원 단위)
                         if val is not None:
-                            record[db_col] = int(val * 100000000)  # 억 -> 원
+                            record[db_col] = int(val)  # 억원 그대로 저장
                         else:
                             record[db_col] = None
                     else:

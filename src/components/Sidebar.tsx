@@ -94,7 +94,8 @@ export default function Sidebar() {
       subItems: [
         { name: '차트 분석', href: '/admin/MH/chart' },
         { name: '2차 필터링', href: '/admin/MH/volume' },
-        { name: '업종 지수 관리', href: '/admin/MH/index' }
+        { name: '업종 지수 관리', href: '/admin/MH/index' },
+        { name: '포트폴리오 관리', href: '/admin/MH/portfolio' }
       ]
     },
   ];

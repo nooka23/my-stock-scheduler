@@ -183,14 +183,14 @@ def parse_financial_data(financial_list, year, quarter):
             try:
                 amount = int(thstrm_amount.replace(',', ''))
 
-                # 단위가 백만원이므로 원 단위로 변환
-                amount = amount * 1000000
+                # 단위가 백만원이므로 억원 단위로 변환 (백만원 / 100 = 억원)
+                amount_in_billion = amount // 100
 
                 # 계정과목 매칭
                 for key, account_names in account_map.items():
                     if any(name in account_nm for name in account_names):
                         if result[key] is None:  # 첫 번째 매칭만 사용
-                            result[key] = amount
+                            result[key] = amount_in_billion
                         break
 
             except ValueError:
@@ -231,12 +231,34 @@ def update_dart_financials(start_year=2011, end_year=2025, end_quarter=3):
 
     success_count = 0
     fail_count = 0
+    skip_count = 0
 
     for idx, company in enumerate(companies):
         code = company['code']
         name = company['name']
 
         print(f"\n[{idx+1}/{len(companies)}] {name}({code})")
+
+        # 이미 수집된 데이터 확인
+        existing_periods = set()  # (year, quarter) 튜플 저장
+        try:
+            existing_data = supabase.table('company_financials_v2').select('year, quarter').eq('company_code', code).eq('data_source', 'dart').execute()
+            existing_count = len(existing_data.data)
+
+            # 이미 있는 연도/분기 목록 생성
+            for record in existing_data.data:
+                existing_periods.add((record['year'], record['quarter']))
+
+            # 이미 50개 이상 데이터가 있으면 건너뛰기 (59개 중 충분한 양)
+            if existing_count >= 50:
+                print(f"  ✅ 이미 {existing_count}개 데이터 존재 - 건너뛰기")
+                skip_count += 1
+                success_count += 1  # 이미 완료된 것으로 간주
+                continue
+            elif existing_count > 0:
+                print(f"  📝 기존 {existing_count}개 데이터 존재 - 누락된 분기만 수집")
+        except Exception as e:
+            print(f"  ⚠️  기존 데이터 확인 실패: {e}")
 
         if code not in corp_code_map:
             print("  ⚠️  DART 매핑 없음 (비상장 또는 ETF)")
@@ -251,6 +273,10 @@ def update_dart_financials(start_year=2011, end_year=2025, end_quarter=3):
             max_quarter = end_quarter if year == end_year else 4
 
             for quarter in range(1, max_quarter + 1):
+                # 이미 있는 분기는 건너뛰기
+                if (year, quarter) in existing_periods:
+                    continue
+
                 print(f"  📅 {year}년 Q{quarter} 조회 중...", end=" ")
 
                 financial_list = get_financial_statement(code, year, quarter)
@@ -299,7 +325,9 @@ def update_dart_financials(start_year=2011, end_year=2025, end_quarter=3):
             fail_count += 1
 
     print("\n" + "="*50)
-    print(f"🎉 작업 완료! 성공: {success_count}, 실패: {fail_count}")
+    print(f"🎉 작업 완료!")
+    print(f"   성공: {success_count}개 (건너뛰기: {skip_count}개)")
+    print(f"   실패: {fail_count}개")
 
 
 if __name__ == "__main__":

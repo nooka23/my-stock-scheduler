@@ -6,13 +6,13 @@ CREATE TABLE IF NOT EXISTS company_financials_v2 (
     year INTEGER NOT NULL,
     quarter INTEGER NOT NULL,          -- 분기 (1, 2, 3, 4) / 연간 예측치는 0
 
-    -- 재무 데이터 (단위: 원)
-    revenue BIGINT,                    -- 매출액
-    op_income BIGINT,                  -- 영업이익
-    net_income BIGINT,                 -- 당기순이익
-    assets BIGINT,                     -- 자산총계
-    equity BIGINT,                     -- 자본총계
-    shares_outstanding BIGINT,         -- 발행주식수
+    -- 재무 데이터 (단위: 억원, 발행주식수는 주)
+    revenue BIGINT,                    -- 매출액 (억원)
+    op_income BIGINT,                  -- 영업이익 (억원)
+    net_income BIGINT,                 -- 당기순이익 (억원)
+    assets BIGINT,                     -- 자산총계 (억원)
+    equity BIGINT,                     -- 자본총계 (억원)
+    shares_outstanding BIGINT,         -- 발행주식수 (주)
 
     -- 주가 지표
     eps NUMERIC,                       -- EPS (주당순이익)
@@ -65,11 +65,11 @@ COMMENT ON TABLE company_financials_v2 IS '기업 재무 데이터 (분기별 �
 COMMENT ON COLUMN company_financials_v2.company_code IS '종목 코드';
 COMMENT ON COLUMN company_financials_v2.year IS '회계 연도';
 COMMENT ON COLUMN company_financials_v2.quarter IS '분기 (1~4: 분기별, 0: 연간 예측치)';
-COMMENT ON COLUMN company_financials_v2.revenue IS '매출액 (원)';
-COMMENT ON COLUMN company_financials_v2.op_income IS '영업이익 (원)';
-COMMENT ON COLUMN company_financials_v2.net_income IS '당기순이익 (원)';
-COMMENT ON COLUMN company_financials_v2.assets IS '자산총계 (원)';
-COMMENT ON COLUMN company_financials_v2.equity IS '자본총계 (원)';
-COMMENT ON COLUMN company_financials_v2.shares_outstanding IS '발행주식수';
+COMMENT ON COLUMN company_financials_v2.revenue IS '매출액 (억원)';
+COMMENT ON COLUMN company_financials_v2.op_income IS '영업이익 (억원)';
+COMMENT ON COLUMN company_financials_v2.net_income IS '당기순이익 (억원)';
+COMMENT ON COLUMN company_financials_v2.assets IS '자산총계 (억원)';
+COMMENT ON COLUMN company_financials_v2.equity IS '자본총계 (억원)';
+COMMENT ON COLUMN company_financials_v2.shares_outstanding IS '발행주식수 (주)';
 COMMENT ON COLUMN company_financials_v2.data_source IS '데이터 출처: dart(실제) / forecast(예측)';
 COMMENT ON COLUMN company_financials_v2.is_consolidated IS '연결재무제표 여부';
