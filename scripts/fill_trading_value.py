@@ -26,7 +26,7 @@ if not APP_KEY or not APP_SECRET:
 supabase: Client = create_client(supabase_url, supabase_key)
 
 print("🚀 거래대금 데이터 채우기 시작 (한국투자증권 API)")
-print("   📅 대상 기간: 2025년 1월 1일 ~ 현재")
+print("   📅 대상 기간: 2024년 1월 1일 ~ 2024년 12월 31일")
 print("   ⚠️ 기존 가격 데이터는 유지하고 거래대금만 업데이트합니다.\n")
 
 # 1. 접근 토큰 발급
@@ -77,8 +77,10 @@ print("3단계: 거래대금 업데이트")
 print("=" * 60)
 
 # 조회 기간 설정 (2025년 데이터만)
-FULL_START_DATE = '20250101'
-TODAY = datetime.now().strftime('%Y%m%d')
+FULL_START_DATE = '20240101'
+FIXED_END_DATE = '20241231'
+TODAY = FIXED_END_DATE # Use the fixed end date
+# TODA = datetime.now().strftime('%Y%m%d') # Original line commented out
 
 # API 호출 통계
 total_calls = 0
@@ -97,7 +99,7 @@ for idx, stock in enumerate(target_stocks):
         # 한국투자증권 API는 한 번에 최대 100일치 정도 조회 가능
         # 전체 기간을 나눠서 조회
         start_date = datetime.strptime(FULL_START_DATE, '%Y%m%d')
-        end_date = datetime.now()
+        end_date = datetime.strptime(FIXED_END_DATE, '%Y%m%d')
 
         current_start = start_date
         all_trading_data = []
