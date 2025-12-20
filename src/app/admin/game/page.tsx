@@ -54,10 +54,19 @@ export default function GamePage() {
   const [problemCount, setProblemCount] = useState<number>(0);
 
   // 랭킹 탭 관련 상태
-  const [currentTab, setCurrentTab] = useState<'game' | 'ranking'>('game');
+  const [currentTab, setCurrentTab] = useState<'game' | 'ranking' | 'check'>('game');
   const [rankingData, setRankingData] = useState<RankingItem[]>([]);
   const [rankingLoading, setRankingLoading] = useState(false);
   const [selectedRankingItem, setSelectedRankingItem] = useState<RankingItem | null>(null);
+
+  // 차트 확인 탭 관련 상태
+  const [checkSearchTerm, setCheckSearchTerm] = useState('');
+  const [checkSearchResults, setCheckSearchResults] = useState<{code: string, name: string}[]>([]);
+  const [checkSelectedCompany, setCheckSelectedCompany] = useState<{code: string, name: string} | null>(null);
+  const [checkData, setCheckData] = useState<ChartData[]>([]);
+  const [rawCheckData, setRawCheckData] = useState<ChartData[]>([]); // Added this
+  const [checkTimeframe, setCheckTimeframe] = useState<'daily' | 'weekly'>('daily');
+  const [checkLoading, setCheckLoading] = useState(false);
 
   // 1년 수익률 100% 이상 종목 조회
   const loadRankingData = useCallback(async () => {
@@ -451,6 +460,120 @@ export default function GamePage() {
     setFullData(processedFullData);
   }, [timeframe, rawDailyData, rawFullData, gameState]);
 
+  // 검색 핸들러
+  const handleCheckSearch = async (term: string) => {
+    setCheckSearchTerm(term);
+    if (term.length < 1) {
+      setCheckSearchResults([]);
+      return;
+    }
+    
+    const { data } = await supabase
+      .from('companies')
+      .select('code, name')
+      .ilike('name', `%${term}%`)
+      .limit(10);
+      
+    if (data) setCheckSearchResults(data);
+  };
+
+  // 종목 선택 핸들러
+  const handleCheckSelect = (company: { code: string, name: string }) => {
+    setCheckSelectedCompany(company);
+    setCheckSearchResults([]);
+    setCheckSearchTerm(company.name);
+    loadCheckChartData(company.code);
+  };
+
+  // 차트 데이터 로드 (Check 탭용)
+  const loadCheckChartData = async (code: string) => {
+    setCheckLoading(true);
+    try {
+        // Fetch data
+        const dbPromise = supabase.from('daily_prices_v2')
+            .select('date, open, high, low, close, volume')
+            .eq('code', code)
+            .order('date', { ascending: false })
+            .limit(2000);
+
+        const rsPromise = supabase.from('rs_rankings_with_volume')
+            .select('date, rank_weighted')
+            .eq('code', code)
+            .order('date', { ascending: false })
+            .limit(2000);
+
+        const [dbRes, rsRes] = await Promise.all([dbPromise, rsPromise]);
+
+        const dataMap = new Map();
+
+        dbRes.data?.forEach(row => {
+            if (!row.date) return;
+            let o = Number(row.open);
+            let h = Number(row.high);
+            let l = Number(row.low);
+            const c = Number(row.close);
+            if (o === 0 && h === 0 && l === 0) { o = c; h = c; l = c; }
+            dataMap.set(row.date, {
+                time: row.date,
+                open: o, high: h, low: l, close: c, volume: Number(row.volume),
+                rs: undefined
+            });
+        });
+
+        rsRes.data?.forEach(row => {
+            if (!row.date) return;
+            const existing = dataMap.get(row.date);
+            if (existing) {
+                dataMap.set(row.date, { ...existing, rs: row.rank_weighted });
+            }
+        });
+
+        const sorted = Array.from(dataMap.values()).sort((a: any, b: any) =>
+            new Date(a.time).getTime() - new Date(b.time).getTime()
+        );
+
+        setRawCheckData(sorted);
+        
+        const processed = processCheckChartData(
+            checkTimeframe === 'weekly' ? convertToWeekly(sorted) : sorted, 
+            checkTimeframe
+        );
+        setCheckData(processed);
+
+    } catch (e) {
+        console.error(e);
+        alert('데이터 로드 실패');
+    } finally {
+        setCheckLoading(false);
+    }
+  };
+
+  // 데이터 처리 (Check 탭용)
+  const processCheckChartData = (rawData: ChartData[], tf: 'daily' | 'weekly'): ChartData[] => {
+    if (rawData.length === 0) return [];
+
+    const ema = calculateEMA(rawData, 20);
+    const wma = calculateWMA(rawData, tf === 'weekly' ? 30 : 150);
+    const keltner = calculateKeltner(rawData, 20, 2.25);
+    const macd = calculateMACD(rawData, 3, 10, 16);
+
+    return rawData.map((d, i) => ({
+        ...d,
+        ema20: ema[i],
+        wma150: wma[i],
+        keltner: keltner[i],
+        macd: macd[i]
+    }));
+  };
+
+  // Check 탭 timeframe 변경 효과
+  useEffect(() => {
+    if (rawCheckData.length === 0) return;
+    const currentData = checkTimeframe === 'weekly' ? convertToWeekly(rawCheckData) : rawCheckData;
+    const processed = processCheckChartData(currentData, checkTimeframe);
+    setCheckData(processed);
+  }, [checkTimeframe, rawCheckData]);
+
   // 답변 제출
   const handleAnswer = async (answer: boolean) => {
     setUserAnswer(answer);
@@ -563,6 +686,16 @@ export default function GamePage() {
             }`}
           >
             100% 이상 수익률 랭킹
+          </button>
+          <button
+            onClick={() => setCurrentTab('check')}
+            className={`px-6 py-2 font-bold rounded-t-lg transition-colors ${
+              currentTab === 'check'
+                ? 'bg-gray-50 text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            차트 확인
           </button>
         </div>
       </div>
@@ -772,6 +905,74 @@ export default function GamePage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {currentTab === 'check' && (
+          <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+             {/* Search Bar */}
+             <div className="bg-white p-4 rounded-xl shadow border relative">
+                <input
+                  type="text"
+                  value={checkSearchTerm}
+                  onChange={(e) => handleCheckSearch(e.target.value)}
+                  placeholder="종목명 검색..."
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {checkSearchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 bg-white border rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                    {checkSearchResults.map(company => (
+                      <div
+                        key={company.code}
+                        onClick={() => handleCheckSelect(company)}
+                        className="px-4 py-2 hover:bg-blue-50 cursor-pointer flex justify-between items-center"
+                      >
+                        <span className="font-bold text-gray-700">{company.name}</span>
+                        <span className="text-sm text-gray-400">{company.code}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+             </div>
+
+             {/* Chart Area */}
+             <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden">
+                <div className="p-4 border-b flex justify-between items-center">
+                   <div className="flex items-center gap-4">
+                      <h3 className="text-lg font-bold text-gray-700">
+                        {checkSelectedCompany ? `${checkSelectedCompany.name} (${checkSelectedCompany.code})` : '종목을 선택해주세요'}
+                      </h3>
+                   </div>
+                   <div className="flex bg-white rounded border border-gray-200 p-[2px]">
+                      <button
+                        onClick={() => setCheckTimeframe('daily')}
+                        className={`px-3 py-1 text-sm font-bold rounded ${checkTimeframe === 'daily' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        일봉
+                      </button>
+                      <button
+                        onClick={() => setCheckTimeframe('weekly')}
+                        className={`px-3 py-1 text-sm font-bold rounded ${checkTimeframe === 'weekly' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        주봉
+                      </button>
+                   </div>
+                </div>
+                
+                <div className="flex-1 relative w-full h-full min-h-0 bg-white">
+                  {checkLoading ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                      로딩 중...
+                    </div>
+                  ) : checkData.length > 0 ? (
+                    <StockChart data={checkData} showOHLC={true} />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                      종목을 검색하여 선택해주세요.
+                    </div>
+                  )}
+                </div>
+             </div>
           </div>
         )}
       </main>

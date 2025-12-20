@@ -87,6 +87,8 @@ export default function Sidebar() {
 
   const adminItems = [
     { name: '관리자 홈', href: '/admin', icon: '⚙️' },
+    { name: '차트 게임', href: '/admin/game', icon: '🎮' },
+    { name: '시장 지수', href: '/admin/index', icon: '📉' },
     {
       name: 'MH 분석',
       href: '/admin/MH',

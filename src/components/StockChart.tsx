@@ -28,30 +28,20 @@ type ChartData = {
 };
 
 interface Props {
-
   data: ChartData[];
-
   colors?: {
-
     backgroundColor?: string;
-
     textColor?: string;
-
   };
-
-  showLegend?: boolean; // Add this line
-
+  showLegend?: boolean;
+  showOHLC?: boolean;
+  showIndicatorsValues?: boolean;
 }
 
-
-
 export default function StockChart({ data = [], colors: {
-
   backgroundColor = 'white', 
-
   textColor = 'black',
-
-} = {}, showLegend = true }: Props) { // Add showLegend = true
+} = {}, showLegend = true, showOHLC = false, showIndicatorsValues = true }: Props) { // Add showLegend = true
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
@@ -365,95 +355,231 @@ export default function StockChart({ data = [], colors: {
 
 
 
-        const dataMap = param.seriesData;
+                const dataMap = param.seriesData;
+
+
+
+                
+
+
+
+                const candleData = dataMap.get(candlestickSeries);
+
+
+
+                const ema20 = dataMap.get(ema20Series);
+
+
+
+                const wma150 = dataMap.get(wma150Series);
+
+
+
+                const volume = dataMap.get(volumeSeries);
+
+
+
+                const rs = dataMap.get(rsSeries);
+
+
+
+                const macdData: any = dataMap.get(macdSeries);
+
+
+
+                const signalData: any = dataMap.get(signalSeries);
+
+
 
         
 
-        const ema20 = dataMap.get(ema20Series);
 
-        const wma150 = dataMap.get(wma150Series);
 
-        const volume = dataMap.get(volumeSeries);
-
-        const rs = dataMap.get(rsSeries);
-
-        const macdData: any = dataMap.get(macdSeries);
-
-        const signalData: any = dataMap.get(signalSeries);
+                const fmtPrice = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toLocaleString() : '-'); 
 
 
 
-        const fmtPrice = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toFixed(0) : '-'); 
-
-        const fmtVol = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toLocaleString() : '-'); 
-
-        const fmtRS = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toFixed(1) : '-'); 
-
-        const fmtMacd = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toFixed(2) : '-'); 
+                const fmtVol = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toLocaleString() : '-'); 
 
 
 
-        legendRef.current.innerHTML = `
-
-          <div class="flex flex-wrap gap-4 text-xs font-medium text-gray-700 items-center">
-
-            
-
-            <div class="flex items-center gap-1">
-
-              <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-
-              <span>EMA(20): ${fmtPrice(ema20 ? (ema20 as any).value : NaN)}</span>
-
-            </div>
+                const fmtRS = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toFixed(1) : '-'); 
 
 
 
-            <div class="flex items-center gap-1">
-
-              <span class="w-2 h-2 rounded-full bg-black"></span>
-
-              <span>WMA(150): ${fmtPrice(wma150 ? (wma150 as any).value : NaN)}</span>
-
-            </div>
+                const fmtMacd = (val: any) => (typeof val === 'number' && !isNaN(val) ? val.toFixed(2) : '-'); 
 
 
 
-            <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
-
-              <span class="text-teal-600 font-bold">Vol:</span>
-
-              <span>${fmtVol(volume ? (volume as any).value : NaN)}</span>
-
-            </div>
+        
 
 
 
-            <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
-
-              <span class="text-purple-600 font-bold">RS:</span>
-
-              <span>${fmtRS(rs ? (rs as any).value : NaN)}</span>
-
-            </div>
+                legendRef.current.innerHTML = `
 
 
 
-            <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
-
-              <span class="text-blue-600 font-bold">MACD:</span>
-
-              <span>${fmtMacd(macdData?.value)}</span>
-
-              <span class="text-orange-500">Sig: ${fmtMacd(signalData?.value)}</span>
-
-            </div>
+                  <div class="flex flex-wrap gap-4 text-xs font-medium text-gray-700 items-center">
 
 
 
-          </div>
+                    
 
-        `;
+
+
+                    ${showOHLC && candleData ? `
+
+
+
+                      <div class="flex items-center gap-2 mr-2 border-r border-gray-300 pr-2 font-mono">
+
+
+
+                         <span class="text-gray-800">O:${fmtPrice((candleData as any).open)}</span>
+
+
+
+                         <span class="text-red-600">H:${fmtPrice((candleData as any).high)}</span>
+
+
+
+                         <span class="text-blue-600">L:${fmtPrice((candleData as any).low)}</span>
+
+
+
+                         <span class="text-gray-800">C:${fmtPrice((candleData as any).close)}</span>
+
+
+
+                      </div>
+
+
+
+                                        ` : ''}
+
+
+
+                            
+
+
+
+                                ${showIndicatorsValues ? `
+
+
+
+                                        <div class="flex items-center gap-1">
+
+
+
+                                  <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+
+
+
+                                  <span>EMA(20): ${fmtPrice(ema20 ? (ema20 as any).value : NaN)}</span>
+
+
+
+                                </div>
+
+
+
+                    
+
+
+
+                                <div class="flex items-center gap-1">
+
+
+
+                                  <span class="w-2 h-2 rounded-full bg-black"></span>
+
+
+
+                                  <span>WMA(150): ${fmtPrice(wma150 ? (wma150 as any).value : NaN)}</span>
+
+
+
+                                </div>
+
+
+
+                    
+
+
+
+                                <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
+
+
+
+                                  <span class="text-teal-600 font-bold">Vol:</span>
+
+
+
+                                  <span>${fmtVol(volume ? (volume as any).value : NaN)}</span>
+
+
+
+                                </div>
+
+
+
+                    
+
+
+
+                                <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
+
+
+
+                                  <span class="text-purple-600 font-bold">RS:</span>
+
+
+
+                                  <span>${fmtRS(rs ? (rs as any).value : NaN)}</span>
+
+
+
+                                </div>
+
+
+
+                    
+
+
+
+                                <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
+
+
+
+                                  <span class="text-blue-600 font-bold">MACD:</span>
+
+
+
+                                  <span>${fmtMacd(macdData?.value)}</span>
+
+
+
+                                  <span class="text-orange-500">Sig: ${fmtMacd(signalData?.value)}</span>
+
+
+
+                                </div>
+
+
+
+                                ` : ''}
+
+
+
+                    
+
+
+
+                              </div>
+
+
+
+                            `;
 
       });
 
@@ -487,11 +613,11 @@ export default function StockChart({ data = [], colors: {
 
       window.removeEventListener('resize', handleResize);
 
-      chart.remove();
+            chart.remove();
 
-    };
+          };
 
-  }, [data, backgroundColor, textColor, showLegend]);
+        }, [data, backgroundColor, textColor, showLegend, showIndicatorsValues]);
 
 
 
