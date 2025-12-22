@@ -91,10 +91,12 @@ def get_financial_summary_annual(driver, code):
         # ★ DB 컬럼 매핑
         item_map = {
             'revenue': '매출액',
-            'op_income': '영업이익',
+            'op_income': '영업이익(발표기준)',
             'net_income': '당기순이익',
             'assets': '자산총계',
             'equity': '자본총계',
+            'equity_controlling': '자본총계(지배)',
+            'liabilities': '부채총계',
             'eps': 'EPS',
             'per': 'PER',
             'bps': 'BPS',
@@ -104,7 +106,7 @@ def get_financial_summary_annual(driver, code):
         }
 
         # ★ 정수형(bigint)으로 변환해야 하는 컬럼 목록 (소수점 제거용)
-        int_columns = ['revenue', 'op_income', 'net_income', 'assets', 'equity', 'shares_outstanding']
+        int_columns = ['revenue', 'op_income', 'net_income', 'assets', 'equity', 'equity_controlling', 'liabilities', 'shares_outstanding']
 
         records = []
         

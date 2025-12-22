@@ -7,4 +7,6 @@ pykrx
 requests
 selenium
 webdriver-manager
+beautifulsoup4
+lxml
 setuptools

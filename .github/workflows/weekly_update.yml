@@ -1,0 +1,47 @@
+name: Weekly Full Data Update
+
+on:
+  schedule:
+    # 매주 금요일 한국 시간 오후 8시 (UTC 11시)
+    - cron: '0 11 * * 5'
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  weekly-update:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install Chrome
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget gnupg
+        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+
+    - name: Install Python dependencies
+      run: pip install -r scripts/requirements.txt
+
+    - name: Run Weekly Full Update
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      run: python scripts/weekly_update_all.py
+
+    - name: Notify completion
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "Weekly update completed successfully"
+        else
+          echo "Weekly update failed"
+        fi
