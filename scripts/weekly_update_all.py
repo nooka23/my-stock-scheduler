@@ -61,10 +61,12 @@ def setup_chrome_driver(headless=True):
     """Chrome 드라이버 설정"""
     options = webdriver.ChromeOptions()
     if headless:
-        options.add_argument("--headless")
+        options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
@@ -278,17 +280,20 @@ def get_financial_summary_annual(driver, code):
     try:
         url = f"https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd={code}"
         driver.get(url)
+        time.sleep(2)  # 페이지 로딩 대기
 
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        time.sleep(1)  # 추가 안정화 대기
 
         try:
             annual_btns = driver.find_elements(By.XPATH, "//a[contains(text(), '연간')] | //label[contains(text(), '연간')]")
             for btn in annual_btns:
                 if btn.is_displayed():
                     btn.click()
-                    time.sleep(0.5)
+                    time.sleep(2)  # 버튼 클릭 후 대기 시간 증가
                     break
-        except Exception:
+        except Exception as e:
+            print(f"[DEBUG] Annual button click failed: {e}")
             pass
 
         html = driver.page_source
@@ -301,6 +306,7 @@ def get_financial_summary_annual(driver, code):
                 break
 
         if target_df is None:
+            print(f"[DEBUG] No target dataframe found (total dfs: {len(dfs)})")
             return None
 
         df = target_df.copy()
@@ -363,6 +369,7 @@ def get_financial_summary_annual(driver, code):
         return records
 
     except Exception as e:
+        print(f"[DEBUG] Error: {str(e)}")
         return None
 
 def update_financials():

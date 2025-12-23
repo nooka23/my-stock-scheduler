@@ -44,6 +44,7 @@ export default function PortfolioManagementPage() {
   const supabase = createClientComponentClient();
 
   const [currentTab, setCurrentTab] = useState<'active' | 'closed'>('active');
+  const [viewMode, setViewMode] = useState<'table' | 'sector'>('table');
   const [positions, setPositions] = useState<PortfolioPosition[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -55,9 +56,10 @@ export default function PortfolioManagementPage() {
   const [sellDate, setSellDate] = useState(new Date().toISOString().split('T')[0]);
   const [cash, setCash] = useState<number>(0);
   const [isEditingCash, setIsEditingCash] = useState(false);
-  const [sortField, setSortField] = useState<'entry_date' | 'company_name' | 'evaluation' | 'sector' | null>(null);
+  const [sortField, setSortField] = useState<'entry_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAmountHidden, setIsAmountHidden] = useState(false);
+  const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
 
   // 종목 검색
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,8 +97,13 @@ export default function PortfolioManagementPage() {
     localStorage.setItem('portfolio_cash', amount.toString());
   };
 
-  // 금액 숨김 처리
+  // 금액 포맷팅 (항상 표시)
   const formatAmount = (amount: number): string => {
+    return amount.toLocaleString();
+  };
+
+  // 총 자산 칸에서만 사용하는 숨김 처리
+  const formatAssetAmount = (amount: number): string => {
     if (isAmountHidden) {
       return '****';
     }
@@ -104,7 +111,7 @@ export default function PortfolioManagementPage() {
   };
 
   // 정렬 함수
-  const handleSort = (field: 'entry_date' | 'company_name' | 'evaluation' | 'sector') => {
+  const handleSort = (field: 'entry_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -138,6 +145,22 @@ export default function PortfolioManagementPage() {
           compareA = a.sector;
           compareB = b.sector;
           break;
+        case 'pnl_ratio':
+          compareA = a.pnl_ratio || 0;
+          compareB = b.pnl_ratio || 0;
+          break;
+        case 'unrealized_pnl':
+          compareA = a.unrealized_pnl || 0;
+          compareB = b.unrealized_pnl || 0;
+          break;
+        case 'realized_pnl':
+          compareA = a.realized_pnl || 0;
+          compareB = b.realized_pnl || 0;
+          break;
+        case 'total_pnl':
+          compareA = a.total_pnl || 0;
+          compareB = b.total_pnl || 0;
+          break;
         default:
           return 0;
       }
@@ -158,32 +181,52 @@ export default function PortfolioManagementPage() {
     return longPositionsValue + cash;
   }, [positions, cash]);
 
-  // 업종별 집계 계산
-  const sectorAllocations = useMemo<SectorAllocation[]>(() => {
+  // 현재 포지션 개수와 R 총합
+  const positionStats = useMemo(() => {
+    if (currentTab !== 'active') return { count: 0, totalR: 0 };
+
+    const count = positions.length;
+    const totalR = positions.reduce((sum, p) => sum + (p.r_value || 0), 0);
+
+    return { count, totalR };
+  }, [positions, currentTab]);
+
+  // 업종별 집계 계산 (R 합산 및 평가손익 추가)
+  type SectorAllocationWithR = SectorAllocation & { totalR: number; unrealizedPnl: number; returnRate: number };
+
+  const sectorAllocations = useMemo<SectorAllocationWithR[]>(() => {
     if (currentTab !== 'active' || positions.length === 0) return [];
 
-    // 업종별 금액 합산
-    const sectorMap = new Map<string, number>();
+    // 업종별 금액, R, 평가손익 합산
+    const sectorMap = new Map<string, { amount: number; totalR: number; unrealizedPnl: number }>();
 
     positions.forEach(p => {
       const positionValue = p.avg_price * p.position_size;
       const sector = p.sector || '기타';
-      sectorMap.set(sector, (sectorMap.get(sector) || 0) + positionValue);
+      const existing = sectorMap.get(sector) || { amount: 0, totalR: 0, unrealizedPnl: 0 };
+      sectorMap.set(sector, {
+        amount: existing.amount + positionValue,
+        totalR: existing.totalR + (p.r_value || 0),
+        unrealizedPnl: existing.unrealizedPnl + (p.unrealized_pnl || 0)
+      });
     });
 
     // 현금 추가
     if (cash > 0) {
-      sectorMap.set('현금', cash);
+      sectorMap.set('현금', { amount: cash, totalR: 0, unrealizedPnl: 0 });
     }
 
     // 총 금액 계산
-    const totalAmount = Array.from(sectorMap.values()).reduce((sum, val) => sum + val, 0);
+    const totalAmount = Array.from(sectorMap.values()).reduce((sum, val) => sum + val.amount, 0);
 
     // 비중 계산
-    const allocations: SectorAllocation[] = Array.from(sectorMap.entries()).map(([sector, amount], index) => ({
+    const allocations: SectorAllocationWithR[] = Array.from(sectorMap.entries()).map(([sector, data], index) => ({
       sector,
-      amount,
-      percentage: totalAmount > 0 ? (amount / totalAmount) * 100 : 0,
+      amount: data.amount,
+      totalR: data.totalR,
+      unrealizedPnl: data.unrealizedPnl,
+      returnRate: data.amount > 0 ? (data.unrealizedPnl / data.amount) * 100 : 0,
+      percentage: totalAmount > 0 ? (data.amount / totalAmount) * 100 : 0,
       color: COLORS[index % COLORS.length]
     }));
 
@@ -564,7 +607,10 @@ export default function PortfolioManagementPage() {
         {/* 탭 */}
         <div className="flex gap-2">
           <button
-            onClick={() => setCurrentTab('active')}
+            onClick={() => {
+              setCurrentTab('active');
+              setViewMode('table');
+            }}
             className={`px-4 py-2 rounded-lg font-bold transition-all ${
               currentTab === 'active'
                 ? 'bg-blue-600 text-white shadow'
@@ -574,7 +620,10 @@ export default function PortfolioManagementPage() {
             📊 현재 포지션
           </button>
           <button
-            onClick={() => setCurrentTab('closed')}
+            onClick={() => {
+              setCurrentTab('closed');
+              setViewMode('table');
+            }}
             className={`px-4 py-2 rounded-lg font-bold transition-all ${
               currentTab === 'closed'
                 ? 'bg-gray-700 text-white shadow'
@@ -584,87 +633,134 @@ export default function PortfolioManagementPage() {
             🏁 청산 매매
           </button>
         </div>
+
+        {/* 뷰 모드 전환 (현재 포지션 탭에서만 표시) */}
+        {currentTab === 'active' && (
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                viewMode === 'table'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              📋 테이블 보기
+            </button>
+            <button
+              onClick={() => setViewMode('sector')}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                viewMode === 'sector'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              🥧 업종별 비중
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 총 자산 및 현금 */}
-      <div className="mb-4 bg-white rounded-lg shadow p-4">
-        <div className="flex items-center gap-8">
-          {/* 총 자산 */}
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-gray-700">💎 총 자산:</span>
-            <span className="text-2xl font-bold text-green-600">{formatAmount(totalAssets)}원</span>
-          </div>
+      {!isAmountHidden && (
+        <div className="mb-4 bg-white rounded-lg shadow p-4">
+          <div className="flex items-center gap-8">
+            {/* 총 자산 */}
+            <div className="flex items-center gap-3">
+              <span className="text-gray-700">💎 총 자산:</span>
+              <span className="text-gray-900">{formatAssetAmount(totalAssets)}원</span>
+            </div>
 
-          {/* 보유 현금 */}
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-gray-700">💰 보유 현금:</span>
-            {isEditingCash ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={cash}
-                  onChange={e => setCash(parseFloat(e.target.value) || 0)}
-                  className="px-3 py-1 border rounded w-40"
-                  autoFocus
-                />
-                <button
-                  onClick={() => {
-                    saveCash(cash);
-                    setIsEditingCash(false);
-                  }}
-                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                >
-                  저장
-                </button>
-                <button
-                  onClick={() => {
-                    setCash(parseFloat(localStorage.getItem('portfolio_cash') || '0'));
-                    setIsEditingCash(false);
-                  }}
-                  className="px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm"
-                >
-                  취소
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-bold text-blue-600">{formatAmount(cash)}원</span>
-                <button
-                  onClick={() => setIsEditingCash(true)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                >
-                  수정
-                </button>
+            {/* 보유 현금 */}
+            <div className="flex items-center gap-3">
+              <span className="text-gray-700">💰 보유 현금:</span>
+              {isEditingCash ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={cash}
+                    onChange={e => setCash(parseFloat(e.target.value) || 0)}
+                    className="px-3 py-1 border rounded w-40"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => {
+                      saveCash(cash);
+                      setIsEditingCash(false);
+                    }}
+                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  >
+                    저장
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCash(parseFloat(localStorage.getItem('portfolio_cash') || '0'));
+                      setIsEditingCash(false);
+                    }}
+                    className="px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm"
+                  >
+                    취소
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-900">{formatAssetAmount(cash)}원</span>
+                  <button
+                    onClick={() => setIsEditingCash(true)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                  >
+                    수정
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 현재 포지션 통계 (현재 포지션 탭에서만 표시) */}
+            {currentTab === 'active' && (
+              <div className="flex items-center gap-3">
+                <span className="text-gray-700">📊 포지션:</span>
+                <span className="text-gray-900">{positionStats.count}개</span>
+                <span className="text-gray-500">|</span>
+                <span className="text-gray-700">R 합계:</span>
+                <span className="text-gray-900">{formatAssetAmount(positionStats.totalR)}원</span>
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          {/* 금액 숨김 토글 */}
-          <button
-            onClick={() => setIsAmountHidden(!isAmountHidden)}
-            className="ml-auto px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            title={isAmountHidden ? '금액 보기' : '금액 숨기기'}
-          >
-            {isAmountHidden ? (
+      {/* 금액 숨김/보이기 토글 버튼 */}
+      <div className="mb-4">
+        <button
+          onClick={() => setIsAmountHidden(!isAmountHidden)}
+          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
+        >
+          {isAmountHidden ? (
+            <>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                 <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
               </svg>
-            ) : (
+              <span>총 자산 보기</span>
+            </>
+          ) : (
+            <>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
                 <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
               </svg>
-            )}
-          </button>
-        </div>
+              <span>총 자산 숨기기</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* 메인 컨텐츠 영역 */}
-      <div className="flex-1 flex gap-4 overflow-hidden">
-        {/* 테이블 */}
-        <div className={`${currentTab === 'active' ? 'w-2/3' : 'w-full'} overflow-auto bg-white rounded-lg shadow`}>
-          <table className="w-full text-xs border-collapse">
+      <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+        {/* 테이블 (청산 매매 탭 또는 테이블 보기 모드) */}
+        {(currentTab === 'closed' || viewMode === 'table') && (
+          <div className="flex-1 overflow-auto bg-white rounded-lg shadow">
+            <table className="w-full text-xs border-collapse">
             <thead className="bg-gray-100 sticky top-0 z-10">
               <tr>
                 <th className="border px-2 py-2 text-center">
@@ -703,14 +799,42 @@ export default function PortfolioManagementPage() {
                         평가금액 {sortField === 'evaluation' && (sortOrder === 'asc' ? '▲' : '▼')}
                       </button>
                     </th>
-                    <th className="border px-2 py-2 text-center">평가손익</th>
+                    <th className="border px-2 py-2 text-center">
+                      <button
+                        onClick={() => handleSort('unrealized_pnl')}
+                        className="w-full hover:text-blue-600 font-bold"
+                      >
+                        평가손익 {sortField === 'unrealized_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
+                      </button>
+                    </th>
                   </>
                 )}
-                <th className="border px-2 py-2 text-center">실현손익</th>
+                <th className="border px-2 py-2 text-center">
+                  <button
+                    onClick={() => handleSort('realized_pnl')}
+                    className="w-full hover:text-blue-600 font-bold"
+                  >
+                    실현손익 {sortField === 'realized_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </button>
+                </th>
                 {currentTab === 'active' && (
-                  <th className="border px-2 py-2 text-center">총손익</th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('total_pnl')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      총손익 {sortField === 'total_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
                 )}
-                <th className="border px-2 py-2 text-center">손익비</th>
+                <th className="border px-2 py-2 text-center">
+                  <button
+                    onClick={() => handleSort('pnl_ratio')}
+                    className="w-full hover:text-blue-600 font-bold"
+                  >
+                    손익비 {sortField === 'pnl_ratio' && (sortOrder === 'asc' ? '▲' : '▼')}
+                  </button>
+                </th>
                 <th className="border px-2 py-2 text-center">손절가격</th>
                 <th className="border px-2 py-2 text-center">R (원)</th>
                 <th className="border px-2 py-2 text-center">ATR (원)</th>
@@ -923,7 +1047,21 @@ export default function PortfolioManagementPage() {
                           rows={2}
                         />
                       ) : (
-                        <div className="max-w-[150px] truncate" title={position.comment}>
+                        <div
+                          className={`cursor-pointer hover:bg-gray-100 ${
+                            expandedComments.has(position.id) ? 'whitespace-normal' : 'max-w-[150px] truncate'
+                          }`}
+                          onClick={() => {
+                            const newExpanded = new Set(expandedComments);
+                            if (newExpanded.has(position.id)) {
+                              newExpanded.delete(position.id);
+                            } else {
+                              newExpanded.add(position.id);
+                            }
+                            setExpandedComments(newExpanded);
+                          }}
+                          title="클릭하여 펼치기/접기"
+                        >
                           {position.comment}
                         </div>
                       )}
@@ -992,76 +1130,116 @@ export default function PortfolioManagementPage() {
             </tbody>
           </table>
         </div>
+        )}
 
-        {/* 업종별 비중 및 차트 (현재 포지션 탭에서만 표시) */}
-        {currentTab === 'active' && (
-          <div className="w-1/3 bg-white rounded-lg shadow p-4 overflow-auto">
-            <h2 className="text-lg font-bold mb-4 text-gray-800">📊 업종별 포지션 비중</h2>
-
+        {/* 업종별 비중 및 차트 (업종별 비중 모드) */}
+        {currentTab === 'active' && viewMode === 'sector' && (
+          <div className="flex-1 bg-white rounded-lg shadow p-6 flex flex-col overflow-hidden">
+            <h2 className="text-xl font-bold mb-6 text-gray-800">📊 업종별 포지션 비중</h2>
             {sectorAllocations.length > 0 ? (
-              <>
-                {/* 원형 그래프 */}
-                <div className="mb-6">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={sectorAllocations}
-                        dataKey="percentage"
-                        nameKey="sector"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={100}
-                        label={(entry) => `${entry.percentage.toFixed(1)}%`}
-                      >
-                        {sectorAllocations.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value: any, name: any, props: any) => [
-                          isAmountHidden ? '****' : `${props.payload.amount.toLocaleString()}원 (${value.toFixed(1)}%)`,
-                          props.payload.sector
-                        ]}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                {/* 업종별 상세 리스트 */}
-                <div className="space-y-2">
-                  <div className="text-sm font-bold text-gray-700 border-b pb-2">상세 내역</div>
-                  {sectorAllocations.map((allocation, index) => (
-                    <div key={index} className="flex items-center justify-between py-2 border-b">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-4 h-4 rounded"
-                          style={{ backgroundColor: allocation.color }}
+              <div className="flex-1 grid grid-cols-2 gap-8 overflow-hidden">
+                  {/* 원형 그래프 (고정) */}
+                  <div className="flex flex-col">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <PieChart>
+                        <Pie
+                          data={sectorAllocations}
+                          dataKey="percentage"
+                          nameKey="sector"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={120}
+                          label={(entry) => `${entry.percentage.toFixed(1)}%`}
+                        >
+                          {sectorAllocations.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: any, name: any, props: any) => [
+                            `${props.payload.amount.toLocaleString()}원 (${value.toFixed(1)}%)`,
+                            props.payload.sector
+                          ]}
                         />
-                        <span className="font-bold text-sm">{allocation.sector}</span>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold">{allocation.percentage.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-500">{formatAmount(allocation.amount)}원</div>
-                      </div>
-                    </div>
-                  ))}
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
 
-                  {/* 총합 */}
-                  <div className="flex items-center justify-between py-2 border-t-2 border-gray-300 mt-2">
-                    <span className="font-bold text-sm text-gray-800">총 자산</span>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-blue-600">100.0%</div>
-                      <div className="text-sm font-bold text-gray-800">
-                        {formatAmount(sectorAllocations.reduce((sum, a) => sum + a.amount, 0))}원
+                  {/* 업종별 상세 리스트 (스크롤 가능) */}
+                  <div className="flex flex-col overflow-hidden">
+                    <div className="text-base font-bold text-gray-700 border-b pb-2 mb-2 flex-shrink-0">상세 내역</div>
+                    <div className="overflow-y-auto flex-1 space-y-1">
+                      {sectorAllocations.map((allocation, index) => (
+                        <div key={index} className="py-3 border-b hover:bg-gray-50">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-4 h-4 rounded"
+                                style={{ backgroundColor: allocation.color }}
+                              />
+                              <span className="font-bold text-base">{allocation.sector}</span>
+                            </div>
+                            <div className="text-sm font-bold text-gray-700">{allocation.percentage.toFixed(1)}%</div>
+                          </div>
+                          <div className="ml-6 space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">투자금액</span>
+                              <span className="font-medium">{formatAmount(allocation.amount)}원</span>
+                            </div>
+                            {allocation.totalR > 0 && (
+                              <div className="flex justify-between text-sm">
+                                <span className="text-gray-600">R 합계</span>
+                                <span className="font-medium text-blue-600">{formatAmount(allocation.totalR)}원</span>
+                              </div>
+                            )}
+                            {allocation.sector !== '현금' && (
+                              <>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">평가손익</span>
+                                  <span className={`font-medium ${allocation.unrealizedPnl >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                    {allocation.unrealizedPnl >= 0 ? '+' : ''}{formatAmount(allocation.unrealizedPnl)}원
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-gray-600">수익률</span>
+                                  <span className={`font-medium ${allocation.returnRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                                    {allocation.returnRate >= 0 ? '+' : ''}{allocation.returnRate.toFixed(2)}%
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* 총합 */}
+                      <div className="py-3 border-t-2 border-gray-300 mt-2 bg-gray-50 sticky bottom-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-bold text-base text-gray-800">총 자산</span>
+                          <span className="text-sm font-bold text-blue-600">100.0%</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">총 투자금액</span>
+                          <span className="text-base font-bold text-gray-800">
+                            {formatAmount(sectorAllocations.reduce((sum, a) => sum + a.amount, 0))}원
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm mt-1">
+                          <span className="text-gray-600">총 평가손익</span>
+                          <span className={`text-base font-bold ${sectorAllocations.reduce((sum, a) => sum + a.unrealizedPnl, 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                            {sectorAllocations.reduce((sum, a) => sum + a.unrealizedPnl, 0) >= 0 ? '+' : ''}
+                            {formatAmount(sectorAllocations.reduce((sum, a) => sum + a.unrealizedPnl, 0))}원
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </>
+              </div>
             ) : (
-              <div className="text-center py-8 text-gray-400">
-                포지션이 없습니다.
+              <div className="text-center py-16 text-gray-400">
+                <p className="text-lg">포지션이 없습니다.</p>
+                <p className="text-sm mt-2">포지션을 추가하면 업종별 비중을 확인할 수 있습니다.</p>
               </div>
             )}
           </div>
