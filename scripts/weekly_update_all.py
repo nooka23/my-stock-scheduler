@@ -35,7 +35,7 @@ print(f"[ENV] Loading from: {env_path}")
 load_dotenv(dotenv_path=env_path)
 
 url: str = os.environ.get("NEXT_PUBLIC_SUPABASE_URL")
-key: str = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 if not url or not key:
     print("[ERROR] Supabase credentials not found in .env")
