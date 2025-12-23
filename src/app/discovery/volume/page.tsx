@@ -59,6 +59,10 @@ export default function VolumeDiscoveryPage() {
   const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
   const [targetGroup, setTargetGroup] = useState<string>('기본 그룹');
 
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [themes, setThemes] = useState<string[]>([]);
+  const [showAllThemes, setShowAllThemes] = useState(false);
+
   const [currentDate, setCurrentDate] = useState('');
   const [referenceDate, setReferenceDate] = useState(''); // 비교 시점 날짜
 
@@ -364,6 +368,46 @@ export default function VolumeDiscoveryPage() {
   const handleStockClick = (stock: VolumeStock) => {
       setSelectedStock({ code: stock.code, name: stock.companies?.name || '알 수 없음' });
       fetchChartData(stock.code);
+      fetchIndustriesAndThemes(stock.code);
+      setShowAllThemes(false); // 종목 변경 시 테마 접기
+  };
+
+  const fetchIndustriesAndThemes = async (code: string) => {
+    try {
+      // 업종 정보 조회
+      const { data: industryData } = await supabase
+        .from('company_industries')
+        .select('industry_id, industries(name)')
+        .eq('company_code', code);
+
+      if (industryData) {
+        const industryNames = industryData
+          .map((item: any) => item.industries?.name)
+          .filter(Boolean);
+        setIndustries(industryNames);
+      } else {
+        setIndustries([]);
+      }
+
+      // 테마 정보 조회
+      const { data: themeData } = await supabase
+        .from('company_themes')
+        .select('theme_id, themes(name)')
+        .eq('company_code', code);
+
+      if (themeData) {
+        const themeNames = themeData
+          .map((item: any) => item.themes?.name)
+          .filter(Boolean);
+        setThemes(themeNames);
+      } else {
+        setThemes([]);
+      }
+    } catch (e) {
+      console.error('Error fetching industries and themes:', e);
+      setIndustries([]);
+      setThemes([]);
+    }
   };
 
   useEffect(() => {
@@ -485,28 +529,70 @@ export default function VolumeDiscoveryPage() {
         <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
             {selectedStock ? (
                 <>
-                    <div className="p-4 border-b flex justify-between items-center bg-gray-50">
-                        <div className="flex items-center gap-2">
-                            <h2 className="text-xl font-bold text-gray-800">
-                                {selectedStock.name} <span className="text-base font-normal text-gray-500">({selectedStock.code})</span>
-                            </h2>
-                            <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-1">
-                                <select 
-                                    value={targetGroup} 
-                                    onChange={(e) => setTargetGroup(e.target.value)}
-                                    className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
-                                >
-                                    {favGroups.map(g => <option key={g} value={g}>{g}</option>)}
-                                </select>
-                                <button 
-                                    onClick={toggleFavorite}
-                                    className={`text-xl px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
-                                >
-                                    {isFavorite ? '⭐' : '☆'}
-                                </button>
+                    <div className="p-4 border-b bg-gray-50">
+                        <div className="flex justify-between items-start">
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-baseline gap-2">
+                                    <h2 className="text-xl font-bold text-gray-800">{selectedStock.name}</h2>
+                                    <span className="text-base text-gray-500">({selectedStock.code})</span>
+                                </div>
+
+                                {/* 업종/테마 표시 */}
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    {industries.length > 0 && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-gray-500 font-medium">업종:</span>
+                                            {industries.map((industry, idx) => (
+                                                <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                                    {industry}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {themes.length > 0 && (
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-gray-500 font-medium">테마:</span>
+                                            <div className="flex flex-wrap gap-1">
+                                                {(showAllThemes ? themes : themes.slice(0, 5)).map((theme, idx) => (
+                                                    <span key={idx} className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                                        {theme}
+                                                    </span>
+                                                ))}
+                                                {themes.length > 5 && (
+                                                    <button
+                                                        onClick={() => setShowAllThemes(!showAllThemes)}
+                                                        className="text-gray-500 hover:text-gray-700 px-1 text-xs font-medium underline"
+                                                        title={showAllThemes ? '접기' : '전체 보기'}
+                                                    >
+                                                        {showAllThemes ? '접기' : `+${themes.length - 5} 더보기`}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                {isChartLoading && <span className="text-xs text-blue-500 font-bold animate-pulse">데이터 로딩 중...</span>}
+
+                                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                    <select
+                                        value={targetGroup}
+                                        onChange={(e) => setTargetGroup(e.target.value)}
+                                        className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
+                                    >
+                                        {favGroups.map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                    <button
+                                        onClick={toggleFavorite}
+                                        className={`text-xl px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                                    >
+                                        {isFavorite ? '⭐' : '☆'}
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        {isChartLoading && <span className="text-xs text-blue-500 font-bold animate-pulse">데이터 로딩 중...</span>}
                     </div>
                     <div className="flex-1 relative w-full h-full bg-white min-h-0">
                         {chartData.length > 0 ? (

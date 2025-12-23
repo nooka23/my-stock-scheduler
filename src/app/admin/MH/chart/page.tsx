@@ -77,6 +77,10 @@ export default function ChartPage() {
   const [indicesRS, setIndicesRS] = useState<{ kospi: number | null, kosdaq: number | null }>({ kospi: null, kosdaq: null });
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('daily');
 
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [themes, setThemes] = useState<string[]>([]);
+  const [showAllThemes, setShowAllThemes] = useState(false);
+
   // 주봉 변환 함수
   const convertToWeekly = (dailyData: ChartData[]): ChartData[] => {
       if (dailyData.length === 0) return [];
@@ -366,7 +370,47 @@ export default function ChartPage() {
     }, [supabase]);
   useEffect(() => {
     fetchChartData(currentCompany.code);
+    fetchIndustriesAndThemes(currentCompany.code);
+    setShowAllThemes(false); // 종목 변경 시 테마 접기
   }, [currentCompany, fetchChartData]);
+
+  const fetchIndustriesAndThemes = async (code: string) => {
+    try {
+      // 업종 정보 조회
+      const { data: industryData } = await supabase
+        .from('company_industries')
+        .select('industry_id, industries(name)')
+        .eq('company_code', code);
+
+      if (industryData) {
+        const industryNames = industryData
+          .map((item: any) => item.industries?.name)
+          .filter(Boolean);
+        setIndustries(industryNames);
+      } else {
+        setIndustries([]);
+      }
+
+      // 테마 정보 조회
+      const { data: themeData } = await supabase
+        .from('company_themes')
+        .select('theme_id, themes(name)')
+        .eq('company_code', code);
+
+      if (themeData) {
+        const themeNames = themeData
+          .map((item: any) => item.themes?.name)
+          .filter(Boolean);
+        setThemes(themeNames);
+      } else {
+        setThemes([]);
+      }
+    } catch (e) {
+      console.error('Error fetching industries and themes:', e);
+      setIndustries([]);
+      setThemes([]);
+    }
+  };
 
   useEffect(() => {
       if (rawDailyData.length === 0) {
@@ -594,45 +638,84 @@ export default function ChartPage() {
           </div>
 
           <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
-              <div className="p-4 border-b flex justify-between items-baseline shrink-0">
-                  <div className="flex items-baseline gap-2">
-                    <h2 className="text-2xl font-bold text-gray-800">{currentCompany.name}</h2>
-                    <span className="text-lg text-gray-500 font-medium">({currentCompany.code})</span>
-                    
-                    <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-1">
-                        {/* 주봉/일봉 토글 */}
-                        <div className="flex bg-white rounded border border-gray-200 p-[2px] mr-2">
-                            <button 
-                                onClick={() => setTimeframe('daily')}
-                                className={`px-2 py-0.5 text-xs font-bold rounded ${timeframe === 'daily' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-                            >
-                                일
-                            </button>
-                            <button 
-                                onClick={() => setTimeframe('weekly')}
-                                className={`px-2 py-0.5 text-xs font-bold rounded ${timeframe === 'weekly' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-                            >
-                                주
-                            </button>
-                        </div>
+              <div className="p-4 border-b shrink-0">
+                  <div className="flex justify-between items-start">
+                      <div className="flex flex-col gap-2">
+                          <div className="flex items-baseline gap-2">
+                              <h2 className="text-2xl font-bold text-gray-800">{currentCompany.name}</h2>
+                              <span className="text-lg text-gray-500 font-medium">({currentCompany.code})</span>
+                          </div>
 
-                        <select 
-                            value={targetGroup} 
-                            onChange={(e) => setTargetGroup(e.target.value)}
-                            className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
-                        >
-                            {favGroups.map(g => (
-                                <option key={g} value={g}>{g}</option>
-                            ))}
-                        </select>
-                        <button 
-                            onClick={toggleFavorite}
-                            className={`text-xl focus:outline-none transition-transform hover:scale-110 px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
-                            title={`'${targetGroup}'에 ${isFavorite ? '삭제' : '추가'}`}
-                        >
-                            {isFavorite ? '⭐' : '☆'}
-                        </button>
-                    </div>
+                          {/* 업종/테마 표시 */}
+                          <div className="flex flex-wrap gap-2 text-xs">
+                              {industries.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                      <span className="text-gray-500 font-medium">업종:</span>
+                                      {industries.map((industry, idx) => (
+                                          <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                              {industry}
+                                          </span>
+                                      ))}
+                                  </div>
+                              )}
+                              {themes.length > 0 && (
+                                  <div className="flex items-center gap-1">
+                                      <span className="text-gray-500 font-medium">테마:</span>
+                                      <div className="flex flex-wrap gap-1">
+                                          {(showAllThemes ? themes : themes.slice(0, 5)).map((theme, idx) => (
+                                              <span key={idx} className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                                  {theme}
+                                              </span>
+                                          ))}
+                                          {themes.length > 5 && (
+                                              <button
+                                                  onClick={() => setShowAllThemes(!showAllThemes)}
+                                                  className="text-gray-500 hover:text-gray-700 px-1 text-xs font-medium underline"
+                                                  title={showAllThemes ? '접기' : '전체 보기'}
+                                              >
+                                                  {showAllThemes ? '접기' : `+${themes.length - 5} 더보기`}
+                                              </button>
+                                          )}
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                          {/* 주봉/일봉 토글 */}
+                          <div className="flex bg-white rounded border border-gray-200 p-[2px] mr-2">
+                              <button
+                                  onClick={() => setTimeframe('daily')}
+                                  className={`px-2 py-0.5 text-xs font-bold rounded ${timeframe === 'daily' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                              >
+                                  일
+                              </button>
+                              <button
+                                  onClick={() => setTimeframe('weekly')}
+                                  className={`px-2 py-0.5 text-xs font-bold rounded ${timeframe === 'weekly' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                              >
+                                  주
+                              </button>
+                          </div>
+
+                          <select
+                              value={targetGroup}
+                              onChange={(e) => setTargetGroup(e.target.value)}
+                              className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
+                          >
+                              {favGroups.map(g => (
+                                  <option key={g} value={g}>{g}</option>
+                              ))}
+                          </select>
+                          <button
+                              onClick={toggleFavorite}
+                              className={`text-xl focus:outline-none transition-transform hover:scale-110 px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                              title={`'${targetGroup}'에 ${isFavorite ? '삭제' : '추가'}`}
+                          >
+                              {isFavorite ? '⭐' : '☆'}
+                          </button>
+                      </div>
                   </div>
               </div>
 
