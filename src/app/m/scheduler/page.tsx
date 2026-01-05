@@ -383,12 +383,12 @@ export default function MobileSchedulerPage() {
 
   return (
     <main className="flex h-full bg-gray-50">
-      <div className="flex-1 flex flex-col h-full overflow-y-auto p-4">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto px-1 py-3">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-bold text-blue-800">모바일 스케줄러</h1>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-md h-full">
+        <div className="bg-white p-2 rounded-none shadow-none h-full">
           <Calendar
             locale="ko-KR"
             calendarType="gregory"
@@ -419,7 +419,7 @@ export default function MobileSchedulerPage() {
                         onClick={(e) => handleScheduleClick(e, schedule)}
                         className={`schedule-bar flex items-center gap-1 cursor-pointer transition-colors border ${barColor}`}
                       >
-                        <span className="truncate">{getShortName(schedule.company)}</span>
+                        <span className="whitespace-nowrap">{getShortName(schedule.company)}</span>
                       </div>
                     );
                   })}
