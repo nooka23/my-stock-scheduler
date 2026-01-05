@@ -21,6 +21,7 @@ type Participant = {
 type Schedule = {
   id: number;
   date_str: string;
+  end_date?: string | null;
   company: string;
   is_unlisted: boolean;
   start_time: string;
@@ -53,6 +54,19 @@ const formatDateToKey = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatDateInput = (date: Date | null) => (date ? formatDateToKey(date) : '');
+const parseDateInput = (value: string) => (value ? new Date(`${value}T00:00:00`) : null);
+
+const getRangeLabel = (start: Date | null, end: Date | null) => {
+  if (!start && !end) return '';
+  if (start && end) {
+    const startKey = formatDateToKey(start);
+    const endKey = formatDateToKey(end);
+    return startKey === endKey ? startKey : `${startKey} ~ ${endKey}`;
+  }
+  return start ? formatDateToKey(start) : end ? formatDateToKey(end) : '';
+};
+
 const getTimeValue = (timeStr: string) => {
   const [ampm, time] = timeStr.split(' ');
   const [h, m] = time.split(':').map(Number);
@@ -62,12 +76,20 @@ const getTimeValue = (timeStr: string) => {
   return hour * 60 + m;
 };
 
+const getScheduleRangeKeys = (schedule: Schedule) => {
+  const startKey = schedule.date_str;
+  const endKey = schedule.end_date && schedule.end_date !== '' ? schedule.end_date : startKey;
+  return { startKey, endKey };
+};
+
 export default function Home() {
   const supabase = createClientComponentClient();
 
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [rangeStart, setRangeStart] = useState<Date | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [myProfile, setMyProfile] = useState<MyProfile | null>(null);
@@ -144,7 +166,11 @@ export default function Home() {
     if (editingId) {
       const target = schedules.find(s => s.id === editingId);
       if (target) {
-        setSelectedDate(new Date(target.date_str));
+        const targetDate = new Date(target.date_str);
+        const targetEndDate = target.end_date ? new Date(target.end_date) : targetDate;
+        setSelectedDate(targetDate);
+        setRangeStart(targetDate);
+        setRangeEnd(targetEndDate);
         setInputCompany(target.company); setIsUnlisted(target.is_unlisted);
         setInputLocation(target.location); setMaxParticipants(target.max_participants);
         setInputMemo(target.memo);
@@ -161,6 +187,8 @@ export default function Home() {
       setEndAmPm('오전'); setEndHour('11'); setEndMin('00');
       setInputLocation(''); setMaxParticipants('1명'); setInputMemo('');
       setAutoJoin(true); 
+      setRangeStart(selectedDate);
+      setRangeEnd(selectedDate);
     }
   }, [editingId, isPanelOpen, schedules]);
 
@@ -178,7 +206,13 @@ export default function Home() {
     setEndHour(nextHour.toString());
   };
 
-  const handleDayClick = (value: Date) => { setEditingId(null); setSelectedDate(value); setIsPanelOpen(true); };
+  const handleDayClick = (value: Date) => {
+    setEditingId(null);
+    setSelectedDate(value);
+    setRangeStart(value);
+    setRangeEnd(value);
+    setIsPanelOpen(true);
+  };
   const handleScheduleClick = (e: React.MouseEvent, schedule: Schedule) => { e.stopPropagation(); setEditingId(schedule.id); setIsPanelOpen(true); };
 
   const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,14 +227,28 @@ export default function Home() {
   const selectCompany = (company: Company) => { setInputCompany(company.name); setShowDropdown(false); };
 
   const handleSave = async () => {
-    if (!user || !selectedDate) return;
+    if (!user || (!selectedDate && !rangeStart && !rangeEnd)) return;
     const isValidCompany = companyList.some(c => c.name === inputCompany);
     if (!isUnlisted && !isValidCompany) { alert("목록에 있는 기업을 선택하거나, '비상장'을 체크해주세요."); return; }
     if (!inputCompany) { alert("기업명을 입력해주세요."); return; }
 
     const myName = myProfile?.nickname || user.email?.split('@')[0] || "익명";
+    const startDate = rangeStart || selectedDate || null;
+    const endDate = rangeEnd || startDate;
+    if (!startDate) return;
+    let rangeStartDate = startDate;
+    let rangeEndDate = endDate || startDate;
+    if (rangeStartDate > rangeEndDate) {
+      const temp = rangeStartDate;
+      rangeStartDate = rangeEndDate;
+      rangeEndDate = temp;
+    }
+
     const scheduleData = {
-      date_str: formatDateToKey(selectedDate),
+      date_str: formatDateToKey(rangeStartDate),
+      ...(rangeStartDate.getTime() !== rangeEndDate.getTime()
+        ? { end_date: formatDateToKey(rangeEndDate) }
+        : {}),
       company: inputCompany,
       is_unlisted: isUnlisted,
       start_time: `${startAmPm} ${startHour}:${startMin}`,
@@ -214,10 +262,10 @@ export default function Home() {
 
     if (editingId) {
       const { error } = await supabase.from('schedules').update(scheduleData).eq('id', editingId);
-      if (error) alert('수정 실패');
+      if (error) alert(`일정 수정 실패: ${error.message}`);
     } else {
       const { data: newSchedules, error } = await supabase.from('schedules').insert([scheduleData]).select();
-      if (error) { alert('저장 실패'); } 
+      if (error) { alert(`일정 저장 실패: ${error.message}`); } 
       else if (newSchedules && newSchedules.length > 0) {
         if (autoJoin) {
           const newId = newSchedules[0].id;
@@ -263,9 +311,9 @@ export default function Home() {
 
   return (
     // Layout container handled by RootLayout + Sidebar. We just need to fill the available space.
-    <main className="flex h-full bg-gray-50">
+    <main className="flex flex-col lg:flex-row h-full bg-gray-50">
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 transition-all duration-300">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto p-4 lg:p-6 transition-all duration-300">
         
         {/* Header Title Only - Nav and User Profile moved to Sidebar */}
         <div className="flex justify-between items-center mb-6">
@@ -274,7 +322,7 @@ export default function Home() {
             </h1>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-md h-full">
+        <div className="bg-white p-4 lg:p-6 rounded-xl shadow-md h-full">
           <Calendar 
             locale="ko-KR"
             calendarType="gregory"
@@ -285,7 +333,10 @@ export default function Home() {
               const dayKey = formatDateToKey(date);
               
               const daysSchedules = schedules
-                .filter(s => s.date_str === dayKey)
+                .filter(s => {
+                  const { startKey, endKey } = getScheduleRangeKeys(s);
+                  return dayKey >= startKey && dayKey <= endKey;
+                })
                 .sort((a, b) => getTimeValue(a.start_time) - getTimeValue(b.start_time));
 
               return (
@@ -324,11 +375,11 @@ export default function Home() {
 
       {/* Side Panel for Schedule Details */}
       {isPanelOpen && (
-        <div className="w-[450px] bg-white border-l shadow-2xl h-full p-8 overflow-y-auto flex flex-col animate-slide-in z-20 absolute right-0 top-0 bottom-0">
+        <div className="w-full lg:w-[450px] bg-white border-l shadow-2xl h-full p-5 lg:p-8 overflow-y-auto flex flex-col animate-slide-in z-20 fixed lg:absolute inset-0 lg:inset-auto lg:right-0 lg:top-0 lg:bottom-0">
           <div className="flex justify-between items-center mb-6 border-b pb-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-800">{editingId ? "일정 상세" : "새 일정 등록"}</h2>
-              <p className="text-gray-500 text-sm mt-1">{selectedDate && formatDateToKey(selectedDate)}</p>
+              <p className="text-gray-500 text-sm mt-1">{getRangeLabel(rangeStart, rangeEnd)}</p>
             </div>
             <button onClick={() => setIsPanelOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl font-bold p-2">✕</button>
           </div>
@@ -356,6 +407,32 @@ export default function Home() {
                    </ul>
                 </div>
               </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">시작 날짜</label>
+                <input
+                  type="date"
+                  className="w-full border p-3 rounded-lg bg-white"
+                  value={formatDateInput(rangeStart)}
+                  onChange={(e) => setRangeStart(parseDateInput(e.target.value))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">종료 날짜</label>
+                <input
+                  type="date"
+                  className="w-full border p-3 rounded-lg bg-white"
+                  value={formatDateInput(rangeEnd)}
+                  onChange={(e) => setRangeEnd(parseDateInput(e.target.value))}
+                />
+              </div>
+            </div>
+            {!editingId && (
+              <p className="text-xs text-gray-500 -mt-3">
+                하루 일정은 시작/종료 날짜를 동일하게 설정하세요.
+              </p>
             )}
 
             <div className="relative">

@@ -30,6 +30,7 @@ export default function Sidebar() {
   // Hide sidebar on auth pages logic
   const authPaths = ['/login', '/forgot-password', '/update-password'];
   const isAuthPage = authPaths.some(path => pathname.startsWith(path));
+  const isMobileOnlyPage = pathname.startsWith('/m');
 
   useEffect(() => {
     const getUser = async () => {
@@ -66,7 +67,7 @@ export default function Sidebar() {
     router.push('/login?t=' + Date.now());
   };
 
-  if (isAuthPage) {
+  if (isAuthPage || isMobileOnlyPage) {
     return null;
   }
 
