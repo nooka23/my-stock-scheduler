@@ -184,23 +184,55 @@ export default function BandChartPage() {
 
       if (!customData || customData.length === 0) return serverData; 
 
-      return serverData.map(item => {
-          const custom = customData.find((c: any) => c.year === item.year);
-          if (custom) {
-              const newItem = { ...item };
-              
-              if (custom.net_income !== null && Number(custom.net_income) !== 0) newItem.net_income = Number(custom.net_income);
-              if (custom.equity !== null && Number(custom.equity) !== 0) newItem.equity = Number(custom.equity);
-              if (custom.op_income !== null && Number(custom.op_income) !== 0) newItem.op_income = Number(custom.op_income);
-
-              if (newItem.shares > 0) {
-                  newItem.eps = Math.floor(newItem.net_income / newItem.shares);
-                  newItem.bps = Math.floor(newItem.equity / newItem.shares);
-                  newItem.ops = Math.floor(newItem.op_income / newItem.shares);
+      const getLastKnownShares = (year: number) => {
+          let latestYear = -Infinity;
+          let latestShares = 0;
+          serverData.forEach(item => {
+              if (item.year <= year && item.shares > 0 && item.year > latestYear) {
+                  latestYear = item.year;
+                  latestShares = item.shares;
               }
-              return newItem;
+          });
+          return latestShares;
+      };
+
+      const years = new Set<number>([
+          ...serverData.map(item => item.year),
+          ...customData.map((item: any) => Number(item.year))
+      ]);
+
+      return Array.from(years).sort((a, b) => a - b).map(year => {
+          const serverItem = serverData.find(item => item.year === year);
+          const custom = customData.find((c: any) => Number(c.year) === year);
+
+          const baseItem: FinancialData = serverItem ? { ...serverItem } : {
+              year,
+              net_income: 0,
+              equity: 0,
+              op_income: 0,
+              shares: getLastKnownShares(year),
+              eps: 0,
+              bps: 0,
+              ops: 0
+          };
+
+          if (custom) {
+              if (custom.net_income !== null) baseItem.net_income = Number(custom.net_income);
+              if (custom.equity !== null) baseItem.equity = Number(custom.equity);
+              if (custom.op_income !== null) baseItem.op_income = Number(custom.op_income);
           }
-          return item;
+
+          if (baseItem.shares > 0) {
+              baseItem.eps = Math.floor(baseItem.net_income / baseItem.shares);
+              baseItem.bps = Math.floor(baseItem.equity / baseItem.shares);
+              baseItem.ops = Math.floor(baseItem.op_income / baseItem.shares);
+          } else {
+              baseItem.eps = 0;
+              baseItem.bps = 0;
+              baseItem.ops = 0;
+          }
+
+          return baseItem;
       });
   }, [supabase]);
 
@@ -354,6 +386,18 @@ export default function BandChartPage() {
     const newValInWon = val * 100000000;
 
     const getUpdatedList = (list: FinancialData[]) => {
+      const getLastKnownShares = (items: FinancialData[], targetYear: number) => {
+        let latestYear = -Infinity;
+        let latestShares = 0;
+        items.forEach(item => {
+          if (item.year <= targetYear && item.shares > 0 && item.year > latestYear) {
+            latestYear = item.year;
+            latestShares = item.shares;
+          }
+        });
+        return latestShares;
+      };
+
       const existingItem = list.find(item => item.year === year);
 
       if (existingItem) {
@@ -362,7 +406,8 @@ export default function BandChartPage() {
           if (item.year !== year) return item;
 
           const newItem = { ...item };
-          const shares = newItem.shares;
+          const shares = newItem.shares > 0 ? newItem.shares : getLastKnownShares(list, year);
+          if (shares > 0) newItem.shares = shares;
 
           if (bandType === 'PER') {
             newItem.net_income = newValInWon;
@@ -378,15 +423,16 @@ export default function BandChartPage() {
         });
       } else {
         // 새로운 연도 추가
+        const shares = getLastKnownShares(list, year);
         const newItem: FinancialData = {
           year: year,
           net_income: bandType === 'PER' ? newValInWon : 0,
           equity: bandType === 'PBR' ? newValInWon : 0,
           op_income: bandType === 'POR' ? newValInWon : 0,
-          shares: 0,
-          eps: 0,
-          bps: 0,
-          ops: 0
+          shares: shares,
+          eps: bandType === 'PER' && shares > 0 ? Math.floor(newValInWon / shares) : 0,
+          bps: bandType === 'PBR' && shares > 0 ? Math.floor(newValInWon / shares) : 0,
+          ops: bandType === 'POR' && shares > 0 ? Math.floor(newValInWon / shares) : 0
         };
 
         return [...list, newItem].sort((a, b) => a.year - b.year);
