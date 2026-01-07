@@ -1,7 +1,6 @@
 import os
 import requests
 import json
-import xml.etree.ElementTree as ET
 import FinanceDataReader as fdr
 import pandas as pd
 from supabase import create_client, Client
@@ -9,7 +8,6 @@ from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta
 from pykrx import stock as krx_stock
-from pykrx.website.naver.core import Sise as NaverSise
 
 load_dotenv('.env.local')
 
@@ -119,93 +117,63 @@ def get_trading_value_from_kis(code, start_date, end_date, access_token):
 # 지수 데이터 업데이트 (KOSPI, KOSDAQ)
 # ========================================
 def update_indices():
-    print("
-?? ?? ??(KOSPI, KOSDAQ) ???? ?...")
-
-    # ?? 2?? ??? ?? (RS ?? ?? ?? ???)
+    print("\n📊 시장 지수(KOSPI, KOSDAQ) 업데이트 중...")
+    
+    # 최근 2년치 데이터 로드 (RS 계산 등을 위해 충분히)
     start_date = (datetime.now() - timedelta(days=730)).strftime('%Y%m%d')
     end_date = datetime.now().strftime('%Y%m%d')
-
+    
     indices = [
         {'ticker': '1001', 'code': 'KOSPI', 'name': 'KOSPI'},
         {'ticker': '2001', 'code': 'KOSDAQ', 'name': 'KOSDAQ'}
     ]
-
+    
     for idx in indices:
-        print(f"   - {idx['name']} ??? ?? ?...")
-
-        df = None
         try:
-            df = krx_stock.get_index_ohlcv_by_date(
-                start_date,
-                end_date,
-                idx['ticker'],
-                name_display=False
-            )
-        except Exception as e:
-            print(f"     ? pykrx(KRX) ??: {e} (NAVER? ??)")
-
-        if df is None or df.empty:
-            df = get_index_ohlcv_from_naver(idx['code'], start_date, end_date)
-
-        if df is None or df.empty:
-            print("     ?? ??? ??")
-            continue
-
-        col_map = {
-            "open": "??" if "??" in df.columns else ("Open" if "Open" in df.columns else ("open" if "open" in df.columns else None)),
-            "high": "??" if "??" in df.columns else ("High" if "High" in df.columns else ("high" if "high" in df.columns else None)),
-            "low": "??" if "??" in df.columns else ("Low" if "Low" in df.columns else ("low" if "low" in df.columns else None)),
-            "close": "??" if "??" in df.columns else ("Close" if "Close" in df.columns else ("close" if "close" in df.columns else None)),
-            "volume": "???" if "???" in df.columns else ("Volume" if "Volume" in df.columns else ("volume" if "volume" in df.columns else None)),
-            "trading_value": "????" if "????" in df.columns else ("Value" if "Value" in df.columns else ("value" if "value" in df.columns else None))
-        }
-
-        if any(v is None for v in [col_map["open"], col_map["high"], col_map["low"], col_map["close"], col_map["volume"]]):
-            print("     ?? ??? ?? ?? ??: ?? ??? ????.")
-            continue
-
-        # daily_prices_v2 ??? ?? ??
-        upload_list = []
-        for d, row in df.iterrows():
-            date_str = d.strftime('%Y-%m-%d')
-
-            open_v = row[col_map["open"]]
-            high_v = row[col_map["high"]]
-            low_v = row[col_map["low"]]
-            close_v = row[col_map["close"]]
-            volume_v = row[col_map["volume"]]
-            trading_value_v = row[col_map["trading_value"]] if col_map["trading_value"] else 0
-
-            if pd.isna(open_v) or pd.isna(high_v) or pd.isna(low_v) or pd.isna(close_v) or pd.isna(volume_v):
+            print(f"   - {idx['name']} 데이터 수집 중...")
+            df = krx_stock.get_index_ohlcv_by_date(start_date, end_date, idx['ticker'])
+            
+            if df.empty:
+                print(f"     ⚠️ 데이터 없음")
                 continue
-
-            upload_list.append({
-                "code": idx['code'],
-                "date": date_str,
-                "open": float(open_v),
-                "high": float(high_v),
-                "low": float(low_v),
-                "close": float(close_v),
-                "volume": float(volume_v),
-                "trading_value": float(trading_value_v) if not pd.isna(trading_value_v) else 0,
-                "change": 0 # ???? ?? ????? ??
-            })
-
-        # ???
-        if upload_list:
-            for i in range(0, len(upload_list), 1000):
-                chunk = upload_list[i:i+1000]
-                supabase.table("daily_prices_v2").upsert(chunk, on_conflict="code, date").execute()
-            print(f"     ? {len(upload_list)}? ??? ??")
-
-            # companies ????? ?? (?? ???)
-            supabase.table("companies").upsert({
-                "code": idx['code'],
-                "name": idx['name'],
-                "market": "INDEX",
-                "marcap": 0
-            }).execute()
+                
+            # daily_prices_v2 포맷에 맞게 변환
+            upload_list = []
+            for d, row in df.iterrows():
+                date_str = d.strftime('%Y-%m-%d')
+                
+                # pykrx index 데이터 컬럼: 시가, 고가, 저가, 종가, 거래량, 거래대금, 상장시가총액
+                # trading_value가 있으므로 활용
+                
+                upload_list.append({
+                    "code": idx['code'],
+                    "date": date_str,
+                    "open": float(row['시가']),
+                    "high": float(row['고가']),
+                    "low": float(row['저가']),
+                    "close": float(row['종가']),
+                    "volume": float(row['거래량']),
+                    "trading_value": float(row['거래대금']), 
+                    "change": 0 # 등락률은 직접 계산하거나 생략
+                })
+            
+            # 업로드
+            if upload_list:
+                for i in range(0, len(upload_list), 1000):
+                    chunk = upload_list[i:i+1000]
+                    supabase.table("daily_prices_v2").upsert(chunk, on_conflict="code, date").execute()
+                print(f"     ✅ {len(upload_list)}건 업로드 완료")
+                
+                # companies 테이블에도 등록 (이름 표시용)
+                supabase.table("companies").upsert({
+                    "code": idx['code'],
+                    "name": idx['name'],
+                    "market": "INDEX",
+                    "marcap": 0
+                }).execute()
+                
+        except Exception as e:
+            print(f"     ❌ 에러: {e}")
 
 # ========================================
 # 메인 로직 시작
