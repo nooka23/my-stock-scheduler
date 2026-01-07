@@ -27,6 +27,8 @@ type PortfolioPosition = {
   r_value?: number;
   pnl_ratio?: number;
   atr?: number;
+  is_custom_asset?: boolean;
+  manual_current_price?: number | null;
 };
 
 type FormData = Omit<PortfolioPosition, 'id' | 'current_price' | 'unrealized_pnl' | 'total_pnl' | 'r_value' | 'pnl_ratio' | 'atr' | 'is_closed' | 'close_date'>;
@@ -56,10 +58,11 @@ export default function PortfolioManagementPage() {
   const [sellDate, setSellDate] = useState(new Date().toISOString().split('T')[0]);
   const [cash, setCash] = useState<number>(0);
   const [isEditingCash, setIsEditingCash] = useState(false);
-  const [sortField, setSortField] = useState<'entry_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl' | null>(null);
+  const [sortField, setSortField] = useState<'entry_date' | 'close_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAmountHidden, setIsAmountHidden] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [showTableDetails, setShowTableDetails] = useState(false);
 
   // 종목 검색
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,6 +82,8 @@ export default function PortfolioManagementPage() {
     realized_pnl: 0,
     sector: '',
     comment: '',
+    is_custom_asset: false,
+    manual_current_price: null,
   };
 
   const [formData, setFormData] = useState<FormData>(emptyForm);
@@ -111,7 +116,7 @@ export default function PortfolioManagementPage() {
   };
 
   // 정렬 함수
-  const handleSort = (field: 'entry_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl') => {
+  const handleSort = (field: 'entry_date' | 'close_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -132,6 +137,10 @@ export default function PortfolioManagementPage() {
         case 'entry_date':
           compareA = a.entry_date;
           compareB = b.entry_date;
+          break;
+        case 'close_date':
+          compareA = a.close_date || '';
+          compareB = b.close_date || '';
           break;
         case 'company_name':
           compareA = a.company_name;
@@ -185,7 +194,8 @@ export default function PortfolioManagementPage() {
   const positionStats = useMemo(() => {
     if (currentTab !== 'active') return { count: 0, totalR: 0 };
 
-    const count = positions.length;
+    const uniqueCodes = new Set(positions.map(p => p.company_code));
+    const count = uniqueCodes.size;
     const totalR = positions.reduce((sum, p) => sum + (p.r_value || 0), 0);
 
     return { count, totalR };
@@ -234,6 +244,9 @@ export default function PortfolioManagementPage() {
     return allocations.sort((a, b) => b.percentage - a.percentage);
   }, [positions, cash, currentTab]);
 
+  const showSummaryTable = currentTab === 'active' && viewMode === 'table' && !showTableDetails;
+  const showDetailedTable = (currentTab === 'closed' || viewMode === 'table') && !showSummaryTable;
+
   // 포트폴리오 목록 조회
   const fetchPositions = useCallback(async () => {
     setLoading(true);
@@ -252,24 +265,30 @@ export default function PortfolioManagementPage() {
       if (error) throw error;
 
       if (portfolioData && portfolioData.length > 0) {
-        const codes = [...new Set(portfolioData.map(p => p.company_code))];
+        const tradablePositions = portfolioData.filter(p => !p.is_custom_asset);
+        const codes = [...new Set(tradablePositions.map(p => p.company_code))];
 
-        // 최신 날짜 조회
-        const { data: dateData } = await supabase
-          .from('daily_prices_v2')
-          .select('date')
-          .order('date', { ascending: false })
-          .limit(1)
-          .single();
+        let latestDate: string | undefined;
+        if (codes.length > 0) {
+          // 최신 날짜 조회
+          const { data: dateData } = await supabase
+            .from('daily_prices_v2')
+            .select('date')
+            .order('date', { ascending: false })
+            .limit(1)
+            .single();
 
-        const latestDate = dateData?.date;
+          latestDate = dateData?.date;
+        }
 
         // 현재가 조회
-        const { data: priceData } = await supabase
-          .from('daily_prices_v2')
-          .select('code, close')
-          .in('code', codes)
-          .eq('date', latestDate);
+        const { data: priceData } = codes.length > 0 && latestDate
+          ? await supabase
+            .from('daily_prices_v2')
+            .select('code, close')
+            .in('code', codes)
+            .eq('date', latestDate)
+          : { data: null };
 
         const priceMap = new Map<string, number>();
         if (priceData) {
@@ -290,7 +309,9 @@ export default function PortfolioManagementPage() {
 
         // 계산 값 추가
         const enrichedData: PortfolioPosition[] = portfolioData.map(p => {
-          const current_price = priceMap.get(p.company_code) || 0;
+          const current_price = p.is_custom_asset && p.manual_current_price
+            ? p.manual_current_price
+            : (priceMap.get(p.company_code) || 0);
           const unrealized_pnl = (current_price - p.avg_price) * p.position_size;
           const total_pnl = unrealized_pnl + (p.realized_pnl || 0);
 
@@ -312,7 +333,7 @@ export default function PortfolioManagementPage() {
             : 0;
 
           // ATR: 20일 ATR * 포지션 규모
-          const atr_value = atrMap.get(p.company_code) || 0;
+          const atr_value = p.is_custom_asset ? 0 : (atrMap.get(p.company_code) || 0);
           const position_for_atr = currentTab === 'closed' ? p.initial_position_size : p.position_size;
           const atr = atr_value * position_for_atr;
 
@@ -350,7 +371,7 @@ export default function PortfolioManagementPage() {
 
   // 종목 검색
   const searchCompanies = async (query: string) => {
-    if (!query || query.length < 1) {
+    if (formData.is_custom_asset || !query || query.length < 1) {
       setSearchResults([]);
       setShowSearchResults(false);
       return;
@@ -380,6 +401,8 @@ export default function PortfolioManagementPage() {
       ...formData,
       company_code: code,
       company_name: name,
+      is_custom_asset: false,
+      manual_current_price: null,
     });
     setSearchQuery(name);
     setShowSearchResults(false);
@@ -439,6 +462,16 @@ export default function PortfolioManagementPage() {
         return;
       }
 
+      if (formData.is_custom_asset && (!formData.company_name || !formData.company_code)) {
+        alert('??? ??? ???? ????? ??? ???.');
+        return;
+      }
+
+      if (formData.is_custom_asset && (!formData.manual_current_price || formData.manual_current_price <= 0)) {
+        alert('??? ??? ???? ??? ???.');
+        return;
+      }
+
       // initial_position_size를 명시적으로 설정
       const { error } = await supabase
         .from('user_portfolio')
@@ -486,6 +519,8 @@ export default function PortfolioManagementPage() {
           comment: position.comment,
           is_closed: position.is_closed,
           close_date: position.close_date,
+          is_custom_asset: position.is_custom_asset,
+          manual_current_price: position.manual_current_price,
         })
         .eq('id', id);
 
@@ -730,7 +765,7 @@ export default function PortfolioManagementPage() {
       )}
 
       {/* 금액 숨김/보이기 토글 버튼 */}
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
         <button
           onClick={() => setIsAmountHidden(!isAmountHidden)}
           className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
@@ -753,12 +788,137 @@ export default function PortfolioManagementPage() {
             </>
           )}
         </button>
+        {viewMode === 'table' && currentTab === 'active' && (
+          <button
+            onClick={() => setShowTableDetails(prev => !prev)}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            {showTableDetails ? '간단히보기' : '자세히보기'}
+          </button>
+        )}
       </div>
 
       {/* 메인 컨텐츠 영역 */}
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+        {/* 요약 테이블 (테이블 보기 + 간단히보기) */}
+        {showSummaryTable && (
+          <div className="flex-1 overflow-auto bg-white rounded-lg shadow">
+            <table className="w-full text-xs border-collapse">
+              <thead className="bg-gray-100 sticky top-0 z-10">
+                <tr>
+                  <th className="border px-2 py-2 text-center">종목명</th>
+                  <th className="border px-2 py-2 text-center">롱/숏</th>
+                  <th className="border px-2 py-2 text-center">포지션규모</th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('evaluation')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      평가금액 {sortField === 'evaluation' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('unrealized_pnl')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      평가손익 {sortField === 'unrealized_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
+                  <th className="border px-2 py-2 text-center">실현손익</th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('total_pnl')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      총손익 {sortField === 'total_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('pnl_ratio')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      손익비 {sortField === 'pnl_ratio' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
+                  <th className="border px-2 py-2 text-center">손절가격</th>
+                  <th className="border px-2 py-2 text-center">R</th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('sector')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      업종 {sortField === 'sector' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan={11} className="text-center py-4 text-gray-400">
+                      로딩 중...
+                    </td>
+                  </tr>
+                )}
+                {!loading && positions.length === 0 && (
+                  <tr>
+                    <td colSpan={11} className="text-center py-4 text-gray-400">
+                      포지션이 없습니다. 추가해보세요!
+                    </td>
+                  </tr>
+                )}
+                {!loading && sortedPositions.map(position => {
+                  const evaluationAmount = (position.current_price || 0) * position.position_size;
+                  return (
+                    <tr key={position.id} className="hover:bg-gray-50">
+                      <td className="border px-2 py-1 text-center font-bold">
+                        {position.company_name}
+                        <div className="text-[10px] text-gray-400">{position.company_code}</div>
+                      </td>
+                      <td className="border px-2 py-1 text-center">
+                        <span className={position.position_type === '롱' ? 'text-red-600 font-bold' : 'text-blue-600 font-bold'}>
+                          {position.position_type}
+                        </span>
+                      </td>
+                      <td className="border px-2 py-1 text-right">
+                        {position.position_size.toLocaleString()}
+                      </td>
+                      <td className="border px-2 py-1 text-right bg-purple-50 font-bold">
+                        {formatAmount(evaluationAmount)}
+                      </td>
+                      <td className={`border px-2 py-1 text-right font-bold ${(position.unrealized_pnl || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {position.unrealized_pnl ? formatAmount(position.unrealized_pnl) : '-'}
+                      </td>
+                      <td className="border px-2 py-1 text-right">
+                        {formatAmount(position.realized_pnl)}
+                      </td>
+                      <td className={`border px-2 py-1 text-right font-bold ${(position.total_pnl || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {position.total_pnl ? formatAmount(position.total_pnl) : '-'}
+                      </td>
+                      <td className={`border px-2 py-1 text-right font-bold ${(position.pnl_ratio || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                        {position.pnl_ratio?.toFixed(2) || '-'}R
+                      </td>
+                      <td className="border px-2 py-1 text-right">
+                        {formatAmount(position.stop_loss)}
+                      </td>
+                      <td className="border px-2 py-1 text-right bg-yellow-50">
+                        {position.r_value ? formatAmount(position.r_value) : '-'}
+                      </td>
+                      <td className="border px-2 py-1 text-center">
+                        {position.sector}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {/* 테이블 (청산 매매 탭 또는 테이블 보기 모드) */}
-        {(currentTab === 'closed' || viewMode === 'table') && (
+        {showDetailedTable && (
           <div className="flex-1 overflow-auto bg-white rounded-lg shadow">
             <table className="w-full text-xs border-collapse">
             <thead className="bg-gray-100 sticky top-0 z-10">
@@ -772,7 +932,14 @@ export default function PortfolioManagementPage() {
                   </button>
                 </th>
                 {currentTab === 'closed' && (
-                  <th className="border px-2 py-2 text-center">청산날짜</th>
+                  <th className="border px-2 py-2 text-center">
+                    <button
+                      onClick={() => handleSort('close_date')}
+                      className="w-full hover:text-blue-600 font-bold"
+                    >
+                      청산날짜 {sortField === 'close_date' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
                 )}
                 <th className="border px-2 py-2 text-center">매매방식</th>
                 <th className="border px-2 py-2 text-center">
@@ -838,6 +1005,7 @@ export default function PortfolioManagementPage() {
                 <th className="border px-2 py-2 text-center">손절가격</th>
                 <th className="border px-2 py-2 text-center">R (원)</th>
                 <th className="border px-2 py-2 text-center">ATR (원)</th>
+                <th className="border px-2 py-2 text-center">ATR/R (%)</th>
                 <th className="border px-2 py-2 text-center">
                   <button
                     onClick={() => handleSort('sector')}
@@ -853,14 +1021,14 @@ export default function PortfolioManagementPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={20} className="text-center py-4 text-gray-400">
+                  <td colSpan={21} className="text-center py-4 text-gray-400">
                     로딩 중...
                   </td>
                 </tr>
               )}
               {!loading && positions.length === 0 && (
                 <tr>
-                  <td colSpan={20} className="text-center py-4 text-gray-400">
+                  <td colSpan={21} className="text-center py-4 text-gray-400">
                     {currentTab === 'active' ? '포지션이 없습니다. 추가해보세요!' : '청산된 포지션이 없습니다.'}
                   </td>
                 </tr>
@@ -868,6 +1036,9 @@ export default function PortfolioManagementPage() {
               {!loading && sortedPositions.map(position => {
                 const isEditing = editingId === position.id;
                 const evaluationAmount = (position.current_price || 0) * position.position_size;
+                const atrRatio = position.atr && position.r_value
+                  ? (position.atr / Math.abs(position.r_value)) * 100
+                  : null;
                 return (
                   <tr key={position.id} className="hover:bg-gray-50">
                     <td className="border px-2 py-1 text-center">
@@ -978,7 +1149,16 @@ export default function PortfolioManagementPage() {
                     {currentTab === 'active' && (
                       <>
                         <td className="border px-2 py-1 text-right bg-blue-50 font-bold">
-                          {position.current_price ? formatAmount(position.current_price) : '-'}
+                          {isEditing && position.is_custom_asset ? (
+                            <input
+                              type="number"
+                              value={position.manual_current_price ?? 0}
+                              onChange={e => handleFieldChange(position.id, 'manual_current_price', parseFloat(e.target.value) || 0)}
+                              className="w-full px-1 border rounded text-right"
+                            />
+                          ) : (
+                            position.current_price ? formatAmount(position.current_price) : '-'
+                          )}
                         </td>
                         <td className="border px-2 py-1 text-right bg-purple-50 font-bold">
                           {formatAmount(evaluationAmount)}
@@ -1025,6 +1205,9 @@ export default function PortfolioManagementPage() {
                     </td>
                     <td className="border px-2 py-1 text-right bg-green-50">
                       {position.atr ? formatAmount(Math.round(position.atr)) : '-'}
+                    </td>
+                    <td className="border px-2 py-1 text-right bg-emerald-50">
+                      {atrRatio !== null ? `${atrRatio.toFixed(1)}%` : '-'}
                     </td>
                     <td className="border px-2 py-1 text-center">
                       {isEditing ? (
@@ -1273,6 +1456,65 @@ export default function PortfolioManagementPage() {
                   placeholder="예: 스윙, 데이트레이딩"
                 />
               </div>
+
+              <div className="col-span-2 flex items-center gap-2">
+                <input
+                  id="custom-asset-toggle"
+                  type="checkbox"
+                  checked={formData.is_custom_asset || false}
+                  onChange={e => {
+                    const isCustom = e.target.checked;
+                    setFormData(prev => ({
+                      ...prev,
+                      is_custom_asset: isCustom,
+                      manual_current_price: isCustom ? (prev.manual_current_price ?? 0) : null,
+                    }));
+                    if (isCustom) {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowSearchResults(false);
+                    }
+                  }}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="custom-asset-toggle" className="text-sm font-bold">
+                  커스텀 자산(ETF 등)
+                </label>
+              </div>
+
+              {formData.is_custom_asset && (
+                <div className="col-span-2 grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-1">자산명</label>
+                    <input
+                      type="text"
+                      value={formData.company_name}
+                      onChange={e => setFormData({ ...formData, company_name: e.target.value })}
+                      className="w-full px-3 py-2 border rounded"
+                      placeholder="예: SPY, BTC"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">자산코드</label>
+                    <input
+                      type="text"
+                      value={formData.company_code}
+                      onChange={e => setFormData({ ...formData, company_code: e.target.value })}
+                      className="w-full px-3 py-2 border rounded"
+                      placeholder="커스텀 코드"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-bold mb-1">현재가</label>
+                    <input
+                      type="number"
+                      value={formData.manual_current_price ?? 0}
+                      onChange={e => setFormData({ ...formData, manual_current_price: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border rounded"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="col-span-2 relative">
                 <label className="block text-sm font-bold mb-1">종목 검색</label>

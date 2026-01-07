@@ -217,9 +217,10 @@ export default function BandChartPage() {
           };
 
           if (custom) {
-              if (custom.net_income !== null) baseItem.net_income = Number(custom.net_income);
-              if (custom.equity !== null) baseItem.equity = Number(custom.equity);
-              if (custom.op_income !== null) baseItem.op_income = Number(custom.op_income);
+              if (custom.net_income !== null && custom.net_income !== undefined) baseItem.net_income = Number(custom.net_income);
+              if (custom.equity_controlling !== null && custom.equity_controlling !== undefined) baseItem.equity = Number(custom.equity_controlling);
+              if (custom.op_income !== null && custom.op_income !== undefined) baseItem.op_income = Number(custom.op_income);
+              if (custom.shares_outstanding !== null && custom.shares_outstanding !== undefined) baseItem.shares = Number(custom.shares_outstanding);
           }
 
           if (baseItem.shares > 0) {
@@ -332,12 +333,12 @@ export default function BandChartPage() {
           return {
             year: d.year,
             net_income: parseVal(d.net_income) * UNIT_MULTIPLIER,
-            equity: parseVal(d.equity) * UNIT_MULTIPLIER,
+            equity: parseVal(d.equity_controlling) * UNIT_MULTIPLIER,
             op_income: parseVal(d.op_income) * UNIT_MULTIPLIER,
             shares: shares,
             
             eps: (shares > 0) ? Math.floor((parseVal(d.net_income) * UNIT_MULTIPLIER) / shares) : 0,
-            bps: (shares > 0) ? Math.floor((parseVal(d.equity) * UNIT_MULTIPLIER) / shares) : 0,
+            bps: (shares > 0) ? Math.floor((parseVal(d.equity_controlling) * UNIT_MULTIPLIER) / shares) : 0,
             ops: (shares > 0 && d.op_income) 
                  ? Math.floor((parseVal(d.op_income) * UNIT_MULTIPLIER) / shares)
                  : 0
@@ -455,8 +456,9 @@ export default function BandChartPage() {
               company_code: currentCompany.code,
               year: item.year,
               net_income: item.net_income,
-              equity: item.equity,
+              equity_controlling: Number.isFinite(item.equity) ? item.equity : null,
               op_income: item.op_income,
+              shares_outstanding: Number.isFinite(item.shares) ? item.shares : null,
               updated_at: new Date().toISOString()
           }));
 
@@ -496,7 +498,7 @@ export default function BandChartPage() {
 
   const getTabLabel = () => {
     if (bandType === 'PER') return { input: '당기순이익', unit: '억원', output: 'EPS' };
-    if (bandType === 'PBR') return { input: '자본총계', unit: '억원', output: 'BPS' };
+    if (bandType === 'PBR') return { input: '자본총계(지배)', unit: '억원', output: 'BPS' };
     return { input: '영업이익', unit: '억원', output: 'OPS' };
   };
   const labels = getTabLabel();
@@ -636,7 +638,10 @@ export default function BandChartPage() {
                     <div className="border rounded-lg overflow-hidden bg-gray-50">
                         <table className="w-full text-sm">
                         <thead className="bg-blue-50 text-blue-800 font-bold">
-                            <tr><th className="p-2 border-r border-blue-100 w-16 text-center">연도</th><th className="p-2 text-center">{labels.input}</th></tr>
+                            <tr>
+                              <th className="p-2 border-r border-blue-100 w-16 text-center">연도</th>
+                              <th className="p-2 text-center">{labels.input}</th>
+                            </tr>
                         </thead>
                         </table>
                         <div className="max-h-48 overflow-y-auto">
