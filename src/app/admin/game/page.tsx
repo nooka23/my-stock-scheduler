@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import StockChart from '@/components/StockChart';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
@@ -54,10 +54,15 @@ export default function GamePage() {
   const [problemCount, setProblemCount] = useState<number>(0);
 
   // 랭킹 탭 관련 상태
-  const [currentTab, setCurrentTab] = useState<'game' | 'ranking' | 'check'>('game');
+  const [currentTab, setCurrentTab] = useState<'game' | 'ranking' | 'check' | 'browse'>('game');
   const [rankingData, setRankingData] = useState<RankingItem[]>([]);
   const [rankingLoading, setRankingLoading] = useState(false);
   const [selectedRankingItem, setSelectedRankingItem] = useState<RankingItem | null>(null);
+  const [rankingStartDate, setRankingStartDate] = useState('2021-01-01');
+  const [rankingEndDate, setRankingEndDate] = useState('2024-12-31');
+  const [rankingMinReturn, setRankingMinReturn] = useState(200);
+  const [rankingLimit, setRankingLimit] = useState(100);
+  const [rankingError, setRankingError] = useState<string | null>(null);
 
   // 차트 확인 탭 관련 상태
   const [checkSearchTerm, setCheckSearchTerm] = useState('');
@@ -67,86 +72,55 @@ export default function GamePage() {
   const [rawCheckData, setRawCheckData] = useState<ChartData[]>([]); // Added this
   const [checkTimeframe, setCheckTimeframe] = useState<'daily' | 'weekly'>('daily');
   const [checkLoading, setCheckLoading] = useState(false);
+  const [browseCompanies, setBrowseCompanies] = useState<{ code: string; name: string }[]>([]);
+  const [browseCurrent, setBrowseCurrent] = useState<{ code: string; name: string } | null>(null);
+  const [browseLoading, setBrowseLoading] = useState(false);
+  const [browseError, setBrowseError] = useState<string | null>(null);
+  const [browseStatuses, setBrowseStatuses] = useState<Record<string, 'keep' | 'skip'>>({});
+  const [browseStatusLoaded, setBrowseStatusLoaded] = useState(false);
 
   // 1년 수익률 100% 이상 종목 조회
   const loadRankingData = useCallback(async () => {
     setRankingLoading(true);
+    setRankingError(null);
     try {
-      // 1. 회사 리스트 가져오기 (상위 500개만)
-      const { data: companies } = await supabase
-        .from('companies')
-        .select('code, name')
-        .limit(500);
+      const { data, error } = await supabase.rpc('get_high_return_rankings', {
+        start_date: rankingStartDate,
+        end_date: rankingEndDate,
+        min_return: rankingMinReturn,
+        limit_n: rankingLimit
+      });
 
-      if (!companies) {
-        setRankingLoading(false);
+      if (error) {
+        setRankingError(error.message);
+        setRankingData([]);
         return;
       }
 
-      // 종목별로 최고 수익률만 저장하기 위한 Map
-      const resultsMap = new Map<string, RankingItem>();
+      const results = (data ?? []).map((row: any) => ({
+        code: row.code,
+        name: row.name,
+        baseDate: row.base_date,
+        basePrice: Number(row.base_price),
+        maxPrice: Number(row.max_price),
+        returnRate: Number(row.return_rate)
+      })) as RankingItem[];
 
-      // 2. 각 종목별로 1년 수익률 계산
-      for (const company of companies) {
-        const { data: prices } = await supabase
-          .from('daily_prices_v2')
-          .select('date, close, high')
-          .eq('code', company.code)
-          .gte('date', '2021-01-01')
-          .lte('date', '2024-12-31') // 1년 후 데이터를 볼 수 있도록 (2023년 말까지 기준일 가능)
-          .order('date', { ascending: true });
-
-        if (!prices || prices.length < 252) continue; // 최소 1년 데이터 필요
-
-        // 각 날짜에서 1년 후 최고가 확인
-        for (let i = 0; i < prices.length - 252; i++) {
-          const basePrice = prices[i].close;
-          const baseDate = prices[i].date;
-
-          // 1년 후까지 데이터 (약 252 영업일)
-          const oneYearPrices = prices.slice(i + 1, i + 253);
-          if (oneYearPrices.length === 0) continue;
-
-          const maxPrice = Math.max(...oneYearPrices.map(p => p.high));
-          const returnRate = ((maxPrice - basePrice) / basePrice) * 100;
-
-          if (returnRate >= 100) {
-            // 기존에 저장된 것보다 수익률이 높으면 업데이트
-            const existing = resultsMap.get(company.code);
-            if (!existing || returnRate > existing.returnRate) {
-              resultsMap.set(company.code, {
-                code: company.code,
-                name: company.name,
-                baseDate,
-                basePrice,
-                maxPrice,
-                returnRate
-              });
-            }
-          }
-        }
-      }
-
-      // Map을 배열로 변환하고 수익률 순으로 정렬
-      const results = Array.from(resultsMap.values());
-      results.sort((a, b) => b.returnRate - a.returnRate);
-
-      // 상위 100개만
-      setRankingData(results.slice(0, 100));
-
+      setRankingData(results);
     } catch (e) {
-      console.error('랭킹 데이터 로드 실패:', e);
+      console.error('Ranking load failed:', e);
+      setRankingError('Ranking load failed.');
     } finally {
       setRankingLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, rankingStartDate, rankingEndDate, rankingMinReturn, rankingLimit]);
 
   // 랭킹 탭 선택 시 데이터 로드
   useEffect(() => {
-    if (currentTab === 'ranking' && rankingData.length === 0) {
+    if (currentTab === 'ranking') {
       loadRankingData();
     }
-  }, [currentTab, loadRankingData, rankingData.length]);
+  }, [currentTab, loadRankingData]);
 
   // 트렌드 템플릿 체크 함수
   const checkTrendTemplate = async (code: string, selectedDate: string): Promise<boolean> => {
@@ -382,19 +356,18 @@ export default function GamePage() {
 
       // cutoff 날짜까지만 필터링
       const filteredData = sorted.filter(d => d.time <= cutoff);
+      const displayRawData = showFullRange ? sorted : filteredData;
 
-      // Raw 데이터 저장 (주봉 변환용)
-      setRawDailyData(filteredData);
+      // Raw data (used for timeframe changes)
+      setRawDailyData(displayRawData);
       setRawFullData(sorted);
 
-      // 처리된 데이터 저장
-      const processedData = processChartData(timeframe === 'weekly' ? convertToWeekly(filteredData) : filteredData);
+      const processedData = processChartData(timeframe === 'weekly' ? convertToWeekly(displayRawData) : displayRawData);
       const processedFullData = processChartData(timeframe === 'weekly' ? convertToWeekly(sorted) : sorted);
 
       if (showFullRange) {
-        // 랭킹 차트: 전체 데이터 표시
-        setData(processedFullData);
-        setFullData(processedFullData);
+        setData(processedData);
+        setFullData(processedData);
       } else {
         // 게임 차트: cutoff까지만 표시
         setData(processedData);
@@ -417,6 +390,105 @@ export default function GamePage() {
   };
 
   // 차트 데이터 처리 (지표 계산)
+
+  const browseStatusKey = 'admin_game_browse_status';
+
+  const browseKeepCount = useMemo(
+    () => Object.values(browseStatuses).filter(status => status === 'keep').length,
+    [browseStatuses]
+  );
+  const browseSkipCount = useMemo(
+    () => Object.values(browseStatuses).filter(status => status === 'skip').length,
+    [browseStatuses]
+  );
+  const browseAvailableCount = useMemo(
+    () => browseCompanies.filter(company => !browseStatuses[company.code]).length,
+    [browseCompanies, browseStatuses]
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setBrowseStatusLoaded(true);
+      return;
+    }
+    try {
+      const stored = localStorage.getItem(browseStatusKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, 'keep' | 'skip'>;
+        setBrowseStatuses(parsed);
+      }
+    } catch {
+      setBrowseStatuses({});
+    } finally {
+      setBrowseStatusLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(browseStatusKey, JSON.stringify(browseStatuses));
+  }, [browseStatuses]);
+
+  const loadBrowseCompanies = useCallback(async () => {
+    if (browseCompanies.length > 0) return browseCompanies;
+    setBrowseLoading(true);
+    setBrowseError(null);
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('code, name')
+        .range(0, 9999);
+
+      if (error) {
+        setBrowseError(error.message);
+        return [];
+      }
+
+      const list = data ?? [];
+      setBrowseCompanies(list);
+      return list;
+    } catch (e) {
+      console.error('Browse companies load failed:', e);
+      setBrowseError('Browse companies load failed.');
+      return [];
+    } finally {
+      setBrowseLoading(false);
+    }
+  }, [supabase, browseCompanies.length]);
+
+  const pickRandomBrowse = useCallback(async () => {
+    setBrowseLoading(true);
+    setBrowseError(null);
+
+    const list = browseCompanies.length > 0 ? browseCompanies : await loadBrowseCompanies();
+    const available = list.filter(company => !browseStatuses[company.code]);
+    if (available.length === 0) {
+      setBrowseError('No available companies.');
+      setBrowseCurrent(null);
+      setBrowseLoading(false);
+      return;
+    }
+
+    const next = available[Math.floor(Math.random() * available.length)];
+    setBrowseCurrent(next);
+    await loadChartData(next.code, '2021-01-01', true);
+    setBrowseLoading(false);
+  }, [browseCompanies, browseStatuses, loadBrowseCompanies, loadChartData]);
+
+  const markBrowseStatus = (status: 'keep' | 'skip') => {
+    if (!browseCurrent) return;
+    setBrowseStatuses(prev => ({ ...prev, [browseCurrent.code]: status }));
+    setBrowseCurrent(null);
+  };
+
+  useEffect(() => {
+    if (currentTab !== 'browse' || !browseStatusLoaded) return;
+    loadBrowseCompanies();
+    if (!browseCurrent) {
+      pickRandomBrowse();
+    }
+  }, [currentTab, browseStatusLoaded, loadBrowseCompanies, pickRandomBrowse, browseCurrent]);
+
   const processChartData = (rawData: ChartData[]): ChartData[] => {
     if (rawData.length === 0) return [];
 
@@ -688,6 +760,16 @@ export default function GamePage() {
             100% 이상 수익률 랭킹
           </button>
           <button
+            onClick={() => setCurrentTab('browse')}
+            className={`px-6 py-2 font-bold rounded-t-lg transition-colors ${
+              currentTab === 'browse'
+                ? 'bg-gray-50 text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Browse
+          </button>
+          <button
             onClick={() => setCurrentTab('check')}
             className={`px-6 py-2 font-bold rounded-t-lg transition-colors ${
               currentTab === 'check'
@@ -810,16 +892,72 @@ export default function GamePage() {
         {currentTab === 'ranking' && !selectedRankingItem && (
           <div className="flex-1 bg-white rounded-xl shadow border overflow-hidden flex flex-col">
             <div className="p-4 border-b">
-              <h2 className="text-xl font-bold text-gray-800">1년 수익률 100% 이상 종목 랭킹</h2>
-              <p className="text-sm text-gray-500 mt-1">2021-01-01 이후 1년 내 100% 이상 상승한 종목 (상승률 순)</p>
+              <h2 className="text-xl font-bold text-gray-800">High Return Rankings</h2>
+              <p className="text-sm text-gray-500 mt-1">One-year peak return ranking (filters applied)</p>
+              <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-500">Start</span>
+                  <input
+                    type="date"
+                    value={rankingStartDate}
+                    onChange={(e) => setRankingStartDate(e.target.value)}
+                    className="px-2 py-1 border rounded-md"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-500">End</span>
+                  <input
+                    type="date"
+                    value={rankingEndDate}
+                    onChange={(e) => setRankingEndDate(e.target.value)}
+                    className="px-2 py-1 border rounded-md"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-500">Min %</span>
+                  <select
+                    value={rankingMinReturn}
+                    onChange={(e) => setRankingMinReturn(Number(e.target.value))}
+                    className="px-2 py-1 border rounded-md"
+                  >
+                    <option value={100}>100%</option>
+                    <option value={200}>200%</option>
+                    <option value={300}>300%</option>
+                    <option value={500}>500%</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-gray-500">Limit</span>
+                  <select
+                    value={rankingLimit}
+                    onChange={(e) => setRankingLimit(Number(e.target.value))}
+                    className="px-2 py-1 border rounded-md"
+                  >
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                </div>
+                <button
+                  onClick={loadRankingData}
+                  disabled={rankingLoading}
+                  className="px-3 py-2 bg-blue-500 text-white rounded-md font-bold hover:bg-blue-600 disabled:opacity-50"
+                >
+                  Reload
+                </button>
+              </div>
+              {rankingError && (
+                <div className="mt-2 text-sm text-red-600">{rankingError}</div>
+              )}
+
             </div>
 
             <div className="flex-1 overflow-y-auto">
               {rankingLoading ? (
                 <div className="flex items-center justify-center h-full text-gray-400">
                   <div className="text-center">
-                    <p className="text-lg mb-2">데이터 분석 중...</p>
-                    <p className="text-sm">최대 500개 종목의 수익률을 계산하고 있습니다.</p>
+                    <p className="text-lg mb-2">Loading ranking...</p>
+                    <p className="text-sm">Computing one-year peak returns on the server.</p>
                   </div>
                 </div>
               ) : rankingData.length === 0 ? (
@@ -904,6 +1042,91 @@ export default function GamePage() {
                   차트 로딩 중...
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+
+        {currentTab === 'browse' && (
+          <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+            <div className="bg-white p-4 rounded-xl shadow border">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-700">Random Browse</h3>
+                  <p className="text-sm text-gray-500 mt-1">Full-range chart per company.</p>
+                  <div className="text-sm text-gray-500 mt-1">
+                    Available: {browseAvailableCount} | Revisit: {browseKeepCount} | Skip: {browseSkipCount}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={pickRandomBrowse}
+                    disabled={browseLoading}
+                    className="px-3 py-2 bg-blue-500 text-white rounded-md font-bold hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    Next Random
+                  </button>
+                  <button
+                    onClick={() => markBrowseStatus('keep')}
+                    disabled={!browseCurrent}
+                    className="px-3 py-2 bg-green-500 text-white rounded-md font-bold hover:bg-green-600 disabled:opacity-50"
+                  >
+                    Revisit
+                  </button>
+                  <button
+                    onClick={() => markBrowseStatus('skip')}
+                    disabled={!browseCurrent}
+                    className="px-3 py-2 bg-gray-500 text-white rounded-md font-bold hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    onClick={() => setBrowseStatuses({})}
+                    className="px-3 py-2 border rounded-md font-bold text-gray-600 hover:bg-gray-50"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              {browseError && (
+                <div className="mt-2 text-sm text-red-600">{browseError}</div>
+              )}
+            </div>
+
+            <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden">
+              <div className="p-4 border-b flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-700">
+                  {browseCurrent ? `${browseCurrent.name} (${browseCurrent.code})` : 'No company selected'}
+                </h3>
+                <div className="flex bg-white rounded border border-gray-200 p-[2px]">
+                  <button
+                    onClick={() => setTimeframe('daily')}
+                    className={`px-3 py-1 text-sm font-bold rounded ${timeframe === 'daily' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    Daily
+                  </button>
+                  <button
+                    onClick={() => setTimeframe('weekly')}
+                    className={`px-3 py-1 text-sm font-bold rounded ${timeframe === 'weekly' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                  >
+                    Weekly
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 relative w-full h-full min-h-0 bg-white">
+                {browseLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                    Loading...
+                  </div>
+                ) : data.length > 0 ? (
+                  <StockChart data={data} />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                    Pick a random company to view the chart.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

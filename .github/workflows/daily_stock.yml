@@ -21,13 +21,13 @@ jobs:
     - name: Install dependencies
       run: pip install -r scripts/requirements.txt
 
-    - name: Update Stock Data (V2)
+    - name: Update Stock Data (V3)
       env:
         NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
         KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
-      run: python scripts/update_today_v2.py
+      run: python scripts/update_today_v3.py
 
     - name: Calculate Trading Value Rank
       if: success()
