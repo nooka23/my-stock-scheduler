@@ -221,22 +221,39 @@ def get_all_stocks():
     full_df['Marcap'] = pd.to_numeric(full_df['Marcap'], errors='coerce').fillna(0) * 100000000 # 억 -> 원
     
     result_df = full_df[['ShortCode', 'Name', 'Market', 'Marcap']].rename(columns={'ShortCode': 'Code'})
-    
-    # Filter
-    # 1. Name based filtering (proven to work for user)
-    # 2. Or using master columns
-    
-    # Replicating user's filter:
-    # ~df_krx['Name'].str.contains('스팩|ETN|ETF', case=False)
-    # ~df_krx['Name'].str.endswith(('우', '우B', '우C'))
-    
+
+    def flag_value(value):
+        if pd.isna(value):
+            return False
+        text = str(value).strip().upper()
+        if text in {"", "0", "N", "NO", "F", "FALSE"}:
+            return False
+        return True
+
+    etp_flag = (
+        full_df["ETP"].apply(flag_value)
+        if "ETP" in full_df.columns
+        else pd.Series(False, index=full_df.index)
+    )
+    spac_flag = (
+        full_df["SPAC"].apply(flag_value)
+        if "SPAC" in full_df.columns
+        else pd.Series(False, index=full_df.index)
+    )
+    preferred_flag = (
+        full_df["Preferred"].apply(flag_value)
+        if "Preferred" in full_df.columns
+        else pd.Series(False, index=full_df.index)
+    )
+
     # Also filter for 6-digit codes (Standard stocks)
     mask = (
-        (result_df['Code'].str.len() == 6) &
-        ~result_df['Name'].str.contains('스팩|ETN|ETF', case=False) &
-        ~result_df['Name'].str.endswith(('우', '우B', '우C'))
+        (result_df["Code"].str.len() == 6)
+        & ~etp_flag
+        & ~spac_flag
+        & ~preferred_flag
     )
-    
+
     final_df = result_df[mask].copy()
     
     return final_df

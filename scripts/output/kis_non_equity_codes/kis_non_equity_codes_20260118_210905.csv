@@ -1,0 +1,1264 @@
+code,name,market,is_etp,is_spac,is_preferred
+000087,하이트진로2우B,KOSPI,False,False,True
+0000D0,TIGER 엔비디아미국채커버드콜밸런스(합성),KOSPI,True,False,False
+0000H0,KODEX 인도Nifty미드캡100,KOSPI,True,False,False
+0000J0,PLUS 한화그룹주,KOSPI,True,False,False
+0000Y0,HK 26-12 회사채(AA-이상)액티브,KOSPI,True,False,False
+0000Z0,RISE 바이오TOP10액티브,KOSPI,True,False,False
+000105,유한양행우,KOSPI,False,False,True
+000145,하이트진로홀딩스우,KOSPI,False,False,True
+000155,두산우,KOSPI,False,False,True
+000157,두산2우B,KOSPI,False,False,True
+0001P0,마이티 바이오시밀러&CDMO액티브,KOSPI,True,False,False
+0001S0,TIGER 26-04 회사채(A+이상)액티브,KOSPI,True,False,False
+000215,DL우,KOSPI,False,False,True
+000225,유유제약1우,KOSPI,False,False,True
+000227,유유제약2우B,KOSPI,False,False,True
+0002C0,에셋플러스 인도일등기업포커스20액티브,KOSPI,True,False,False
+000325,노루홀딩스우,KOSPI,False,False,True
+0004G0,1Q 미국배당TOP30,KOSPI,True,False,False
+000545,흥국화재우,KOSPI,False,False,True
+0005A0,KODEX 미국S&P500데일리커버드콜OTM,KOSPI,True,False,False
+0005C0,RISE 미국S&P500엔화노출(합성 H),KOSPI,True,False,False
+0005D0,SOL 전고체배터리&실리콘음극재,KOSPI,True,False,False
+0005G0,ITF K-AI반도체코어테크,KOSPI,True,False,False
+000725,현대건설우,KOSPI,False,False,True
+0007F0,KODEX 27-12 회사채(AA-이상)액티브,KOSPI,True,False,False
+0007G0,PLUS 글로벌원자력밸류체인,KOSPI,True,False,False
+0007N0,아이엠에셋 200,KOSPI,True,False,False
+000815,삼성화재우,KOSPI,False,False,True
+00088K,한화3우B,KOSPI,False,False,True
+0008E0,ACE 미국중심중소형제조업,KOSPI,True,False,False
+0008S0,TIGER 미국배당다우존스타겟데일리커버드콜,KOSPI,True,False,False
+0008T0,SOL 화장품TOP3플러스,KOSPI,True,False,False
+001045,CJ우,KOSPI,False,False,True
+00104K,CJ4우(전환),KOSPI,False,False,True
+001065,JW중외제약우,KOSPI,False,False,True
+001067,JW중외제약2우B,KOSPI,False,False,True
+0010E0,ACE FTSE WGBI Korea,KOSPI,True,False,False
+001275,부국증권우,KOSPI,False,False,True
+0013P0,RISE 미국은행TOP10,KOSPI,True,False,False
+0013R0,RISE 테슬라미국채타겟커버드콜혼합(합성),KOSPI,True,False,False
+001465,BYC우,KOSPI,False,False,True
+001515,SK증권우,KOSPI,False,False,True
+001525,동양우,KOSPI,False,False,True
+001527,동양2우B,KOSPI,False,False,True
+0015B0,KoAct 미국나스닥성장기업액티브,KOSPI,True,False,False
+0015E0,KIWOOM 엔비디아미국30년국채혼합액티브(H),KOSPI,True,False,False
+0015F0,KIWOOM 팔란티어미국30년국채혼합액티브(H),KOSPI,True,False,False
+0015K0,TIGER 미국소비트렌드액티브,KOSPI,True,False,False
+001685,대상우,KOSPI,False,False,True
+0016X0,SOL 중단기회사채(A-이상)액티브,KOSPI,True,False,False
+001755,한양증권우,KOSPI,False,False,True
+001795,대한제당우,KOSPI,False,False,True
+0017Y0,1Q 종합채권(AA-이상)액티브,KOSPI,True,False,False
+0018C0,PLUS 고배당주위클리고정커버드콜,KOSPI,True,False,False
+0018Z0,RISE 미국양자컴퓨팅,KOSPI,True,False,False
+0019K0,TIMEFOLIO 미국나스닥100채권혼합50액티브,KOSPI,True,False,False
+002025,코오롱우,KOSPI,False,False,True
+0020H0,KoAct 글로벌양자컴퓨팅액티브,KOSPI,True,False,False
+0021C0,ACE 장기자산배분액티브,KOSPI,True,False,False
+0021D0,ACE TDF2030액티브,KOSPI,True,False,False
+0021E0,ACE TDF2050액티브,KOSPI,True,False,False
+0022T0,SOL 국제금커버드콜액티브,KOSPI,True,False,False
+002355,넥센타이어1우B,KOSPI,False,False,True
+0023A0,SOL 미국양자컴퓨팅TOP10,KOSPI,True,False,False
+0023B0,PLUS 미국양자컴퓨팅TOP10,KOSPI,True,False,False
+0025N0,TIGER TDF2045,KOSPI,True,False,False
+0026E0,KODEX 미국S&P500버퍼3월액티브,KOSPI,True,False,False
+0026S0,1Q 미국S&P500,KOSPI,True,False,False
+002785,진흥기업우B,KOSPI,False,False,True
+002787,진흥기업2우B,KOSPI,False,False,True
+002795,아모레퍼시픽홀딩스우,KOSPI,False,False,True
+00279K,아모레퍼시픽홀딩스3우C,KOSPI,False,False,True
+0028X0,KODEX 미국금융테크액티브,KOSPI,True,False,False
+002995,금호건설우,KOSPI,False,False,True
+003075,코오롱글로벌우,KOSPI,False,False,True
+003465,유화증권우,KOSPI,False,False,True
+003475,유안타증권우,KOSPI,False,False,True
+003495,대한항공우,KOSPI,False,False,True
+003535,한화투자증권우,KOSPI,False,False,True
+003545,대신증권우,KOSPI,False,False,True
+003547,대신증권2우B,KOSPI,False,False,True
+003555,LG우,KOSPI,False,False,True
+0035T0,PLUS 글로벌휴머노이드로봇액티브,KOSPI,True,False,False
+0036D0,TIMEFOLIO 미국배당다우존스액티브,KOSPI,True,False,False
+0036R0,RISE 미국휴머노이드로봇,KOSPI,True,False,False
+0036Z0,RISE 미국천연가스밸류체인,KOSPI,True,False,False
+0038A0,KODEX 미국휴머노이드로봇,KOSPI,True,False,False
+003925,남양유업우,KOSPI,False,False,True
+0040S0,HANARO 글로벌피지컬AI액티브,KOSPI,True,False,False
+0040X0,SOL 팔란티어미국채커버드콜혼합,KOSPI,True,False,False
+0040Y0,SOL 팔란티어커버드콜OTM채권혼합,KOSPI,True,False,False
+004105,태양금속우,KOSPI,False,False,True
+0041D0,KODEX 미국AI소프트웨어TOP10,KOSPI,True,False,False
+0041E0,KODEX 미국S&P500액티브,KOSPI,True,False,False
+004255,NPC우,KOSPI,False,False,True
+004365,세방우,KOSPI,False,False,True
+0043B0,TIGER 머니마켓액티브,KOSPI,True,False,False
+0043Y0,TIMEFOLIO 차이나AI테크액티브,KOSPI,True,False,False
+004415,서울식품우,KOSPI,False,False,True
+004545,깨끗한나라우,KOSPI,False,False,True
+0046A0,TIGER 미국초단기(3개월이하)국채,KOSPI,True,False,False
+0046Y0,ACE 미국배당퀄리티,KOSPI,True,False,False
+0047A0,TIGER 차이나테크TOP10,KOSPI,True,False,False
+0047N0,PLUS 차이나AI테크TOP10,KOSPI,True,False,False
+0047P0,RISE 테슬라고정테크100,KOSPI,True,False,False
+0047R0,RISE 팔란티어고정테크100,KOSPI,True,False,False
+004835,덕성우,KOSPI,False,False,True
+0048J0,KODEX 미국머니마켓액티브,KOSPI,True,False,False
+0048K0,KODEX 차이나휴머노이드로봇,KOSPI,True,False,False
+004985,성신양회우,KOSPI,False,False,True
+00499K,롯데지주우,KOSPI,False,False,True
+0049K0,ACE 미국배당퀄리티채권혼합50,KOSPI,True,False,False
+0049M0,ACE 미국배당퀄리티+커버드콜액티브,KOSPI,True,False,False
+0050E0,PLUS 미국AI에이전트,KOSPI,True,False,False
+0051A0,KoAct 브로드컴밸류체인액티브,KOSPI,True,False,False
+0051G0,SOL 미국원자력SMR,KOSPI,True,False,False
+005257,녹십자홀딩스2우,KOSPI,False,False,True
+0052D0,TIGER 코리아배당다우존스,KOSPI,True,False,False
+0052S0,1Q 미국S&P500미국채혼합50액티브,KOSPI,True,False,False
+0052T0,1Q 중단기회사채(A-이상)액티브,KOSPI,True,False,False
+005305,롯데칠성우,KOSPI,False,False,True
+005385,현대차우,KOSPI,False,False,True
+005387,현대차2우B,KOSPI,False,False,True
+005389,현대차3우B,KOSPI,False,False,True
+0053L0,TIGER 차이나휴머노이드로봇,KOSPI,True,False,False
+0053M0,더제이 중소형포커스액티브,KOSPI,True,False,False
+005725,넥센우,KOSPI,False,False,True
+005745,크라운해태홀딩스우,KOSPI,False,False,True
+0057H0,PLUS 미국S&P500미국채혼합50액티브,KOSPI,True,False,False
+005935,삼성전자우,KOSPI,False,False,True
+005945,NH투자증권우,KOSPI,False,False,True
+005965,동부건설우,KOSPI,False,False,True
+0060H0,TIGER 토탈월드스탁액티브,KOSPI,True,False,False
+006125,SK디스커버리우,KOSPI,False,False,True
+0061Z0,RISE 단기특수은행채액티브,KOSPI,True,False,False
+006345,대원전선우,KOSPI,False,False,True
+006405,삼성SDI우,KOSPI,False,False,True
+0064K0,KODEX 금액티브,KOSPI,True,False,False
+0065G0,KODEX 차이나테크TOP10,KOSPI,True,False,False
+0066W0,SOL 국제금,KOSPI,True,False,False
+0067V0,TIGER 차이나글로벌리더스TOP3+,KOSPI,True,False,False
+0067Y0,TIGER 차이나AI소프트웨어,KOSPI,True,False,False
+006805,미래에셋증권우,KOSPI,False,False,True
+00680K,미래에셋증권2우B,KOSPI,False,False,True
+0068M0,KODEX 미국S&P500버퍼6월액티브,KOSPI,True,False,False
+0069M0,1Q 미국나스닥100,KOSPI,True,False,False
+0072R0,TIGER KRX금현물,KOSPI,True,False,False
+0073X0,FOCUS 알리바바미국채커버드콜혼합,KOSPI,True,False,False
+0074K0,KoAct K수출핵심기업TOP30액티브,KOSPI,True,False,False
+007575,일양약품우,KOSPI,False,False,True
+007815,코리아써우,KOSPI,False,False,True
+00781K,코리아써키트2우B,KOSPI,False,False,True
+0078V0,PLUS 미국로보택시,KOSPI,True,False,False
+0079X0,ACE BYD밸류체인액티브,KOSPI,True,False,False
+00806K,대덕1우,KOSPI,False,False,True
+0080G0,KODEX K방산TOP10,KOSPI,True,False,False
+0080X0,SOL 미국S&P500미국채혼합50,KOSPI,True,False,False
+0080Y0,SOL 조선TOP3플러스레버리지,KOSPI,True,False,False
+0082F0,HANARO 유럽방산,KOSPI,True,False,False
+0082V0,KODEX TDF2060액티브,KOSPI,True,False,False
+008355,남선알미우,KOSPI,False,False,True
+0083S0,1Q 미국메디컬AI,KOSPI,True,False,False
+0084D0,KIWOOM 미국테크100월간목표헤지액티브,KOSPI,True,False,False
+0084E0,KIWOOM 미국대형주500월간목표헤지액티브,KOSPI,True,False,False
+0085N0,ACE 미국10년국채액티브(H),KOSPI,True,False,False
+0085P0,ACE 미국10년국채액티브,KOSPI,True,False,False
+0086B0,TIGER 리츠부동산인프라TOP10액티브,KOSPI,True,False,False
+0086C0,TIGER 리츠부동산인프라10채권혼합액티브,KOSPI,True,False,False
+008775,호텔신라우,KOSPI,False,False,True
+0087F0,ACE 차이나AI빅테크TOP2+액티브,KOSPI,True,False,False
+0088N0,WON K-글로벌수급상위,KOSPI,True,False,False
+0089B0,PLUS 미국나스닥100미국채혼합50,KOSPI,True,False,False
+0089C0,KODEX 미국S&P500변동성확대시커버드콜,KOSPI,True,False,False
+0089D0,KODEX 금융고배당TOP10,KOSPI,True,False,False
+0090B0,PLUS K방산소부장,KOSPI,True,False,False
+009155,삼성전기우,KOSPI,False,False,True
+0091C0,KODEX 미국10년국채액티브(H),KOSPI,True,False,False
+0091M0,HANARO 27-06 회사채(AA-이상)액티브,KOSPI,True,False,False
+0091P0,TIGER 코리아원자력,KOSPI,True,False,False
+0092B0,SOL 한국원자력SMR,KOSPI,True,False,False
+0092C0,SOL 27-12 회사채(AA-이상)액티브,KOSPI,True,False,False
+0093A0,RISE AI반도체TOP10,KOSPI,True,False,False
+0093B0,RISE 엔비디아고정테크100,KOSPI,True,False,False
+0093D0,KoAct 팔란티어밸류체인액티브,KOSPI,True,False,False
+009415,태영건설우,KOSPI,False,False,True
+0094K0,TIGER 28-04 회사채(A+이상)액티브,KOSPI,True,False,False
+0094L0,RISE 차이나테크TOP10위클리타겟커버드콜,KOSPI,True,False,False
+0094M0,RISE 코리아밸류업위클리고정커버드콜,KOSPI,True,False,False
+0094X0,1Q 샤오미밸류체인액티브,KOSPI,True,False,False
+0097L0,KIWOOM 한국고배당&미국AI테크,KOSPI,True,False,False
+009835,한화솔루션우,KOSPI,False,False,True
+0098F0,KODEX K원자력SMR,KOSPI,True,False,False
+0098N0,PLUS 자사주매입고배당주,KOSPI,True,False,False
+0098Z0,FOCUS 200,KOSPI,True,False,False
+0099L0,ACE 우량회사채(AA-이상)액티브,KOSPI,True,False,False
+0100K0,KODEX K방산TOP10레버리지,KOSPI,True,False,False
+0101N0,RISE AI전력인프라,KOSPI,True,False,False
+0102A0,TIGER 미국AI소프트웨어TOP4Plus,KOSPI,True,False,False
+0102X0,ACE 유럽방산TOP10,KOSPI,True,False,False
+0103T0,1Q K소버린AI,KOSPI,True,False,False
+0104G0,PLUS K방산레버리지,KOSPI,True,False,False
+0104H0,KoAct 미국나스닥채권혼합50액티브,KOSPI,True,False,False
+0104N0,TIGER 200타겟위클리커버드콜,KOSPI,True,False,False
+0104P0,TIGER 코리아배당다우존스위클리커버드콜,KOSPI,True,False,False
+0105D0,SOL 한국AI소프트웨어,KOSPI,True,False,False
+0105E0,SOL 코리아고배당,KOSPI,True,False,False
+0106J0,대신 KOSPI200인덱스 X클래스,KOSPI,True,False,False
+0107F0,KIWOOM 미국고배당&AI테크,KOSPI,True,False,False
+010955,S-Oil우,KOSPI,False,False,True
+011155,CJ씨푸드1우,KOSPI,False,False,True
+0111J0,HANARO 증권고배당TOP3플러스,KOSPI,True,False,False
+0111P0,1Q 미국나스닥100미국채혼합50액티브,KOSPI,True,False,False
+0112X0,마이티 200TR,KOSPI,True,False,False
+0113D0,TIMEFOLIO 글로벌탑픽액티브,KOSPI,True,False,False
+0113G0,KoAct 미국바이오헬스케어액티브,KOSPI,True,False,False
+0113P0,HK 머니마켓액티브,KOSPI,True,False,False
+0114X0,RISE 글로벌게임테크TOP3Plus,KOSPI,True,False,False
+0115C0,RISE 미국고배당다우존스TOP10,KOSPI,True,False,False
+0115D0,KODEX K조선TOP10,KOSPI,True,False,False
+0115E0,KODEX 코리아소버린AI,KOSPI,True,False,False
+011785,금호석유화학우,KOSPI,False,False,True
+0117L0,KODEX 26-12 금융채(AA-이상)액티브,KOSPI,True,False,False
+0117V0,TIGER 코리아AI전력기기TOP3플러스,KOSPI,True,False,False
+0118S0,SOL 미국넥스트테크TOP10액티브,KOSPI,True,False,False
+0118Z0,ACE 미국AI테크핵심산업액티브,KOSPI,True,False,False
+0119H0,KODEX 28-12 회사채(AA-이상)액티브,KOSPI,True,False,False
+0120J0,BNK 카카오그룹포커스,KOSPI,True,False,False
+0120X0,유진 챔피언중단기크레딧 X클래스,KOSPI,True,False,False
+012205,계양전기우,KOSPI,False,False,True
+0122W0,RISE 26-11 회사채(AA-이상)액티브,KOSPI,True,False,False
+0123G0,TIGER 미국AI전력SMR,KOSPI,True,False,False
+0123S0,HANARO 26-12 은행채(AA+이상)액티브,KOSPI,True,False,False
+0127M0,ACE 미국대형가치주액티브,KOSPI,True,False,False
+0127P0,ACE 미국대형성장주액티브,KOSPI,True,False,False
+0127R0,RISE 미국AI클라우드인프라,KOSPI,True,False,False
+0127T0,KIWOOM 미국S&P500&배당다우존스비중전환,KOSPI,True,False,False
+0127V0,KIWOOM 미국S&P500 TOP10&배당다우비중전환,KOSPI,True,False,False
+0128D0,PLUS 차이나항셍테크위클리타겟커버드콜,KOSPI,True,False,False
+0131A0,SOL 차이나소비트렌드,KOSPI,True,False,False
+0131V0,1Q 미국우주항공테크,KOSPI,True,False,False
+0131W0,1Q 단기특수은행채액티브,KOSPI,True,False,False
+0132D0,KoAct 글로벌K컬처밸류체인액티브,KOSPI,True,False,False
+0132H0,KODEX 미국원자력SMR,KOSPI,True,False,False
+0132K0,PLUS 테슬라위클리커버드콜채권혼합,KOSPI,True,False,False
+0135Y0,ITF 중기종합채권(AA-이상)액티브,KOSPI,True,False,False
+0137V0,KIWOOM 미국S&P500모멘텀,KOSPI,True,False,False
+0137W0,KIWOOM 미국S&P500&GOLD,KOSPI,True,False,False
+0138D0,RISE 동학개미,KOSPI,True,False,False
+0138T0,RISE 미국S&P500데일리고정커버드콜,KOSPI,True,False,False
+0138Y0,PLUS 금채권혼합,KOSPI,True,False,False
+0139F0,TIGER 12월자동연장금융채(AA-이상)액티브,KOSPI,True,False,False
+0139P0,ACE 고배당주,KOSPI,True,False,False
+0141S0,SOL 조선기자재,KOSPI,True,False,False
+0141T0,SOL 중기종합채권(AA-이상)액티브,KOSPI,True,False,False
+014285,금강공업우,KOSPI,False,False,True
+0142D0,TIGER 미국AI데이터센터TOP4Plus,KOSPI,True,False,False
+0144L0,KODEX 미국성장커버드콜액티브,KOSPI,True,False,False
+0144M0,KODEX 미국드론UAM TOP10,KOSPI,True,False,False
+014825,동원시스템즈우,KOSPI,False,False,True
+0148J0,TIGER 코리아휴머노이드로봇산업,KOSPI,True,False,False
+014915,성문전자우,KOSPI,False,False,True
+0150K0,KoAct 수소전력ESS인프라액티브,KOSPI,True,False,False
+0151S0,KODEX 미국AI반도체TOP3플러스,KOSPI,True,False,False
+0152E0,SOL 배당성향탑픽액티브,KOSPI,True,False,False
+019175,신풍제약우,KOSPI,False,False,True
+019685,대교우B,KOSPI,False,False,True
+02826K,삼성물산우B,KOSPI,False,False,True
+03473K,SK우,KOSPI,False,False,True
+051905,LG생활건강우,KOSPI,False,False,True
+051915,LG화학우,KOSPI,False,False,True
+066575,LG전자우,KOSPI,False,False,True
+069500,KODEX 200,KOSPI,True,False,False
+069660,KIWOOM 200,KOSPI,True,False,False
+071055,한국금융지주우,KOSPI,False,False,True
+078935,GS우,KOSPI,False,False,True
+084695,대상홀딩스우,KOSPI,False,False,True
+090355,노루페인트우,KOSPI,False,False,True
+090435,아모레퍼시픽우,KOSPI,False,False,True
+091160,KODEX 반도체,KOSPI,True,False,False
+091170,KODEX 은행,KOSPI,True,False,False
+091180,KODEX 자동차,KOSPI,True,False,False
+091220,TIGER 은행,KOSPI,True,False,False
+091230,TIGER 반도체,KOSPI,True,False,False
+096775,SK이노베이션우,KOSPI,False,False,True
+097955,CJ제일제당 우,KOSPI,False,False,True
+099140,KODEX 차이나H,KOSPI,True,False,False
+100910,KIWOOM KRX100,KOSPI,True,False,False
+101280,KODEX 일본TOPIX100,KOSPI,True,False,False
+102110,TIGER 200,KOSPI,True,False,False
+102780,KODEX 삼성그룹,KOSPI,True,False,False
+102960,KODEX 기계장비,KOSPI,True,False,False
+102970,KODEX 증권,KOSPI,True,False,False
+104520,KIWOOM 블루칩,KOSPI,True,False,False
+104530,KIWOOM 고배당,KOSPI,True,False,False
+105010,TIGER 라틴35,KOSPI,True,False,False
+105190,ACE 200,KOSPI,True,False,False
+105780,RISE 5대그룹주,KOSPI,True,False,False
+108450,ACE 삼성그룹섹터가중,KOSPI,True,False,False
+108590,TREX 200,KOSPI,True,False,False
+108675,LX하우시스우,KOSPI,False,False,True
+114100,RISE 국고채3년,KOSPI,True,False,False
+114260,KODEX 국고채3년,KOSPI,True,False,False
+114460,ACE 국고채3년,KOSPI,True,False,False
+114470,KIWOOM 국고채3년,KOSPI,True,False,False
+114800,KODEX 인버스,KOSPI,True,False,False
+114820,TIGER 국채3년,KOSPI,True,False,False
+117460,KODEX 에너지화학,KOSPI,True,False,False
+117680,KODEX 철강,KOSPI,True,False,False
+117690,TIGER 차이나항셍30,KOSPI,True,False,False
+117700,KODEX 건설,KOSPI,True,False,False
+120115,코오롱인더우,KOSPI,False,False,True
+122090,PLUS 코스피50,KOSPI,True,False,False
+122260,KIWOOM 통안채1년,KOSPI,True,False,False
+122630,KODEX 레버리지,KOSPI,True,False,False
+123310,TIGER 인버스,KOSPI,True,False,False
+123320,TIGER 레버리지,KOSPI,True,False,False
+130680,TIGER 원유선물Enhanced(H),KOSPI,True,False,False
+130730,KIWOOM 단기자금,KOSPI,True,False,False
+131890,ACE 삼성그룹동일가중,KOSPI,True,False,False
+132030,KODEX 골드선물(H),KOSPI,True,False,False
+133690,TIGER 미국나스닥100,KOSPI,True,False,False
+136340,RISE 중기우량회사채,KOSPI,True,False,False
+137610,TIGER 농산물선물Enhanced(H),KOSPI,True,False,False
+138230,KIWOOM 미국달러선물,KOSPI,True,False,False
+138520,TIGER 삼성그룹펀더멘털,KOSPI,True,False,False
+138530,TIGER LG그룹+펀더멘털,KOSPI,True,False,False
+138540,TIGER 현대차그룹+펀더멘털,KOSPI,True,False,False
+138910,KODEX 구리선물(H),KOSPI,True,False,False
+138920,KODEX 콩선물(H),KOSPI,True,False,False
+139220,TIGER 200 건설,KOSPI,True,False,False
+139230,TIGER 200 중공업,KOSPI,True,False,False
+139240,TIGER 200 철강소재,KOSPI,True,False,False
+139250,TIGER 200 에너지화학,KOSPI,True,False,False
+139260,TIGER 200 IT,KOSPI,True,False,False
+139270,TIGER 200 금융,KOSPI,True,False,False
+139280,TIGER 경기방어,KOSPI,True,False,False
+139290,TIGER 200 경기소비재,KOSPI,True,False,False
+139320,TIGER 금은선물(H),KOSPI,True,False,False
+139660,KIWOOM 미국달러선물인버스,KOSPI,True,False,False
+140570,RISE 수출주,KOSPI,True,False,False
+140580,RISE 우량업종대표주,KOSPI,True,False,False
+140700,KODEX 보험,KOSPI,True,False,False
+140710,KODEX 운송,KOSPI,True,False,False
+140950,파워 코스피100,KOSPI,True,False,False
+143850,TIGER 미국S&P500선물(H),KOSPI,True,False,False
+143860,TIGER 헬스케어,KOSPI,True,False,False
+144600,KODEX 은선물(H),KOSPI,True,False,False
+145670,ACE 인버스,KOSPI,True,False,False
+145850,TREX 펀더멘탈 200,KOSPI,True,False,False
+145995,삼양사우,KOSPI,False,False,True
+147970,TIGER 모멘텀,KOSPI,True,False,False
+148020,RISE 200,KOSPI,True,False,False
+148070,KIWOOM 국고채10년,KOSPI,True,False,False
+150460,TIGER 중국소비테마,KOSPI,True,False,False
+152100,PLUS 200,KOSPI,True,False,False
+152380,KODEX 국채선물10년,KOSPI,True,False,False
+152500,ACE 레버리지,KOSPI,True,False,False
+152870,파워 200,KOSPI,True,False,False
+153130,KODEX 단기채권,KOSPI,True,False,False
+153270,KIWOOM 코스피100,KOSPI,True,False,False
+156080,KODEX MSCI Korea,KOSPI,True,False,False
+157450,TIGER 단기통안채,KOSPI,True,False,False
+157490,TIGER 소프트웨어,KOSPI,True,False,False
+157500,TIGER 증권,KOSPI,True,False,False
+159800,마이티 코스피100,KOSPI,True,False,False
+160580,TIGER 구리실물,KOSPI,True,False,False
+161510,PLUS 고배당주,KOSPI,True,False,False
+166400,TIGER 200커버드콜OTM,KOSPI,True,False,False
+167860,KIWOOM 국고채10년레버리지,KOSPI,True,False,False
+168580,ACE 중국본토CSI300,KOSPI,True,False,False
+169950,KODEX 차이나A50,KOSPI,True,False,False
+174350,TIGER 로우볼,KOSPI,True,False,False
+174360,RISE 중국본토대형주CSI100,KOSPI,True,False,False
+176950,KODEX 국채선물10년인버스,KOSPI,True,False,False
+18064K,한진칼우,KOSPI,False,False,True
+181480,ACE 미국부동산리츠(합성 H),KOSPI,True,False,False
+182480,TIGER 미국MSCI리츠(합성 H),KOSPI,True,False,False
+182490,TIGER 단기선진하이일드(합성 H),KOSPI,True,False,False
+183700,RISE 채권혼합,KOSPI,True,False,False
+183710,RISE 주식혼합,KOSPI,True,False,False
+185680,KODEX 미국S&P바이오(합성),KOSPI,True,False,False
+189400,PLUS 글로벌MSCI(합성 H),KOSPI,True,False,False
+190620,ACE 단기통안채,KOSPI,True,False,False
+192090,TIGER 차이나CSI300,KOSPI,True,False,False
+192720,파워 고배당저변동성,KOSPI,True,False,False
+195920,TIGER 일본TOPIX(합성 H),KOSPI,True,False,False
+195930,TIGER 유로스탁스50(합성 H),KOSPI,True,False,False
+195970,PLUS 선진국MSCI(합성 H),KOSPI,True,False,False
+195980,PLUS 신흥국MSCI(합성 H),KOSPI,True,False,False
+196030,ACE 일본TOPIX레버리지(H),KOSPI,True,False,False
+196230,RISE 단기통안채,KOSPI,True,False,False
+200030,KODEX 미국S&P500산업재(합성),KOSPI,True,False,False
+200250,KIWOOM 인도Nifty50(합성),KOSPI,True,False,False
+203780,TIGER 미국나스닥바이오,KOSPI,True,False,False
+204450,KODEX 차이나H레버리지(H),KOSPI,True,False,False
+204480,TIGER 차이나CSI300레버리지(합성),KOSPI,True,False,False
+205720,ACE 일본TOPIX인버스(합성 H),KOSPI,True,False,False
+210780,TIGER 코스피고배당,KOSPI,True,False,False
+211560,TIGER 배당성장,KOSPI,True,False,False
+211900,KODEX 코리아배당성장,KOSPI,True,False,False
+213610,KODEX 삼성그룹밸류,KOSPI,True,False,False
+213630,PLUS 미국다우존스고배당주(합성 H),KOSPI,True,False,False
+214980,KODEX 단기채권PLUS,KOSPI,True,False,False
+215620,HK S&P코리아로우볼,KOSPI,True,False,False
+217770,TIGER 원유선물인버스(H),KOSPI,True,False,False
+217780,TIGER 차이나CSI300인버스(합성),KOSPI,True,False,False
+218420,KODEX 미국S&P500에너지(합성),KOSPI,True,False,False
+219390,RISE 미국S&P원유생산기업(합성 H),KOSPI,True,False,False
+219480,KODEX 미국S&P500선물(H),KOSPI,True,False,False
+219900,ACE 중국본토CSI300레버리지(합성),KOSPI,True,False,False
+220130,SOL 차이나강소기업CSI500(합성 H),KOSPI,True,False,False
+223190,KODEX 200가치저변동,KOSPI,True,False,False
+225030,TIGER 미국S&P500선물인버스(H),KOSPI,True,False,False
+225040,TIGER 미국S&P500레버리지(합성 H),KOSPI,True,False,False
+225050,TIGER 유로스탁스레버리지(합성 H),KOSPI,True,False,False
+225060,TIGER 이머징마켓MSCI레버리지(합성 H),KOSPI,True,False,False
+225130,ACE 골드선물 레버리지(합성 H),KOSPI,True,False,False
+225800,KIWOOM 미국달러선물레버리지,KOSPI,True,False,False
+226380,ACE Fn성장소비주도주,KOSPI,True,False,False
+226490,KODEX 코스피,KOSPI,True,False,False
+226980,KODEX 200 중소형,KOSPI,True,False,False
+227540,TIGER 200 헬스케어,KOSPI,True,False,False
+227550,TIGER 200 산업재,KOSPI,True,False,False
+227560,TIGER 200 생활소비재,KOSPI,True,False,False
+227570,TIGER 우량가치,KOSPI,True,False,False
+227830,PLUS 코스피,KOSPI,True,False,False
+228790,TIGER 화장품,KOSPI,True,False,False
+228800,TIGER 여행레저,KOSPI,True,False,False
+228810,TIGER 미디어컨텐츠,KOSPI,True,False,False
+228820,TIGER KTOP30,KOSPI,True,False,False
+229200,KODEX 코스닥150,KOSPI,True,False,False
+229720,KODEX KTOP30,KOSPI,True,False,False
+230480,KIWOOM 미국달러선물인버스2X,KOSPI,True,False,False
+232080,TIGER 코스닥150,KOSPI,True,False,False
+233160,TIGER 코스닥150 레버리지,KOSPI,True,False,False
+233740,KODEX 코스닥150레버리지,KOSPI,True,False,False
+234310,RISE V&S셀렉트밸류,KOSPI,True,False,False
+236350,TIGER 인도니프티50레버리지(합성),KOSPI,True,False,False
+237350,KODEX 코스피100,KOSPI,True,False,False
+237370,KODEX 코리아배당성장채권혼합,KOSPI,True,False,False
+237440,TIGER 경기방어채권혼합,KOSPI,True,False,False
+238670,PLUS 스마트베타Quality채권혼합,KOSPI,True,False,False
+238720,ACE 일본Nikkei225(H),KOSPI,True,False,False
+239660,PLUS 우량회사채50,KOSPI,True,False,False
+241180,TIGER 일본니케이225,KOSPI,True,False,False
+241390,RISE V&S셀렉트밸류채권혼합,KOSPI,True,False,False
+243880,TIGER 200IT레버리지,KOSPI,True,False,False
+243890,TIGER 200에너지화학레버리지,KOSPI,True,False,False
+244580,KODEX 바이오,KOSPI,True,False,False
+244620,KODEX 모멘텀Plus,KOSPI,True,False,False
+244660,KODEX 퀄리티Plus,KOSPI,True,False,False
+244670,KODEX 밸류Plus,KOSPI,True,False,False
+245340,TIGER 미국다우존스30,KOSPI,True,False,False
+245350,TIGER 유로스탁스배당30,KOSPI,True,False,False
+245360,TIGER 차이나HSCEI,KOSPI,True,False,False
+245710,ACE 베트남VN30(합성),KOSPI,True,False,False
+248270,TIGER S&P글로벌헬스케어(합성),KOSPI,True,False,False
+250730,RISE 차이나HSCEI(H),KOSPI,True,False,False
+250780,TIGER 코스닥150선물인버스,KOSPI,True,False,False
+251340,KODEX 코스닥150선물인버스,KOSPI,True,False,False
+251350,KODEX MSCI선진국,KOSPI,True,False,False
+251590,PLUS 고배당저변동50,KOSPI,True,False,False
+251600,PLUS 고배당주채권혼합,KOSPI,True,False,False
+252000,TIGER 200동일가중,KOSPI,True,False,False
+252400,RISE 200선물레버리지,KOSPI,True,False,False
+252410,RISE 200선물인버스,KOSPI,True,False,False
+252420,RISE 200선물인버스2X,KOSPI,True,False,False
+252650,KODEX 200동일가중,KOSPI,True,False,False
+252670,KODEX 200선물인버스2X,KOSPI,True,False,False
+252710,TIGER 200선물인버스2X,KOSPI,True,False,False
+253150,PLUS 200선물레버리지,KOSPI,True,False,False
+253160,PLUS 200선물인버스2X,KOSPI,True,False,False
+253230,KIWOOM 200선물인버스2X,KOSPI,True,False,False
+253240,KIWOOM 200선물인버스,KOSPI,True,False,False
+253250,KIWOOM 200선물레버리지,KOSPI,True,False,False
+253280,RISE 헬스케어,KOSPI,True,False,False
+253290,RISE 헬스케어채권혼합,KOSPI,True,False,False
+256440,ACE MSCI인도네시아(합성),KOSPI,True,False,False
+256450,PLUS 심천차이넥스트(합성),KOSPI,True,False,False
+256750,KODEX 차이나심천ChiNext(합성),KOSPI,True,False,False
+261060,TIGER 코스닥150IT,KOSPI,True,False,False
+261070,TIGER 코스닥150바이오테크,KOSPI,True,False,False
+261110,TIGER 미국달러선물레버리지,KOSPI,True,False,False
+261120,TIGER 미국달러선물인버스2X,KOSPI,True,False,False
+261140,TIGER 우선주,KOSPI,True,False,False
+261220,KODEX WTI원유선물(H),KOSPI,True,False,False
+261240,KODEX 미국달러선물,KOSPI,True,False,False
+261250,KODEX 미국달러선물레버리지,KOSPI,True,False,False
+261260,KODEX 미국달러선물인버스2X,KOSPI,True,False,False
+261270,KODEX 미국달러선물인버스,KOSPI,True,False,False
+261920,ACE MSCI필리핀(합성),KOSPI,True,False,False
+26490K,크라운제과우,KOSPI,False,False,True
+265690,ACE 러시아MSCI(합성),KOSPI,True,False,False
+266160,RISE 고배당,KOSPI,True,False,False
+266360,KODEX K콘텐츠,KOSPI,True,False,False
+266370,KODEX IT,KOSPI,True,False,False
+266390,KODEX 경기소비재,KOSPI,True,False,False
+266410,KODEX 필수소비재,KOSPI,True,False,False
+266420,KODEX 헬스케어,KOSPI,True,False,False
+266550,PLUS 중형주저변동50,KOSPI,True,False,False
+267440,RISE 미국장기국채선물(H),KOSPI,True,False,False
+267450,RISE 미국장기국채선물인버스(H),KOSPI,True,False,False
+267490,RISE 미국장기국채선물레버리지(합성 H),KOSPI,True,False,False
+267770,TIGER 200선물레버리지,KOSPI,True,False,False
+269370,TIGER S&P글로벌인프라(합성),KOSPI,True,False,False
+269420,KODEX S&P글로벌인프라(합성),KOSPI,True,False,False
+269530,PLUS S&P글로벌인프라,KOSPI,True,False,False
+269540,PLUS 미국S&P500(H),KOSPI,True,False,False
+270800,RISE KQ고배당,KOSPI,True,False,False
+270810,RISE 코스닥150,KOSPI,True,False,False
+271050,KODEX WTI원유선물인버스(H),KOSPI,True,False,False
+271060,KODEX 3대농산물선물(H),KOSPI,True,False,False
+272560,RISE 단기국공채액티브,KOSPI,True,False,False
+272570,RISE 중장기국공채액티브,KOSPI,True,False,False
+272580,TIGER 단기채권액티브,KOSPI,True,False,False
+272910,ACE 중장기국공채액티브,KOSPI,True,False,False
+273130,KODEX 종합채권(AA-이상)액티브,KOSPI,True,False,False
+273140,KODEX 단기변동금리부채권액티브,KOSPI,True,False,False
+275280,KODEX 모멘텀주,KOSPI,True,False,False
+275290,KODEX 가치주,KOSPI,True,False,False
+275300,KODEX 우량주,KOSPI,True,False,False
+275750,RISE 코스닥150선물인버스,KOSPI,True,False,False
+275980,TIGER 글로벌4차산업혁신기술(합성 H),KOSPI,True,False,False
+276000,TIGER 글로벌자원생산기업(합성 H),KOSPI,True,False,False
+276650,RISE 글로벌테크놀로지(합성 H),KOSPI,True,False,False
+276970,KODEX 미국S&P500배당귀족커버드콜(합성 H),KOSPI,True,False,False
+276990,KODEX 글로벌로봇(합성),KOSPI,True,False,False
+277540,ACE 아시아TOP50,KOSPI,True,False,False
+277630,TIGER 코스피,KOSPI,True,False,False
+277640,TIGER 코스피대형주,KOSPI,True,False,False
+277650,TIGER 코스피중형주,KOSPI,True,False,False
+278240,RISE 코스닥150선물레버리지,KOSPI,True,False,False
+278530,KODEX 200TR,KOSPI,True,False,False
+278540,KODEX MSCI Korea TR,KOSPI,True,False,False
+278620,PLUS 단기채권액티브,KOSPI,True,False,False
+279530,KODEX 고배당주,KOSPI,True,False,False
+279540,KODEX 최소변동성,KOSPI,True,False,False
+280320,ACE 미국IT인터넷(합성 H),KOSPI,True,False,False
+280920,PLUS 주도업종,KOSPI,True,False,False
+280930,KODEX 미국러셀2000(H),KOSPI,True,False,False
+280940,KODEX 골드선물인버스(H),KOSPI,True,False,False
+281990,RISE 중소형고배당,KOSPI,True,False,False
+282000,RISE 국고채3년선물인버스,KOSPI,True,False,False
+283580,KODEX 차이나CSI300,KOSPI,True,False,False
+284430,KODEX 200미국채혼합,KOSPI,True,False,False
+284980,RISE 200금융,KOSPI,True,False,False
+28513K,SK케미칼우,KOSPI,False,False,True
+285690,FOCUS ESG리더스,KOSPI,True,False,False
+287180,PLUS 미국나스닥테크,KOSPI,True,False,False
+289040,KODEX MSCI KOREA ESG유니버설,KOSPI,True,False,False
+289250,TIGER MSCI KOREA ESG유니버설,KOSPI,True,False,False
+289260,TIGER MSCI KOREA ESG리더스,KOSPI,True,False,False
+289480,TIGER 200커버드콜,KOSPI,True,False,False
+289670,PLUS 국채선물10년,KOSPI,True,False,False
+290080,RISE 200고배당커버드콜ATM,KOSPI,True,False,False
+290130,RISE ESG사회책임투자,KOSPI,True,False,False
+291130,ACE MSCI멕시코(합성),KOSPI,True,False,False
+291620,KIWOOM 코스닥150선물인버스,KOSPI,True,False,False
+291630,KIWOOM 코스닥150선물레버리지,KOSPI,True,False,False
+291680,RISE 차이나H선물인버스(H),KOSPI,True,False,False
+291890,KODEX MSCI EM선물(H),KOSPI,True,False,False
+292050,RISE KRX300,KOSPI,True,False,False
+292150,TIGER 코리아TOP10,KOSPI,True,False,False
+292160,TIGER KRX300,KOSPI,True,False,False
+292190,KODEX KRX300,KOSPI,True,False,False
+292500,SOL KRX300,KOSPI,True,False,False
+292560,TIGER 일본엔선물,KOSPI,True,False,False
+292770,KODEX 국채선물3년인버스,KOSPI,True,False,False
+293180,HANARO 200,KOSPI,True,False,False
+294400,KIWOOM 200TR,KOSPI,True,False,False
+295000,RISE 국채선물10년,KOSPI,True,False,False
+295020,RISE 국채선물10년인버스,KOSPI,True,False,False
+295040,SOL 200TR,KOSPI,True,False,False
+298340,PLUS 국채선물3년,KOSPI,True,False,False
+298770,KODEX 한국대만IT프리미어,KOSPI,True,False,False
+300610,TIGER K게임,KOSPI,True,False,False
+300640,RISE 게임테마,KOSPI,True,False,False
+300950,KODEX 게임산업,KOSPI,True,False,False
+301400,PLUS 코스닥150,KOSPI,True,False,False
+301410,PLUS 코스닥150선물인버스,KOSPI,True,False,False
+302190,TIGER 중장기국채,KOSPI,True,False,False
+302450,RISE 코스피,KOSPI,True,False,False
+304660,KODEX 미국30년국채울트라선물(H),KOSPI,True,False,False
+304670,KODEX 미국30년국채울트라선물인버스(H),KOSPI,True,False,False
+304760,HANARO KRX300,KOSPI,True,False,False
+304770,HANARO 코스닥150,KOSPI,True,False,False
+304780,HANARO 200선물레버리지,KOSPI,True,False,False
+304940,KODEX 미국나스닥100선물(H),KOSPI,True,False,False
+305050,ACE 코스피,KOSPI,True,False,False
+305080,TIGER 미국채10년선물,KOSPI,True,False,False
+305540,TIGER 2차전지테마,KOSPI,True,False,False
+305720,KODEX 2차전지산업,KOSPI,True,False,False
+306520,HANARO 200선물인버스,KOSPI,True,False,False
+306530,HANARO 코스닥150선물레버리지,KOSPI,True,False,False
+306950,KODEX KRX300레버리지,KOSPI,True,False,False
+307510,TIGER 의료기기,KOSPI,True,False,False
+307520,TIGER 지주회사,KOSPI,True,False,False
+308620,KODEX 미국10년국채선물,KOSPI,True,False,False
+309230,ACE 미국WideMoat동일가중,KOSPI,True,False,False
+310080,RISE 중국MSCI China(H),KOSPI,True,False,False
+310960,TIGER 200TR,KOSPI,True,False,False
+310970,TIGER MSCI Korea TR,KOSPI,True,False,False
+314250,KODEX 미국빅테크10(H),KOSPI,True,False,False
+314700,HANARO 농업융복합산업,KOSPI,True,False,False
+315270,TIGER 200커뮤니케이션서비스,KOSPI,True,False,False
+315930,KODEX Top5PlusTR,KOSPI,True,False,False
+315960,RISE 대형고배당10TR,KOSPI,True,False,False
+316300,ACE 싱가포르리츠,KOSPI,True,False,False
+316670,KIWOOM 코스닥150,KOSPI,True,False,False
+319640,TIGER 골드선물(H),KOSPI,True,False,False
+321410,KODEX 멀티에셋하이인컴(H),KOSPI,True,False,False
+322400,HANARO e커머스,KOSPI,True,False,False
+322410,HANARO K고배당,KOSPI,True,False,False
+325010,KODEX 성장주,KOSPI,True,False,False
+325020,KODEX 배당가치,KOSPI,True,False,False
+326230,RISE 내수주플러스,KOSPI,True,False,False
+326240,RISE IT플러스,KOSPI,True,False,False
+328370,PLUS 코스피TR,KOSPI,True,False,False
+329200,TIGER 리츠부동산인프라,KOSPI,True,False,False
+329650,KODEX TRF3070,KOSPI,True,False,False
+329660,KODEX TRF5050,KOSPI,True,False,False
+329670,KODEX TRF7030,KOSPI,True,False,False
+329750,TIGER 미국달러단기채권액티브,KOSPI,True,False,False
+332500,ACE 200TR,KOSPI,True,False,False
+332610,PLUS 미국단기회사채(AAA~A),KOSPI,True,False,False
+332620,PLUS 미국장기우량회사채,KOSPI,True,False,False
+332930,HANARO 200TR,KOSPI,True,False,False
+332940,HANARO MSCI Korea TR,KOSPI,True,False,False
+334690,RISE 팔라듐선물(H),KOSPI,True,False,False
+334700,RISE 팔라듐선물인버스(H),KOSPI,True,False,False
+336160,RISE 금융채액티브,KOSPI,True,False,False
+33626K,두산퓨얼셀1우,KOSPI,False,False,True
+33626L,두산퓨얼셀2우B,KOSPI,False,False,True
+33637K,솔루스첨단소재1우,KOSPI,False,False,True
+33637L,솔루스첨단소재2우B,KOSPI,False,False,True
+337120,KODEX 멀티팩터,KOSPI,True,False,False
+337140,KODEX 코스피대형주,KOSPI,True,False,False
+337150,KODEX 200exTOP,KOSPI,True,False,False
+337160,KODEX 200ESG,KOSPI,True,False,False
+341850,TIGER 리츠부동산인프라채권,KOSPI,True,False,False
+352540,KODEX 일본부동산리츠(H),KOSPI,True,False,False
+352560,KODEX 미국부동산리츠(H),KOSPI,True,False,False
+35320K,대덕전자1우,KOSPI,False,False,True
+354240,RISE 미국고정배당우선증권,KOSPI,True,False,False
+354350,HANARO 글로벌럭셔리S&P(합성),KOSPI,True,False,False
+354500,ACE 코스닥150,KOSPI,True,False,False
+356540,ACE 종합채권(AA-이상)액티브,KOSPI,True,False,False
+357870,TIGER CD금리투자KIS(합성),KOSPI,True,False,False
+359210,KODEX 코스피TR,KOSPI,True,False,False
+360140,KODEX 200롱코스닥150숏선물,KOSPI,True,False,False
+360150,KODEX 코스닥150롱코스피200숏선물,KOSPI,True,False,False
+360200,ACE 미국S&P500,KOSPI,True,False,False
+360750,TIGER 미국S&P500,KOSPI,True,False,False
+361580,RISE 200TR,KOSPI,True,False,False
+36328K,티와이홀딩스우,KOSPI,False,False,True
+363510,SOL KIS단기통안채,KOSPI,True,False,False
+363570,KODEX 장기종합채권(AA-이상)액티브,KOSPI,True,False,False
+363580,KODEX 200IT TR,KOSPI,True,False,False
+364690,KODEX 혁신기술테마액티브,KOSPI,True,False,False
+364960,TIGER BBIG,KOSPI,True,False,False
+364970,TIGER 바이오TOP10,KOSPI,True,False,False
+364980,TIGER 2차전지TOP10,KOSPI,True,False,False
+364990,TIGER 게임TOP10,KOSPI,True,False,False
+365000,TIGER 인터넷TOP10,KOSPI,True,False,False
+365040,TIGER AI코리아그로스액티브,KOSPI,True,False,False
+365780,ACE 국고채10년,KOSPI,True,False,False
+367380,ACE 미국나스닥100,KOSPI,True,False,False
+367740,HANARO Fn5G산업,KOSPI,True,False,False
+367760,RISE 네트워크인프라,KOSPI,True,False,False
+367770,RISE 수소경제테마,KOSPI,True,False,False
+368190,HANARO Fn K-뉴딜디지털플러스,KOSPI,True,False,False
+368590,RISE 미국나스닥100,KOSPI,True,False,False
+368680,KODEX K-뉴딜디지털플러스,KOSPI,True,False,False
+371150,RISE 차이나항셍테크,KOSPI,True,False,False
+371160,TIGER 차이나항셍테크,KOSPI,True,False,False
+371450,TIGER 글로벌클라우드컴퓨팅INDXX,KOSPI,True,False,False
+371460,TIGER 차이나전기차SOLACTIVE,KOSPI,True,False,False
+371470,TIGER 차이나바이오테크SOLACTIVE,KOSPI,True,False,False
+371870,ACE 차이나항셍테크,KOSPI,True,False,False
+372330,KODEX 차이나항셍테크,KOSPI,True,False,False
+373490,KODEX 코리아혁신성장액티브,KOSPI,True,False,False
+373790,KIWOOM 미국방어배당성장나스닥,KOSPI,True,False,False
+375270,RISE 글로벌데이터센터리츠(합성),KOSPI,True,False,False
+37550K,DL이앤씨우,KOSPI,False,False,True
+37550L,DL이앤씨2우(전환),KOSPI,False,False,True
+375760,HANARO 탄소효율그린뉴딜,KOSPI,True,False,False
+375770,KODEX 탄소효율그린뉴딜,KOSPI,True,False,False
+376410,TIGER 탄소효율그린뉴딜,KOSPI,True,False,False
+377990,TIGER Fn신재생에너지,KOSPI,True,False,False
+379780,RISE 미국S&P500,KOSPI,True,False,False
+379790,RISE 유로스탁스50(H),KOSPI,True,False,False
+379800,KODEX 미국S&P500,KOSPI,True,False,False
+379810,KODEX 미국나스닥100,KOSPI,True,False,False
+380340,ACE 코리아AI테크핵심산업,KOSPI,True,False,False
+381170,TIGER 미국테크TOP10 INDXX,KOSPI,True,False,False
+381180,TIGER 미국필라델피아반도체나스닥,KOSPI,True,False,False
+381560,HANARO Fn전기&수소차,KOSPI,True,False,False
+381570,HANARO Fn친환경에너지,KOSPI,True,False,False
+38380K,LX홀딩스1우,KOSPI,False,False,True
+385510,KODEX 신재생에너지액티브,KOSPI,True,False,False
+385520,KODEX 자율주행액티브,KOSPI,True,False,False
+385540,RISE 종합채권(A-이상)액티브,KOSPI,True,False,False
+385550,RISE 단기채권알파액티브,KOSPI,True,False,False
+385560,RISE KIS국고채30년Enhanced,KOSPI,True,False,False
+385590,ACE ESG액티브,KOSPI,True,False,False
+385600,ACE 2차전지&친환경차액티브,KOSPI,True,False,False
+385710,TIMEFOLIO K이노베이션액티브,KOSPI,True,False,False
+385720,TIMEFOLIO 코스피액티브,KOSPI,True,False,False
+387270,TIGER 글로벌이노베이션액티브,KOSPI,True,False,False
+387280,TIGER 퓨처모빌리티액티브,KOSPI,True,False,False
+388280,RISE K엔터&여행레저,KOSPI,True,False,False
+388420,RISE 비메모리반도체액티브,KOSPI,True,False,False
+390390,KODEX 미국반도체,KOSPI,True,False,False
+390400,KODEX 미국스마트모빌리티S&P,KOSPI,True,False,False
+391600,ACE 미국친환경그린테마,KOSPI,True,False,False
+391670,HK 베스트일레븐액티브,KOSPI,True,False,False
+394350,KIWOOM 글로벌퓨처모빌리티,KOSPI,True,False,False
+394660,TIGER 글로벌자율주행&전기차SOLACTIVE,KOSPI,True,False,False
+394670,TIGER 글로벌리튬&2차전지SOLACTIVE(합성),KOSPI,True,False,False
+395150,KODEX 웹툰&드라마,KOSPI,True,False,False
+395160,KODEX AI반도체,KOSPI,True,False,False
+395170,KODEX Top10동일가중,KOSPI,True,False,False
+395270,HANARO Fn K-반도체,KOSPI,True,False,False
+395280,HANARO Fn K-게임,KOSPI,True,False,False
+395290,HANARO Fn K-POP&미디어,KOSPI,True,False,False
+395750,PLUS ESG가치주액티브,KOSPI,True,False,False
+395760,PLUS ESG성장주액티브,KOSPI,True,False,False
+396500,TIGER 반도체TOP10,KOSPI,True,False,False
+396510,TIGER 차이나클린에너지SOLACTIVE,KOSPI,True,False,False
+396520,TIGER 차이나반도체FACTSET,KOSPI,True,False,False
+397420,RISE 국채선물5년추종,KOSPI,True,False,False
+399110,SOL 미국S&P500ESG,KOSPI,True,False,False
+399580,RISE 글로벌클린에너지,KOSPI,True,False,False
+400570,KODEX 유럽탄소배출권선물ICE(H),KOSPI,True,False,False
+400580,SOL 유럽탄소배출권선물S&P(H),KOSPI,True,False,False
+400590,SOL 글로벌탄소배출권선물ICE(합성),KOSPI,True,False,False
+400970,TIGER Fn메타버스,KOSPI,True,False,False
+401170,RISE 메타버스,KOSPI,True,False,False
+401470,KODEX 메타버스액티브,KOSPI,True,False,False
+401590,HANARO 글로벌탄소배출권선물ICE(합성),KOSPI,True,False,False
+402460,HANARO Fn K-메타버스MZ,KOSPI,True,False,False
+402970,ACE 미국배당다우존스,KOSPI,True,False,False
+403790,마이다스 코스피액티브,KOSPI,True,False,False
+404120,TIMEFOLIO K신재생에너지액티브,KOSPI,True,False,False
+404260,KODEX 기후변화솔루션,KOSPI,True,False,False
+404540,TIGER KRX기후변화솔루션,KOSPI,True,False,False
+404650,SOL KRX기후변화솔루션,KOSPI,True,False,False
+407300,HANARO Fn골프테마,KOSPI,True,False,False
+407310,HANARO 200 TOP10,KOSPI,True,False,False
+407820,에셋플러스 코리아플랫폼액티브,KOSPI,True,False,False
+407830,에셋플러스 글로벌플랫폼액티브,KOSPI,True,False,False
+409810,KODEX 미국나스닥100선물인버스(H),KOSPI,True,False,False
+409820,KODEX 미국나스닥100레버리지(합성 H),KOSPI,True,False,False
+410870,TIMEFOLIO K컬처액티브,KOSPI,True,False,False
+411060,ACE KRX금현물,KOSPI,True,False,False
+411420,KODEX 미국나스닥AI테크액티브,KOSPI,True,False,False
+411540,SOL 200 Top10,KOSPI,True,False,False
+411860,KIWOOM 독일DAX,KOSPI,True,False,False
+412560,TIGER BBIG레버리지,KOSPI,True,False,False
+412570,TIGER 2차전지TOP10레버리지,KOSPI,True,False,False
+412770,TIGER 글로벌AI플랫폼액티브,KOSPI,True,False,False
+413220,SOL 차이나태양광CSI(합성),KOSPI,True,False,False
+413930,WON AI ESG액티브,KOSPI,True,False,False
+414270,ACE 글로벌자율주행액티브,KOSPI,True,False,False
+414780,TIGER 차이나과창판STAR50(합성),KOSPI,True,False,False
+415340,KODEX 차이나과창판STAR50(합성),KOSPI,True,False,False
+415760,SOL 차이나육성산업액티브(합성),KOSPI,True,False,False
+415920,PLUS 글로벌희토류&전략자원생산기업,KOSPI,True,False,False
+416090,ACE 중국과창판STAR50,KOSPI,True,False,False
+417450,RISE 글로벌수소경제,KOSPI,True,False,False
+417630,TIGER KEDI혁신기업ESG30,KOSPI,True,False,False
+418660,TIGER 미국나스닥100레버리지(합성),KOSPI,True,False,False
+418670,TIGER 글로벌AI사이버보안,KOSPI,True,False,False
+419420,KODEX 미국클린에너지나스닥,KOSPI,True,False,False
+419430,KODEX 차이나2차전지MSCI(합성),KOSPI,True,False,False
+419650,PLUS 글로벌수소&차세대연료전지,KOSPI,True,False,False
+419890,KIWOOM 단기채권ESG액티브,KOSPI,True,False,False
+421320,PLUS 우주항공&UAM,KOSPI,True,False,False
+422260,VITA MZ소비액티브,KOSPI,True,False,False
+422420,RISE 2차전지액티브,KOSPI,True,False,False
+423160,KODEX KOFR금리액티브(합성),KOSPI,True,False,False
+423170,SOL 한국형글로벌반도체액티브,KOSPI,True,False,False
+423920,TIGER 미국필라델피아반도체레버리지(합성),KOSPI,True,False,False
+424460,HANARO 글로벌워터MSCI(합성),KOSPI,True,False,False
+426020,TIMEFOLIO 미국S&P500액티브,KOSPI,True,False,False
+426030,TIMEFOLIO 미국나스닥100액티브,KOSPI,True,False,False
+426150,WON 대한민국국고채액티브,KOSPI,True,False,False
+426330,KIWOOM 미국ETF산업STOXX,KOSPI,True,False,False
+427120,RISE AI플랫폼,KOSPI,True,False,False
+428510,KODEX 차이나AI테크액티브,KOSPI,True,False,False
+428560,KODEX 미국ETF산업Top10 Indxx,KOSPI,True,False,False
+429000,TIGER 미국S&P500배당귀족,KOSPI,True,False,False
+429010,TIGER 미국나스닥넥스트100,KOSPI,True,False,False
+429740,PLUS K리츠,KOSPI,True,False,False
+429760,PLUS 미국S&P500,KOSPI,True,False,False
+429980,SOL 한국형글로벌전기차&2차전지액티브,KOSPI,True,False,False
+430500,KIWOOM 물가채KIS,KOSPI,True,False,False
+432600,RISE 국채선물3년,KOSPI,True,False,False
+432840,HANARO 미국S&P500,KOSPI,True,False,False
+433220,에셋플러스 글로벌대장장이액티브,KOSPI,True,False,False
+433250,UNICORN R&D 액티브,KOSPI,True,False,False
+433330,SOL 미국S&P500,KOSPI,True,False,False
+433500,ACE 원자력TOP10,KOSPI,True,False,False
+433880,PLUS TDF2060액티브,KOSPI,True,False,False
+433970,KODEX TDF2030액티브,KOSPI,True,False,False
+433980,KODEX TDF2040액티브,KOSPI,True,False,False
+434060,KODEX TDF2050액티브,KOSPI,True,False,False
+434730,HANARO 원자력iSelect,KOSPI,True,False,False
+434960,DAISHIN343 K200,KOSPI,True,False,False
+435040,ACE 글로벌브랜드TOP10,KOSPI,True,False,False
+435420,TIGER 미국나스닥100채권혼합Fn,KOSPI,True,False,False
+435530,KIWOOM TDF2030액티브,KOSPI,True,False,False
+435540,KIWOOM TDF2040액티브,KOSPI,True,False,False
+435550,KIWOOM TDF2050액티브,KOSPI,True,False,False
+436140,SOL 종합채권(AA-이상)액티브,KOSPI,True,False,False
+437070,KODEX 아시아달러채권ESG플러스액티브,KOSPI,True,False,False
+437080,KODEX 미국종합채권ESG액티브(H),KOSPI,True,False,False
+437350,RISE 미국단기투자등급회사채액티브,KOSPI,True,False,False
+437370,RISE 글로벌농업경제,KOSPI,True,False,False
+438080,ACE 미국S&P500미국채혼합50액티브,KOSPI,True,False,False
+438100,ACE 미국나스닥100미국채혼합50액티브,KOSPI,True,False,False
+438320,TIGER 차이나항셍테크레버리지(합성 H),KOSPI,True,False,False
+438330,TIGER 우량회사채액티브,KOSPI,True,False,False
+438560,SOL 국고채3년,KOSPI,True,False,False
+438570,SOL 국고채10년,KOSPI,True,False,False
+438740,마이다스 중소형액티브,KOSPI,True,False,False
+438900,HANARO Fn K-푸드,KOSPI,True,False,False
+439860,KODEX ESG종합채권(A-이상)액티브,KOSPI,True,False,False
+439870,KODEX 국고채30년액티브,KOSPI,True,False,False
+440340,TIGER 글로벌멀티에셋TIF액티브,KOSPI,True,False,False
+440640,ACE 단기채권알파액티브,KOSPI,True,False,False
+440650,ACE 미국달러단기채권액티브,KOSPI,True,False,False
+440910,WON 미국우주항공방산,KOSPI,True,False,False
+441330,KIWOOM 차이나A50커넥트MSCI,KOSPI,True,False,False
+441540,HANARO Fn조선해운,KOSPI,True,False,False
+441640,KODEX 미국배당커버드콜액티브,KOSPI,True,False,False
+441680,TIGER 미국나스닥100커버드콜(합성),KOSPI,True,False,False
+441800,TIMEFOLIO Korea플러스배당액티브,KOSPI,True,False,False
+442090,에셋플러스 코리아대장장이액티브,KOSPI,True,False,False
+442260,마이티 다이나믹퀀트액티브,KOSPI,True,False,False
+442320,RISE 글로벌원자력,KOSPI,True,False,False
+442550,RISE TDF2030액티브,KOSPI,True,False,False
+442560,RISE TDF2040액티브,KOSPI,True,False,False
+442570,RISE TDF2050액티브,KOSPI,True,False,False
+442580,PLUS 글로벌HBM반도체,KOSPI,True,False,False
+444200,SOL 코리아메가테크액티브,KOSPI,True,False,False
+444490,WON 미국S&P500,KOSPI,True,False,False
+445150,KODEX 친환경조선해운액티브,KOSPI,True,False,False
+445290,KODEX 로봇액티브,KOSPI,True,False,False
+445690,BNK 주주가치액티브,KOSPI,True,False,False
+445910,TIGER MKF배당귀족,KOSPI,True,False,False
+446690,KODEX 아시아AI반도체exChina액티브,KOSPI,True,False,False
+446700,RISE 배터리 리사이클링,KOSPI,True,False,False
+446720,SOL 미국배당다우존스,KOSPI,True,False,False
+446770,ACE 글로벌반도체TOP4 Plus,KOSPI,True,False,False
+447430,ACE 주주환원가치주액티브,KOSPI,True,False,False
+447620,SOL 미국TOP5채권혼합40 Solactive,KOSPI,True,False,False
+447660,PLUS 애플채권혼합,KOSPI,True,False,False
+447770,TIGER 테슬라채권혼합Fn,KOSPI,True,False,False
+448100,WON 200,KOSPI,True,False,False
+448290,TIGER 미국S&P500(H),KOSPI,True,False,False
+448300,TIGER 미국나스닥100(H),KOSPI,True,False,False
+448330,KODEX 삼성전자채권혼합,KOSPI,True,False,False
+448490,HANARO 32-10 국고채액티브,KOSPI,True,False,False
+448540,ACE 엔비디아채권혼합,KOSPI,True,False,False
+448570,FOCUS AI코리아액티브,KOSPI,True,False,False
+448630,RISE 삼성그룹Top3채권혼합,KOSPI,True,False,False
+449170,TIGER KOFR금리액티브(합성),KOSPI,True,False,False
+449180,KODEX 미국S&P500(H),KOSPI,True,False,False
+449190,KODEX 미국나스닥100(H),KOSPI,True,False,False
+449450,PLUS K방산,KOSPI,True,False,False
+449580,RISE 테슬라애플아마존채권혼합,KOSPI,True,False,False
+449680,TIGER 한중전기차(합성),KOSPI,True,False,False
+449690,TIGER 한중반도체(합성),KOSPI,True,False,False
+449770,KIWOOM 미국S&P500,KOSPI,True,False,False
+449780,KIWOOM 미국S&P500(H),KOSPI,True,False,False
+450180,KODEX 한중전기차(합성),KOSPI,True,False,False
+450190,KODEX 한중반도체(합성),KOSPI,True,False,False
+450910,SOL 코스닥150,KOSPI,True,False,False
+451000,PLUS 종합채권(AA-이상)액티브,KOSPI,True,False,False
+451060,1Q 200액티브,KOSPI,True,False,False
+451150,에셋플러스 글로벌영에이지액티브,KOSPI,True,False,False
+451530,TIGER 국고채30년스트립액티브,KOSPI,True,False,False
+451540,TIGER 종합채권(AA-이상)액티브,KOSPI,True,False,False
+451600,PLUS 국고채30년액티브,KOSPI,True,False,False
+451670,RISE 국채30년레버리지(합성),KOSPI,True,False,False
+452250,ACE 미국30년국채선물레버리지(합성 H),KOSPI,True,False,False
+45226K,한화갤러리아우,KOSPI,False,False,True
+452360,SOL 미국배당다우존스(H),KOSPI,True,False,False
+452440,VITA 밸류알파액티브,KOSPI,True,False,False
+453010,PLUS KOFR금리,KOSPI,True,False,False
+453060,HANARO KOFR금리액티브(합성),KOSPI,True,False,False
+453080,KIWOOM 미국나스닥100(H),KOSPI,True,False,False
+453330,RISE 미국S&P500(H),KOSPI,True,False,False
+453630,KODEX 미국S&P500필수소비재,KOSPI,True,False,False
+453640,KODEX 미국S&P500헬스케어,KOSPI,True,False,False
+453650,KODEX 미국S&P500금융,KOSPI,True,False,False
+453660,KODEX 미국S&P500경기소비재,KOSPI,True,False,False
+453810,KODEX 인도Nifty50,KOSPI,True,False,False
+453820,KODEX 인도Nifty50레버리지(합성),KOSPI,True,False,False
+453850,ACE 미국30년국채액티브(H),KOSPI,True,False,False
+453870,TIGER 인도니프티50,KOSPI,True,False,False
+453950,TIGER TSMC파운드리밸류체인,KOSPI,True,False,False
+454180,KIWOOM 차이나내수소비TOP CSI,KOSPI,True,False,False
+454320,HANARO CAPEX설비투자iSelect,KOSPI,True,False,False
+454780,KIWOOM 종합채권(AA-이상)액티브,KOSPI,True,False,False
+455030,KODEX 미국달러SOFR금리액티브(합성),KOSPI,True,False,False
+455660,ACE 미국하이일드액티브(H),KOSPI,True,False,False
+455850,SOL AI반도체소부장,KOSPI,True,False,False
+455860,SOL 2차전지소부장Fn,KOSPI,True,False,False
+455890,RISE 머니마켓액티브,KOSPI,True,False,False
+455960,RISE 미국달러SOFR금리액티브(합성),KOSPI,True,False,False
+456200,PLUS 미국달러SOFR금리액티브(합성),KOSPI,True,False,False
+456250,KODEX 유럽명품TOP10 STOXX,KOSPI,True,False,False
+456600,TIMEFOLIO 글로벌AI인공지능액티브,KOSPI,True,False,False
+456610,TIGER 미국달러SOFR금리액티브(합성),KOSPI,True,False,False
+456680,TIGER 차이나전기차레버리지(합성),KOSPI,True,False,False
+456880,ACE 미국달러SOFR금리(합성),KOSPI,True,False,False
+457480,ACE 테슬라밸류체인액티브,KOSPI,True,False,False
+457690,KODEX 33-06 국고채액티브,KOSPI,True,False,False
+457700,KODEX 53-09 국고채액티브,KOSPI,True,False,False
+457930,BNK 미래전략기술액티브,KOSPI,True,False,False
+457990,PLUS 태양광&ESS,KOSPI,True,False,False
+458030,WON 국공채머니마켓액티브,KOSPI,True,False,False
+458210,KIWOOM CD금리액티브(합성),KOSPI,True,False,False
+458250,TIGER 미국30년국채스트립액티브(합성 H),KOSPI,True,False,False
+458260,TIGER 미국투자등급회사채액티브(H),KOSPI,True,False,False
+458730,TIGER 미국배당다우존스,KOSPI,True,False,False
+458750,TIGER 미국배당다우존스타겟커버드콜1호,KOSPI,True,False,False
+458760,TIGER 미국배당다우존스타겟커버드콜2호,KOSPI,True,False,False
+459560,KODEX 테슬라밸류체인FactSet,KOSPI,True,False,False
+459580,KODEX CD금리액티브(합성),KOSPI,True,False,False
+459750,RISE 글로벌주식분산액티브,KOSPI,True,False,False
+459790,KIWOOM 미국성장기업30액티브,KOSPI,True,False,False
+460270,KIWOOM 미국달러SOFR금리액티브(합성),KOSPI,True,False,False
+460280,KIWOOM Fn유전자혁신기술,KOSPI,True,False,False
+460660,RISE 미국S&P배당킹,KOSPI,True,False,False
+460960,ACE 글로벌인컴TOP10,KOSPI,True,False,False
+461270,ACE 26-06 회사채(AA-이상)액티브,KOSPI,True,False,False
+461340,HANARO 글로벌생성형AI액티브,KOSPI,True,False,False
+461450,KODEX 코스닥글로벌,KOSPI,True,False,False
+461460,PLUS 국고채10년액티브,KOSPI,True,False,False
+461490,RISE 글로벌자산배분액티브,KOSPI,True,False,False
+461500,HANARO 종합채권(AA-이상)액티브,KOSPI,True,False,False
+461580,TIGER 코스닥글로벌,KOSPI,True,False,False
+461600,SOL 미국30년국채액티브(H),KOSPI,True,False,False
+461900,PLUS 미국테크TOP10,KOSPI,True,False,False
+461910,PLUS 미국테크TOP10레버리지(합성),KOSPI,True,False,False
+461950,KODEX 2차전지핵심소재10,KOSPI,True,False,False
+462010,TIGER 2차전지소재Fn,KOSPI,True,False,False
+462330,KODEX 2차전지산업레버리지,KOSPI,True,False,False
+462340,에셋플러스 글로벌다이나믹시니어액티브,KOSPI,True,False,False
+462900,KoAct 바이오헬스케어액티브,KOSPI,True,False,False
+463050,TIMEFOLIO K바이오액티브,KOSPI,True,False,False
+463250,TIGER K방산&우주,KOSPI,True,False,False
+463290,1Q 단기금융채액티브,KOSPI,True,False,False
+463300,RISE 중국본토CSI300,KOSPI,True,False,False
+463640,KODEX 미국S&P500유틸리티,KOSPI,True,False,False
+463680,KODEX 미국S&P500테크놀로지,KOSPI,True,False,False
+463690,KODEX 미국S&P500커뮤니케이션,KOSPI,True,False,False
+464240,KIWOOM 26-09회사채(AA-이상)액티브,KOSPI,True,False,False
+464310,TIGER 글로벌AI&로보틱스 INDXX,KOSPI,True,False,False
+464470,PLUS 미국채30년액티브,KOSPI,True,False,False
+464600,SOL 자동차소부장Fn,KOSPI,True,False,False
+464610,SOL 의료기기소부장Fn,KOSPI,True,False,False
+464920,PLUS 일본반도체소부장,KOSPI,True,False,False
+464930,TIGER 글로벌혁신블루칩TOP10,KOSPI,True,False,False
+465330,RISE 2차전지TOP10,KOSPI,True,False,False
+465350,RISE 2차전지TOP10인버스(합성),KOSPI,True,False,False
+465580,ACE 미국빅테크TOP7 Plus,KOSPI,True,False,False
+465610,ACE 미국빅테크TOP7 Plus레버리지(합성),KOSPI,True,False,False
+465620,ACE 미국빅테크TOP7 Plus인버스(합성),KOSPI,True,False,False
+465660,TIGER 일본반도체FACTSET,KOSPI,True,False,False
+465670,TIGER 미국캐시카우100,KOSPI,True,False,False
+465780,마이티 26-09 특수채(AAA)액티브,KOSPI,True,False,False
+466810,BNK 2차전지양극재,KOSPI,True,False,False
+466920,SOL 조선TOP3플러스,KOSPI,True,False,False
+466930,SOL 자동차TOP3플러스,KOSPI,True,False,False
+466940,TIGER 은행고배당플러스TOP10,KOSPI,True,False,False
+466950,TIGER 글로벌AI액티브,KOSPI,True,False,False
+468370,KODEX iShares미국인플레이션국채액티브,KOSPI,True,False,False
+468380,KODEX iShares미국하이일드액티브,KOSPI,True,False,False
+468630,KODEX iShares미국투자등급회사채액티브,KOSPI,True,False,False
+469050,RISE 미국반도체NYSE(H),KOSPI,True,False,False
+469060,RISE 미국반도체NYSE,KOSPI,True,False,False
+469070,RISE AI&로봇,KOSPI,True,False,False
+469150,ACE AI반도체포커스,KOSPI,True,False,False
+469160,ACE 일본반도체,KOSPI,True,False,False
+469170,ACE 포스코그룹포커스,KOSPI,True,False,False
+469530,RISE 미국달러선물인버스,KOSPI,True,False,False
+469790,KIWOOM K-테크TOP10,KOSPI,True,False,False
+469830,SOL 초단기채권액티브,KOSPI,True,False,False
+470310,UNICORN 생성형AI강소기업액티브,KOSPI,True,False,False
+471040,KoAct 글로벌AI&로봇액티브,KOSPI,True,False,False
+471230,KODEX 국고채10년액티브,KOSPI,True,False,False
+471460,KIWOOM 국고채30년액티브,KOSPI,True,False,False
+471760,TIGER AI반도체핵심공정,KOSPI,True,False,False
+471780,TIGER 코리아테크액티브,KOSPI,True,False,False
+471990,KODEX AI반도체핵심장비,KOSPI,True,False,False
+472150,TIGER 배당커버드콜액티브,KOSPI,True,False,False
+472160,TIGER 미국테크TOP10 INDXX(H),KOSPI,True,False,False
+472170,TIGER 미국테크TOP10채권혼합,KOSPI,True,False,False
+472350,1Q 차이나H(H),KOSPI,True,False,False
+472720,TRUSTON 주주가치액티브,KOSPI,True,False,False
+472830,RISE 미국30년국채커버드콜(합성),KOSPI,True,False,False
+472840,ITF 200,KOSPI,True,False,False
+472870,RISE 미국30년국채엔화노출(합성 H),KOSPI,True,False,False
+472920,HK 종합채권(AA-이상)액티브,KOSPI,True,False,False
+473290,KODEX 26-12 회사채(AA-이상)액티브,KOSPI,True,False,False
+473330,SOL 미국30년국채커버드콜(합성),KOSPI,True,False,False
+473440,ACE 11월만기자동연장회사채AA-이상액티브,KOSPI,True,False,False
+473460,KODEX 미국서학개미,KOSPI,True,False,False
+473490,KIWOOM 글로벌AI반도체,KOSPI,True,False,False
+473590,ACE 미국주식베스트셀러,KOSPI,True,False,False
+473640,HANARO 글로벌금채굴기업,KOSPI,True,False,False
+474220,TIGER 미국테크TOP10타겟커버드콜,KOSPI,True,False,False
+474390,SOL 국고채30년액티브,KOSPI,True,False,False
+474590,WON 반도체밸류체인액티브,KOSPI,True,False,False
+474800,KIWOOM 미국원유에너지기업,KOSPI,True,False,False
+474920,에셋플러스 차이나일등기업포커스10액티브,KOSPI,True,False,False
+475050,ACE KPOP포커스,KOSPI,True,False,False
+475070,KoAct 글로벌친환경전력인프라액티브,KOSPI,True,False,False
+475080,KODEX 테슬라커버드콜채권혼합액티브,KOSPI,True,False,False
+475260,ACE 2월만기자동연장회사채AA-이상액티브,KOSPI,True,False,False
+475270,ACE 5월만기자동연장회사채AA-이상액티브,KOSPI,True,False,False
+475280,ACE 8월만기자동연장회사채AA-이상액티브,KOSPI,True,False,False
+475300,SOL 반도체전공정,KOSPI,True,False,False
+475310,SOL 반도체후공정,KOSPI,True,False,False
+475350,RISE 버크셔포트폴리오TOP10,KOSPI,True,False,False
+475380,RISE 글로벌리얼티인컴,KOSPI,True,False,False
+475630,TIGER CD1년금리액티브(합성),KOSPI,True,False,False
+475720,RISE 200위클리커버드콜,KOSPI,True,False,False
+476000,UNICORN 포스트IPO액티브,KOSPI,True,False,False
+476030,SOL 미국나스닥100,KOSPI,True,False,False
+476070,KODEX 글로벌비만치료제TOP2 Plus,KOSPI,True,False,False
+476260,HANARO 반도체핵심공정주도주,KOSPI,True,False,False
+476310,RISE 글로벌비만산업TOP2+,KOSPI,True,False,False
+476450,KIWOOM 머니마켓액티브,KOSPI,True,False,False
+476550,TIGER 미국30년국채커버드콜액티브(H),KOSPI,True,False,False
+476690,TIGER 글로벌비만치료제TOP2Plus,KOSPI,True,False,False
+476750,ACE 미국30년국채엔화노출액티브(H),KOSPI,True,False,False
+476760,ACE 미국30년국채액티브,KOSPI,True,False,False
+476800,KODEX 한국부동산리츠인프라,KOSPI,True,False,False
+476850,KoAct 배당성장액티브,KOSPI,True,False,False
+477050,PLUS 머니마켓액티브,KOSPI,True,False,False
+477080,RISE CD금리액티브(합성),KOSPI,True,False,False
+477490,에셋플러스 글로벌일등기업포커스10액티브,KOSPI,True,False,False
+477730,KODEX 인도타타그룹,KOSPI,True,False,False
+478150,TIMEFOLIO 글로벌우주테크&방산액티브,KOSPI,True,False,False
+479080,1Q 머니마켓액티브,KOSPI,True,False,False
+479520,RISE KOFR금리액티브(합성),KOSPI,True,False,False
+479620,SOL 미국AI반도체칩메이커,KOSPI,True,False,False
+479730,TIGER 인도빌리언컨슈머,KOSPI,True,False,False
+479850,HANARO K-뷰티,KOSPI,True,False,False
+480020,ACE 미국빅테크7+데일리타겟커버드콜(합성),KOSPI,True,False,False
+480030,ACE 미국500데일리타겟커버드콜(합성),KOSPI,True,False,False
+480040,ACE 미국반도체데일리타겟커버드콜(합성),KOSPI,True,False,False
+480260,TIGER 27-04회사채(A+이상)액티브,KOSPI,True,False,False
+480310,TIGER 글로벌온디바이스AI,KOSPI,True,False,False
+480460,WON 한국부동산TOP3플러스,KOSPI,True,False,False
+481050,KODEX CD1년금리플러스액티브(합성),KOSPI,True,False,False
+481060,KODEX 미국30년국채타겟커버드콜(합성 H),KOSPI,True,False,False
+481180,SOL 미국AI소프트웨어,KOSPI,True,False,False
+481190,SOL 미국테크TOP10,KOSPI,True,False,False
+481200,SOL 미국테크TOP10인버스(합성),KOSPI,True,False,False
+481340,RISE 미국30년국채액티브,KOSPI,True,False,False
+481430,RISE 국고채10년액티브,KOSPI,True,False,False
+482030,KoAct 반도체&2차전지핵심소재액티브,KOSPI,True,False,False
+482730,TIGER 미국S&P500타겟데일리커버드콜,KOSPI,True,False,False
+483020,KIWOOM 의료AI,KOSPI,True,False,False
+483030,KIWOOM 미국블록버스터바이오테크의약품+,KOSPI,True,False,False
+483240,TIGER 미국나스닥100ETF선물,KOSPI,True,False,False
+483280,KODEX 미국AI테크TOP10타겟커버드콜,KOSPI,True,False,False
+483290,KODEX 미국배당다우존스타겟커버드콜,KOSPI,True,False,False
+483320,ACE 엔비디아밸류체인액티브,KOSPI,True,False,False
+483330,ACE 마이크로소프트밸류체인액티브,KOSPI,True,False,False
+483340,ACE 구글밸류체인액티브,KOSPI,True,False,False
+483420,ACE 애플밸류체인액티브,KOSPI,True,False,False
+483570,KCGI 미국S&P500 TOP10,KOSPI,True,False,False
+484790,KODEX 미국30년국채액티브(H),KOSPI,True,False,False
+484880,SOL 금융지주플러스고배당,KOSPI,True,False,False
+484890,SOL 머니마켓액티브,KOSPI,True,False,False
+485540,KODEX 미국AI테크TOP10,KOSPI,True,False,False
+485690,RISE 미국AI밸류체인TOP3Plus,KOSPI,True,False,False
+485810,TIMEFOLIO 글로벌바이오액티브,KOSPI,True,False,False
+486240,DAISHIN343 AI반도체&인프라액티브,KOSPI,True,False,False
+486290,TIGER 미국나스닥100타겟데일리커버드콜,KOSPI,True,False,False
+486450,SOL 미국AI전력인프라,KOSPI,True,False,False
+486830,HANARO 머니마켓액티브,KOSPI,True,False,False
+487130,KoAct AI인프라액티브,KOSPI,True,False,False
+487230,KODEX 미국AI전력핵심인프라,KOSPI,True,False,False
+487240,KODEX AI전력핵심설비,KOSPI,True,False,False
+487340,ACE 머니마켓액티브,KOSPI,True,False,False
+487750,BNK 온디바이스AI,KOSPI,True,False,False
+487910,ACE 인도컨슈머파워액티브,KOSPI,True,False,False
+487920,ACE 인도시장대표BIG5그룹액티브,KOSPI,True,False,False
+487950,KODEX 대만테크고배당다우존스,KOSPI,True,False,False
+488080,TIGER 반도체TOP10레버리지,KOSPI,True,False,False
+488200,KIWOOM K-2차전지북미공급망,KOSPI,True,False,False
+488210,KIWOOM K-반도체북미공급망,KOSPI,True,False,False
+488290,마이다스 일본테크액티브,KOSPI,True,False,False
+488480,RISE 일본섹터TOP4Plus,KOSPI,True,False,False
+488500,TIGER 미국S&P500동일가중,KOSPI,True,False,False
+488720,WON 종합채권(AA-이상)액티브,KOSPI,True,False,False
+488770,KODEX 머니마켓액티브,KOSPI,True,False,False
+488980,SOL 26-12 회사채(AA-이상)액티브,KOSPI,True,False,False
+489000,PLUS 일본엔화초단기국채(합성),KOSPI,True,False,False
+489010,PLUS 글로벌AI인프라,KOSPI,True,False,False
+489030,PLUS 고배당주위클리커버드콜,KOSPI,True,False,False
+489250,KODEX 미국배당다우존스,KOSPI,True,False,False
+489290,WON 미국빌리어네어,KOSPI,True,False,False
+489860,KIWOOM 글로벌전력GRID인프라,KOSPI,True,False,False
+490090,TIGER 미국AI빅테크10,KOSPI,True,False,False
+490330,KoAct 미국치매&뇌질환치료제액티브,KOSPI,True,False,False
+490480,SOL K방산,KOSPI,True,False,False
+490490,SOL 미국배당미국채혼합50,KOSPI,True,False,False
+490590,RISE 미국AI밸류체인데일리고정커버드콜,KOSPI,True,False,False
+490600,RISE 미국배당100데일리고정커버드콜,KOSPI,True,False,False
+491010,TIGER 글로벌AI전력인프라액티브,KOSPI,True,False,False
+491090,KODEX 미국테크TOP3플러스,KOSPI,True,False,False
+491220,PLUS 200TR,KOSPI,True,False,False
+491230,PLUS 국공채머니마켓액티브,KOSPI,True,False,False
+491510,파워 K-주주가치액티브,KOSPI,True,False,False
+491610,1Q CD금리액티브(합성),KOSPI,True,False,False
+491620,RISE 미국테크100데일리고정커버드콜,KOSPI,True,False,False
+491630,RISE 미국반도체인버스(합성 H),KOSPI,True,False,False
+491700,HK 200,KOSPI,True,False,False
+491820,HANARO 전력설비투자,KOSPI,True,False,False
+491830,TIGER 미국AI반도체팹리스,KOSPI,True,False,False
+492500,1Q 현대차그룹채권(A+이상)&국고통안,KOSPI,True,False,False
+493420,SOL 미국배당다우존스2호,KOSPI,True,False,False
+493810,TIGER 미국AI빅테크10타겟데일리커버드콜,KOSPI,True,False,False
+494180,TIMEFOLIO 글로벌소비트렌드액티브,KOSPI,True,False,False
+494210,SOL 미국500타겟데일리커버드콜액티브,KOSPI,True,False,False
+494220,UNICORN SK하이닉스밸류체인액티브,KOSPI,True,False,False
+494300,KODEX 미국나스닥100데일리커버드콜OTM,KOSPI,True,False,False
+494310,KODEX 반도체레버리지,KOSPI,True,False,False
+494330,ACE 라이프자산주주가치액티브,KOSPI,True,False,False
+494340,ACE 글로벌AI맞춤형반도체,KOSPI,True,False,False
+494410,PLUS 미국S&P500성장주,KOSPI,True,False,False
+494420,PLUS 미국배당증가성장주데일리커버드콜,KOSPI,True,False,False
+494670,TIGER 조선TOP10,KOSPI,True,False,False
+494840,TIGER 미국방산TOP10,KOSPI,True,False,False
+494890,KODEX 200액티브,KOSPI,True,False,False
+495040,PLUS 코리아밸류업,KOSPI,True,False,False
+495050,RISE 코리아밸류업,KOSPI,True,False,False
+495060,TIMEFOLIO 코리아밸류업액티브,KOSPI,True,False,False
+495230,KoAct 코리아밸류업액티브,KOSPI,True,False,False
+495330,1Q 코리아밸류업,KOSPI,True,False,False
+495550,SOL 코리아밸류업TR,KOSPI,True,False,False
+495710,BNK 26-06 특수채(AAA이상)액티브,KOSPI,True,False,False
+495750,HANARO 코리아밸류업,KOSPI,True,False,False
+495850,KODEX 코리아밸류업,KOSPI,True,False,False
+495940,RISE 미국AI테크액티브,KOSPI,True,False,False
+496020,WON 전단채플러스액티브,KOSPI,True,False,False
+496080,TIGER 코리아밸류업,KOSPI,True,False,False
+496090,KIWOOM 코리아밸류업,KOSPI,True,False,False
+496120,ACE 코리아밸류업,KOSPI,True,False,False
+496130,TRUSTON 코리아밸류업액티브,KOSPI,True,False,False
+496770,PLUS 글로벌방산,KOSPI,True,False,False
+497510,ACE 글로벌빅파마,KOSPI,True,False,False
+497520,ACE 일라이릴리밸류체인,KOSPI,True,False,False
+497570,TIGER 미국필라델피아AI반도체나스닥,KOSPI,True,False,False
+497780,KoAct 미국천연가스인프라액티브,KOSPI,True,False,False
+497880,SOL CD금리&머니마켓액티브,KOSPI,True,False,False
+498050,HANARO 바이오코리아액티브,KOSPI,True,False,False
+498180,파워 종합채권(AA-이상)액티브,KOSPI,True,False,False
+498270,KIWOOM 미국양자컴퓨팅,KOSPI,True,False,False
+498400,KODEX 200타겟위클리커버드콜,KOSPI,True,False,False
+498410,KODEX 금융고배당TOP10타겟위클리커버드콜,KOSPI,True,False,False
+498610,RISE 인도디지털성장,KOSPI,True,False,False
+498860,RISE 코리아금융고배당,KOSPI,True,False,False
+499150,SOL 미국S&P500엔화노출(H),KOSPI,True,False,False
+499660,TIGER CD금리플러스액티브(합성),KOSPI,True,False,False
+0004Y0,디비금융제14호스팩,KOSDAQ,False,True,False
+0037T0,KB제32호스팩,KOSDAQ,False,True,False
+0041B0,교보18호스팩,KOSDAQ,False,True,False
+0041J0,엘에스스팩1호,KOSDAQ,False,True,False
+0041L0,하나35호스팩,KOSDAQ,False,True,False
+0044K0,삼성스팩10호,KOSDAQ,False,True,False
+0054V0,엔에이치스팩32호,KOSDAQ,False,True,False
+0068Y0,비엔케이제3호스팩,KOSDAQ,False,True,False
+0071M0,삼성스팩11호,KOSDAQ,False,True,False
+0072Z0,KB제33호스팩,KOSDAQ,False,True,False
+0088D0,메리츠제1호스팩,KOSDAQ,False,True,False
+0091W0,신영스팩11호,KOSDAQ,False,True,False
+0093G0,미래에셋비전스팩8호,KOSDAQ,False,True,False
+0096B0,삼성스팩12호,KOSDAQ,False,True,False
+0096D0,미래에셋비전스팩9호,KOSDAQ,False,True,False
+0097F0,미래에셋비전스팩10호,KOSDAQ,False,True,False
+0098T0,교보19호스팩,KOSDAQ,False,True,False
+0099W0,미래에셋비전스팩11호,KOSDAQ,False,True,False
+0099X0,IBKS제25호스팩,KOSDAQ,False,True,False
+0101C0,하나36호스팩,KOSDAQ,False,True,False
+0105P0,유진스팩12호,KOSDAQ,False,True,False
+021045,대호특수강우,KOSDAQ,False,False,True
+032685,소프트센우,KOSDAQ,False,False,True
+03481K,해성산업1우,KOSDAQ,False,False,True
+444920,유안타제11호스팩,KOSDAQ,False,True,False
+446150,유안타제12호스팩,KOSDAQ,False,True,False
+448830,미래에셋비전스팩3호,KOSDAQ,False,True,False
+450050,하이제8호스팩,KOSDAQ,False,True,False
+450940,유안타제14호스팩,KOSDAQ,False,True,False
+451700,엔에이치스팩29호,KOSDAQ,False,True,False
+452670,상상인제4호스팩,KOSDAQ,False,True,False
+452980,신한제11호스팩,KOSDAQ,False,True,False
+454640,하나29호스팩,KOSDAQ,False,True,False
+455250,KB제25호스팩,KOSDAQ,False,True,False
+455310,한화플러스제4호스팩,KOSDAQ,False,True,False
+455910,에스케이증권제9호스팩,KOSDAQ,False,True,False
+456490,교보14호스팩,KOSDAQ,False,True,False
+457630,대신밸런스제16호스팩,KOSDAQ,False,True,False
+457940,에스케이증권제10호스팩,KOSDAQ,False,True,False
+458610,한국제12호스팩,KOSDAQ,False,True,False
+462020,에이치엠씨제6호스팩,KOSDAQ,False,True,False
+464440,한국제13호스팩,KOSDAQ,False,True,False
+464680,KB제27호스팩,KOSDAQ,False,True,False
+465320,교보15호스팩,KOSDAQ,False,True,False
+466690,키움히어로제1호스팩,KOSDAQ,False,True,False
+466910,엔에이치스팩30호,KOSDAQ,False,True,False
+467930,IBKS제23호스팩,KOSDAQ,False,True,False
+468760,유진스팩10호,KOSDAQ,False,True,False
+469480,IBKS제24호스팩,KOSDAQ,False,True,False
+469880,하나30호스팩,KOSDAQ,False,True,False
+469900,하나31호스팩,KOSDAQ,False,True,False
+471050,대신밸런스제17호스팩,KOSDAQ,False,True,False
+472220,신영스팩10호,KOSDAQ,False,True,False
+472230,에스케이증권제11호스팩,KOSDAQ,False,True,False
+473000,에스케이증권제12호스팩,KOSDAQ,False,True,False
+473050,유안타제15호스팩,KOSDAQ,False,True,False
+473370,비엔케이제2호스팩,KOSDAQ,False,True,False
+473950,에스케이증권제13호스팩,KOSDAQ,False,True,False
+474490,유안타제16호스팩,KOSDAQ,False,True,False
+474660,신한제12호스팩,KOSDAQ,False,True,False
+474930,신한제13호스팩,KOSDAQ,False,True,False
+475240,하나32호스팩,KOSDAQ,False,True,False
+475250,하나33호스팩,KOSDAQ,False,True,False
+477340,에이치엠씨제7호스팩,KOSDAQ,False,True,False
+477380,미래에셋비전스팩4호,KOSDAQ,False,True,False
+477470,미래에셋비전스팩5호,KOSDAQ,False,True,False
+477760,DB금융스팩12호,KOSDAQ,False,True,False
+478110,이베스트스팩6호,KOSDAQ,False,True,False
+478390,KB제29호스팩,KOSDAQ,False,True,False
+478440,미래에셋비전스팩6호,KOSDAQ,False,True,False
+478780,대신밸런스제18호스팩,KOSDAQ,False,True,False
+479880,한국제15호스팩,KOSDAQ,False,True,False
+481890,엔에이치스팩31호,KOSDAQ,False,True,False
+482520,교보16호스팩,KOSDAQ,False,True,False
+482680,미래에셋비전스팩7호,KOSDAQ,False,True,False
+482690,대신밸런스제19호스팩,KOSDAQ,False,True,False
+484130,하나34호스팩,KOSDAQ,False,True,False
+486630,KB제30호스팩,KOSDAQ,False,True,False
+487360,신한제14호스팩,KOSDAQ,False,True,False
+487720,키움제10호스팩,KOSDAQ,False,True,False
+487830,신한제15호스팩,KOSDAQ,False,True,False
+488060,유진스팩11호,KOSDAQ,False,True,False
+489210,교보17호스팩,KOSDAQ,False,True,False
+489480,키움제11호스팩,KOSDAQ,False,True,False
+489730,디비금융제13호스팩,KOSDAQ,False,True,False
+492220,KB제31호스팩,KOSDAQ,False,True,False
+493790,유안타제17호스팩,KOSDAQ,False,True,False
+496070,신한제16호스팩,KOSDAQ,False,True,False
+498390,한화플러스제5호스팩,KOSDAQ,False,True,False

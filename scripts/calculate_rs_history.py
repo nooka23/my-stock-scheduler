@@ -20,7 +20,7 @@ supabase: Client = create_client(url, key)
 
 # 목표 기간 설정 (YYYY-MM-DD)
 CALC_START_DATE_STR = '2024-01-01'
-CALC_END_DATE_STR = '2025-12-08'
+CALC_END_DATE_STR = '2026-1-16'
 
 print(f"🚀 RS 랭킹 계산 시작 (기간: {CALC_START_DATE_STR} ~ {CALC_END_DATE_STR})")
 
