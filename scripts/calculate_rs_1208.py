@@ -18,7 +18,7 @@ if not url or not key:
 supabase: Client = create_client(url, key)
 
 # 기준일: 2025-12-08로 고정
-TARGET_DATE = '2026-01-02'
+TARGET_DATE = '2026-01-19'
 
 print(f"🚀 V2 데일리 RS 랭킹 계산 시작 (Target Date: {TARGET_DATE})")
 
