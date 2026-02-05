@@ -30,19 +30,25 @@ print(f"1. 주가 데이터 로딩 중 ({FETCH_START_DATE} ~ {TARGET_DATE})...")
 
 try:
     all_rows = []
-    chunk_offset = 0
     chunk_limit = 10000
+    last_date = None
+    last_code = None
 
     while True:
         # 날짜 범위로 필터링하여 데이터 조회
-        res = supabase.table('daily_prices_v2') \
+        query = supabase.table('daily_prices_v2') \
             .select('code, date, close') \
             .gte('date', FETCH_START_DATE) \
             .lte('date', TARGET_DATE) \
             .order('date') \
             .order('code') \
-            .range(chunk_offset, chunk_offset + chunk_limit - 1) \
-            .execute()
+            .limit(chunk_limit)
+
+        # Keyset pagination: (date > last_date) OR (date = last_date AND code > last_code)
+        if last_date is not None and last_code is not None:
+            query = query.or_(f"and(date.eq.{last_date},code.gt.{last_code}),date.gt.{last_date}")
+
+        res = query.execute()
 
         if not res.data:
             break
@@ -52,7 +58,8 @@ try:
         if len(res.data) < chunk_limit:
             break
 
-        chunk_offset += chunk_limit
+        last_date = res.data[-1]['date']
+        last_code = res.data[-1]['code']
         print(f"   {len(all_rows)}건 로드 중...", end='\r')
 
     print(f"\n✅ 로드 완료: {len(all_rows)}건")
