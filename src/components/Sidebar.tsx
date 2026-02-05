@@ -30,7 +30,7 @@ export default function Sidebar() {
   // Hide sidebar on auth pages logic
   const authPaths = ['/login', '/forgot-password', '/update-password'];
   const isAuthPage = authPaths.some(path => pathname.startsWith(path));
-  const isMobileOnlyPage = pathname.startsWith('/m');
+  const isMobileOnlyPage = pathname === '/m' || pathname.startsWith('/m/');
 
   useEffect(() => {
     const getUser = async () => {
@@ -83,6 +83,7 @@ export default function Sidebar() {
         { name: '거래대금', href: '/discovery/volume' }
       ]
     },
+    { name: '지수 (테스트 중)', href: '/market-index', icon: '📈' },
     { name: '관심 종목', href: '/favorites', icon: '⭐' },
   ];
 

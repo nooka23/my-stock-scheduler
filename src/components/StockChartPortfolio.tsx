@@ -11,6 +11,7 @@ import {
   AreaSeries,
   LineStyle,
   MouseEventParams,
+  createSeriesMarkers,
 } from 'lightweight-charts';
 
 type ChartData = {
@@ -27,8 +28,14 @@ type ChartData = {
   macd?: { macd: number; signal: number; histogram: number };
 };
 
+type TradeMarker = {
+  time: string;
+  type: 'buy' | 'sell';
+};
+
 interface Props {
   data: ChartData[];
+  trades?: TradeMarker[];
   colors?: {
     backgroundColor?: string;
     textColor?: string;
@@ -39,7 +46,7 @@ interface Props {
   showMacd?: boolean;
 }
 
-export default function StockChart({ data = [], colors: {
+export default function StockChartPortfolio({ data = [], trades = [], colors: {
   backgroundColor = 'white', 
   textColor = 'black',
 } = {}, showLegend = true, showOHLC = false, showIndicatorsValues = true, showMacd = true }: Props) { // Add showLegend = true
@@ -49,6 +56,7 @@ export default function StockChart({ data = [], colors: {
   const legendRef = useRef<HTMLDivElement>(null);
 
   const chartRef = useRef<IChartApi | null>(null);
+  const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
 
 
 
@@ -261,6 +269,27 @@ export default function StockChart({ data = [], colors: {
         time: d.time as any, open: d.open, high: d.high, low: d.low, close: d.close 
 
       })));
+
+      if (trades.length > 0) {
+        const markers = trades.map(t => ({
+          time: t.time as any,
+          position: t.type === 'buy' ? 'belowBar' : 'aboveBar',
+          color: t.type === 'buy' ? '#ef4444' : '#3b82f6',
+          shape: t.type === 'buy' ? 'arrowUp' : 'arrowDown',
+          text: t.type === 'buy' ? 'B' : 'S',
+        }));
+        if (!markersRef.current) {
+          markersRef.current = createSeriesMarkers(candlestickSeries, markers);
+        } else {
+          markersRef.current.setMarkers(markers);
+        }
+      } else {
+        if (!markersRef.current) {
+          markersRef.current = createSeriesMarkers(candlestickSeries, []);
+        } else {
+          markersRef.current.setMarkers([]);
+        }
+      }
 
       
 
@@ -653,11 +682,12 @@ export default function StockChart({ data = [], colors: {
 
       window.removeEventListener('resize', handleResize);
 
+      markersRef.current = null;
             chart.remove();
 
           };
 
-        }, [data, backgroundColor, textColor, showLegend, showIndicatorsValues, showMacd]);
+        }, [data, trades, backgroundColor, textColor, showLegend, showIndicatorsValues, showMacd]);
 
 
 

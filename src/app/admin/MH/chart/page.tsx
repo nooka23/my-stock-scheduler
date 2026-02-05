@@ -8,7 +8,7 @@ import {
   calculateEMA, 
   calculateWMA, 
   calculateKeltner, 
-  calculateMACD 
+  calculateMACD
 } from '@/utils/indicators';
 
 type Company = {
@@ -323,8 +323,8 @@ export default function ChartPage() {
           .order('date', { ascending: false })
           .limit(1000);
   
-        const rsPromise = supabase.from('rs_rankings_with_volume')
-          .select('date, rank_weighted')
+        const rsPromise = supabase.from('rs_rankings_v2')
+          .select('date, score_weighted')
           .eq('code', code)
           .order('date', { ascending: false })
           .limit(1000);
@@ -354,7 +354,7 @@ export default function ChartPage() {
             if (!row.date) return;
             const existing = dataMap.get(row.date);
             if (existing) {
-                dataMap.set(row.date, { ...existing, rs: row.rank_weighted });
+                dataMap.set(row.date, { ...existing, rs: Number(row.score_weighted) });
             }
         });
   

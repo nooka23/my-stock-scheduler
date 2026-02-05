@@ -9,7 +9,13 @@ export async function middleware(req: NextRequest) {
 
   const {
     data: { session },
+    error,
   } = await supabase.auth.getSession();
+
+  // Clear bad auth cookies if refresh token is missing/invalid.
+  if (error?.code === 'refresh_token_not_found' || error?.message?.includes('Refresh Token Not Found')) {
+    await supabase.auth.signOut();
+  }
 
   // 로그인 안 한 사람이 메인('/') 접근 시 -> 로그인 페이지로
   if (!session && req.nextUrl.pathname === '/') {
