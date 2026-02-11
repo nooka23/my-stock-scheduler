@@ -43,6 +43,13 @@ jobs:
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       run: python scripts/calculate_rs_v2.py
 
+    - name: Calculate Leader Stocks (Daily)
+      if: success()
+      env:
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      run: python scripts/calculate_leader_stocks_daily.py
+
     - name: Update Market Indices (Daily)
       if: success()
       env:
