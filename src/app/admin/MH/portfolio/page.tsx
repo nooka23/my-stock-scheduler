@@ -42,6 +42,17 @@ type SectorAllocation = {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#38B000'];
 
+const getCurrentMonthStart = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
+};
+
+const getTodayDate = (): string => {
+  return new Date().toISOString().split('T')[0];
+};
+
 export default function PortfolioManagementPage() {
   const supabase = createClientComponentClient();
 
@@ -63,6 +74,8 @@ export default function PortfolioManagementPage() {
   const [isAmountHidden, setIsAmountHidden] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
   const [showTableDetails, setShowTableDetails] = useState(false);
+  const [closedFromDate, setClosedFromDate] = useState<string>(() => getCurrentMonthStart());
+  const [closedToDate, setClosedToDate] = useState<string>(() => getTodayDate());
 
   // 종목 검색
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,10 +139,26 @@ export default function PortfolioManagementPage() {
   };
 
   // 정렬된 포지션 목록
-  const sortedPositions = useMemo(() => {
-    if (!sortField) return positions;
+  const filteredPositions = useMemo(() => {
+    if (currentTab !== 'closed') return positions;
 
-    const sorted = [...positions].sort((a, b) => {
+    return positions.filter(position => {
+      if (!position.close_date) return false;
+      if (position.close_date < closedFromDate) return false;
+      if (closedToDate && position.close_date > closedToDate) return false;
+      return true;
+    });
+  }, [positions, currentTab, closedFromDate, closedToDate]);
+
+  const filteredRealizedPnlSum = useMemo(() => {
+    if (currentTab !== 'closed') return 0;
+    return filteredPositions.reduce((sum, position) => sum + (position.realized_pnl || 0), 0);
+  }, [filteredPositions, currentTab]);
+
+  const sortedPositions = useMemo(() => {
+    if (!sortField) return filteredPositions;
+
+    const sorted = [...filteredPositions].sort((a, b) => {
       let compareA: any;
       let compareB: any;
 
@@ -180,7 +209,7 @@ export default function PortfolioManagementPage() {
     });
 
     return sorted;
-  }, [positions, sortField, sortOrder]);
+  }, [filteredPositions, sortField, sortOrder]);
 
   // 총 자산 계산 (롱 포지션 평가금액 + 현금)
   const totalAssets = useMemo(() => {
@@ -799,6 +828,44 @@ export default function PortfolioManagementPage() {
       </div>
 
       {/* 메인 컨텐츠 영역 */}
+      {currentTab === 'closed' && (
+        <div className="mb-4 bg-white rounded-lg shadow p-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700">Close Date:</span>
+              <input
+                type="date"
+                value={closedFromDate}
+                onChange={e => setClosedFromDate(e.target.value)}
+                className="px-3 py-1 border rounded"
+              />
+              <span className="text-gray-500">~</span>
+              <input
+                type="date"
+                value={closedToDate}
+                onChange={e => setClosedToDate(e.target.value)}
+                className="px-3 py-1 border rounded"
+              />
+              <button
+                onClick={() => {
+                  setClosedFromDate(getCurrentMonthStart());
+                  setClosedToDate(getTodayDate());
+                }}
+                className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-sm"
+              >
+                This Month
+              </button>
+            </div>
+            <div className="text-sm">
+              <span className="text-gray-700">실현손익 합계:</span>{' '}
+              <span className={`font-bold ${filteredRealizedPnlSum >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                {formatAmount(filteredRealizedPnlSum)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col gap-4 overflow-hidden">
         {/* 요약 테이블 (테이블 보기 + 간단히보기) */}
         {showSummaryTable && (
@@ -1026,10 +1093,10 @@ export default function PortfolioManagementPage() {
                   </td>
                 </tr>
               )}
-              {!loading && positions.length === 0 && (
+              {!loading && sortedPositions.length === 0 && (
                 <tr>
                   <td colSpan={21} className="text-center py-4 text-gray-400">
-                    {currentTab === 'active' ? '포지션이 없습니다. 추가해보세요!' : '청산된 포지션이 없습니다.'}
+                    {currentTab === 'active' ? '포지션이 없습니다. 추가해보세요!' : '필터 조건에 맞는 청산 내역이 없습니다.'}
                   </td>
                 </tr>
               )}
