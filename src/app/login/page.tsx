@@ -8,6 +8,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [nickname, setNickname] = useState(''); // 닉네임 상태
   const [loading, setLoading] = useState(false);
   const [isSignUpMode, setIsSignUpMode] = useState(false); // 로그인/회원가입 모드 전환
@@ -29,6 +30,11 @@ export default function LoginPage() {
         return;
       }
 
+      if (password !== confirmPassword) {
+        alert('Passwords do not match.');
+        setLoading(false);
+        return;
+      }
       // 1. 회원가입 시도
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -60,6 +66,8 @@ export default function LoginPage() {
         setIsSignUpMode(false);
         setNickname('');
         setPassword('');
+
+        setConfirmPassword('');
       }
 
     } else {
@@ -130,6 +138,17 @@ export default function LoginPage() {
             required
             minLength={6}
           />
+          {isSignUpMode && (
+            <input
+              type="password"
+              placeholder="Confirm password"
+              className="border p-3 rounded-lg"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          )}
           
           {/* ★ 회원가입 모드일 때만 닉네임 입력창 표시 */}
           {isSignUpMode && (
@@ -175,6 +194,8 @@ export default function LoginPage() {
               setNickname(''); // 모드 전환 시 닉네임 초기화
               setEmail('');
               setPassword('');
+
+              setConfirmPassword('');
             }}
             className="text-sm font-bold text-blue-600 hover:underline"
           >

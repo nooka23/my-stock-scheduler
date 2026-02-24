@@ -1,410 +1,280 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import LivermoreStateChart from '@/components/LivermoreStateChart';
+import type { LivermoreComputedRow, ExtendedLivermoreState } from '@/lib/livermoreStateMachine';
 
-type TradingCandidate = {
+type CompanySearchRow = {
   code: string;
   name: string;
-  tradeType: string; // 매매 (매수/매도 등)
-  currentPrice: number; // 현재가
-  stopLoss: number; // 손절가격
-  oneR: number; // 1R
-  comment: string; // 코멘트
-  revenue_growth_2026: number | null; // '26년 매출성장
-  op_income_growth_2026: number | null; // '26년 영업이익 성장
-  revenue_growth_2027: number | null; // '27년 매출성장
-  op_income_growth_2027: number | null; // '27년 영업이익 성장
 };
 
-export default function TradingCandidatesPage() {
-  const supabase = createClientComponentClient();
+type ApiResponse = {
+  meta: {
+    code: string;
+    startDate: string;
+    endDate: string;
+    rowCount: number;
+    hasTimestampRows: boolean;
+    missingHighLowCount: number;
+    reversalMultiplier: number;
+    confirmMultiplier: number;
+  };
+  rows: LivermoreComputedRow[];
+};
 
-  const [favGroups, setFavGroups] = useState<string[]>([]);
-  const [selectedGroup, setSelectedGroup] = useState<string>('');
-  const [candidates, setCandidates] = useState<TradingCandidate[]>([]);
+const STATE_LABELS: Record<ExtendedLivermoreState, string> = {
+  upward_trend: '상승추세',
+  downward_trend: '하락추세',
+  natural_rally: '통상반등',
+  natural_reaction: '통상조정',
+  secondary_rally: '부차반등',
+  secondary_reaction: '부차조정',
+  insufficient_data: '데이터부족',
+};
+
+const STATE_BADGE_STYLE: Record<ExtendedLivermoreState, string> = {
+  upward_trend: 'bg-green-100 text-green-800',
+  downward_trend: 'bg-red-100 text-red-800',
+  natural_rally: 'bg-gray-100 text-gray-800',
+  natural_reaction: 'bg-gray-100 text-gray-800',
+  secondary_rally: 'bg-amber-100 text-amber-800',
+  secondary_reaction: 'bg-amber-100 text-amber-800',
+  insufficient_data: 'bg-slate-100 text-slate-700',
+};
+
+export default function MhIndexPage() {
+  const [code, setCode] = useState('KOSPI');
+  const [query, setQuery] = useState('KOSPI');
+  const [suggestions, setSuggestions] = useState<CompanySearchRow[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [years, setYears] = useState(3);
+  const [reversalMult, setReversalMult] = useState(4);
+  const [confirmMult, setConfirmMult] = useState(2);
+
+  const [rows, setRows] = useState<LivermoreComputedRow[]>([]);
+  const [meta, setMeta] = useState<ApiResponse['meta'] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // 즐겨찾기 그룹 목록 불러오기
-  const fetchFavoriteGroups = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('user_favorite_stocks')
-        .select('group_name')
-        .eq('user_id', user.id);
-
-      if (data) {
-        const groups = Array.from(new Set(data.map(d => d.group_name || '기본 그룹')));
-        setFavGroups(groups.sort());
-        if (groups.length > 0) {
-          setSelectedGroup(groups[0]);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching favorite groups:', error);
-    }
-  }, [supabase]);
-
-  useEffect(() => {
-    fetchFavoriteGroups();
-  }, [fetchFavoriteGroups]);
-
-  // 선택한 그룹의 종목들 불러오기
-  const fetchCandidates = useCallback(async () => {
-    if (!selectedGroup) return;
-
+  const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 1. 즐겨찾기 종목 목록 가져오기
-      const { data: favStocks } = await supabase
-        .from('user_favorite_stocks')
-        .select('company_code, company_name')
-        .eq('user_id', user.id)
-        .eq('group_name', selectedGroup);
-
-      if (!favStocks || favStocks.length === 0) {
-        setCandidates([]);
-        setLoading(false);
-        return;
-      }
-
-      const codes = favStocks.map(s => s.company_code);
-
-      // 2. 최근 날짜 가져오기
-      const { data: dateData } = await supabase
-        .from('daily_prices_v2')
-        .select('date')
-        .order('date', { ascending: false })
-        .limit(1)
-        .single();
-
-      const latestDate = dateData?.date;
-
-      // 3. 현재가 가져오기
-      const { data: priceData } = await supabase
-        .from('daily_prices_v2')
-        .select('code, close')
-        .in('code', codes)
-        .eq('date', latestDate);
-
-      const priceMap = new Map<string, number>();
-      if (priceData) {
-        priceData.forEach(p => priceMap.set(p.code, p.close));
-      }
-
-      // 4. 재무 데이터 가져오기 (2025, 2026, 2027년)
-      const { data: financialData } = await supabase
-        .from('company_financials')
-        .select('company_code, year, revenue, op_income')
-        .in('company_code', codes)
-        .in('year', [2025, 2026, 2027]);
-
-      // 재무 데이터 맵 생성
-      const financialMap = new Map<string, { [key: number]: { revenue: number | null, op_income: number | null } }>();
-      if (financialData) {
-        financialData.forEach(f => {
-          if (!financialMap.has(f.company_code)) {
-            financialMap.set(f.company_code, {});
-          }
-          financialMap.get(f.company_code)![f.year] = {
-            revenue: f.revenue,
-            op_income: f.op_income
-          };
-        });
-      }
-
-      // 5. 저장된 매매 후보 데이터 가져오기
-      const { data: savedData } = await supabase
-        .from('trading_candidates')
-        .select('company_code, trade_type, stop_loss, one_r, comment')
-        .eq('user_id', user.id)
-        .eq('group_name', selectedGroup);
-
-      const savedDataMap = new Map<string, any>();
-      if (savedData) {
-        savedData.forEach(s => {
-          savedDataMap.set(s.company_code, {
-            tradeType: s.trade_type || '',
-            stopLoss: s.stop_loss || 0,
-            oneR: s.one_r || 0,
-            comment: s.comment || ''
-          });
-        });
-      }
-
-      // 6. 성장률 계산 함수
-      const calculateGrowth = (current: number | null, previous: number | null): number | null => {
-        if (current === null || previous === null || previous === 0) return null;
-        return ((current - previous) / previous) * 100;
-      };
-
-      // 7. 최종 데이터 조합
-      const candidatesData: TradingCandidate[] = favStocks.map(stock => {
-        const code = stock.company_code;
-        const financials = financialMap.get(code) || {};
-        const saved = savedDataMap.get(code) || { tradeType: '', stopLoss: 0, oneR: 0, comment: '' };
-
-        const revenue2025 = financials[2025]?.revenue || null;
-        const revenue2026 = financials[2026]?.revenue || null;
-        const revenue2027 = financials[2027]?.revenue || null;
-        const opIncome2025 = financials[2025]?.op_income || null;
-        const opIncome2026 = financials[2026]?.op_income || null;
-        const opIncome2027 = financials[2027]?.op_income || null;
-
-        return {
-          code,
-          name: stock.company_name,
-          tradeType: saved.tradeType,
-          currentPrice: priceMap.get(code) || 0,
-          stopLoss: saved.stopLoss,
-          oneR: saved.oneR,
-          comment: saved.comment,
-          revenue_growth_2026: calculateGrowth(revenue2026, revenue2025),
-          op_income_growth_2026: calculateGrowth(opIncome2026, opIncome2025),
-          revenue_growth_2027: calculateGrowth(revenue2027, revenue2026),
-          op_income_growth_2027: calculateGrowth(opIncome2027, opIncome2026)
-        };
+      const params = new URLSearchParams({
+        code: code.trim().toUpperCase(),
+        years: String(years),
+        reversalMult: String(reversalMult),
+        confirmMult: String(confirmMult),
       });
 
-      setCandidates(candidatesData);
-    } catch (error) {
-      console.error('Error fetching candidates:', error);
+      const res = await fetch(`/api/livermore/kospi?${params.toString()}`);
+      const payload = (await res.json()) as ApiResponse | { error: string };
+
+      if (!res.ok || 'error' in payload) {
+        throw new Error('error' in payload ? payload.error : 'Request failed');
+      }
+
+      setRows(payload.rows);
+      setMeta(payload.meta);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  }, [supabase, selectedGroup]);
+  }, [code, years, reversalMult, confirmMult]);
 
   useEffect(() => {
-    if (selectedGroup) {
-      fetchCandidates();
-    }
-  }, [selectedGroup, fetchCandidates]);
+    fetchData();
+  }, [fetchData]);
 
-  // 손익 계산
-  const calculateProfitLoss = (stopLoss: number, currentPrice: number): number | null => {
-    if (currentPrice === 0 || stopLoss === 0) return null;
-    return ((stopLoss / currentPrice) - 1) * 100;
-  };
-
-  // 포지션 규모 계산
-  const calculatePositionSize = (oneR: number, currentPrice: number, stopLoss: number): number | null => {
-    if (oneR === 0 || currentPrice === 0 || stopLoss === 0 || currentPrice === stopLoss) return null;
-    const shares = Math.floor(oneR / Math.abs(currentPrice - stopLoss));
-    return shares * currentPrice;
-  };
-
-  // 입력값 변경 핸들러
-  const handleInputChange = (index: number, field: keyof TradingCandidate, value: any) => {
-    setCandidates(prev => {
-      const newCandidates = [...prev];
-      newCandidates[index] = { ...newCandidates[index], [field]: value };
-      return newCandidates;
-    });
-  };
-
-  // 데이터 저장
-  const saveData = async () => {
-    if (!selectedGroup) {
-      alert('그룹을 선택해주세요.');
+  useEffect(() => {
+    const q = query.trim();
+    if (!q || q.length < 2) {
+      setSuggestions([]);
       return;
     }
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert('로그인이 필요합니다.');
-        return;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const params = new URLSearchParams({ q, limit: '12' });
+        const res = await fetch(`/api/companies/search?${params.toString()}`);
+        const payload = (await res.json()) as { rows?: CompanySearchRow[]; error?: string };
+        if (!res.ok || payload.error) {
+          throw new Error(payload.error ?? 'Search failed');
+        }
+        setSuggestions(payload.rows ?? []);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearching(false);
       }
+    }, 250);
 
-      // 저장할 데이터 준비
-      const dataToSave = candidates.map(candidate => ({
-        user_id: user.id,
-        group_name: selectedGroup,
-        company_code: candidate.code,
-        company_name: candidate.name,
-        trade_type: candidate.tradeType,
-        stop_loss: candidate.stopLoss,
-        one_r: candidate.oneR,
-        comment: candidate.comment
-      }));
+    return () => clearTimeout(timer);
+  }, [query]);
 
-      // upsert로 저장 (있으면 업데이트, 없으면 생성)
-      const { error } = await supabase
-        .from('trading_candidates')
-        .upsert(dataToSave, {
-          onConflict: 'user_id,group_name,company_code'
-        });
-
-      if (error) throw error;
-
-      alert('저장되었습니다.');
-    } catch (error: any) {
-      console.error('Error saving data:', error);
-      alert('저장 중 오류가 발생했습니다: ' + error.message);
-    }
-  };
-
-  const formatNumber = (num: number | null): string => {
-    if (num === null) return '-';
-    return num.toFixed(2);
-  };
-
-  const formatGrowth = (num: number | null): string => {
-    if (num === null) return '-';
-    return `${num > 0 ? '+' : ''}${num.toFixed(1)}%`;
-  };
-
-  const formatMoney = (num: number | null): string => {
-    if (num === null) return '-';
-    return num.toLocaleString('ko-KR', { maximumFractionDigits: 0 });
-  };
+  const transitions = useMemo(() => rows.filter((row) => row.state_changed), [rows]);
+  const currentState = rows.length ? rows[rows.length - 1].state : 'insufficient_data';
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
-      <div className="bg-white border-b px-6 py-4 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-800">매매 후보 선별</h1>
-        <p className="text-sm text-gray-500 mt-1">관심종목 그룹을 선택하여 매매 후보를 분석하세요</p>
-      </div>
-
-      <main className="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
-        {/* 그룹 선택 */}
-        <div className="bg-white rounded-lg shadow border p-4">
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <label className="block text-sm font-bold text-gray-700 mb-2">관심종목 그룹 선택</label>
-              <select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="w-full max-w-md border p-2 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              >
-                {favGroups.map(group => (
-                  <option key={group} value={group}>{group}</option>
-                ))}
-              </select>
+    <div className="h-full overflow-auto bg-gray-50">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold text-gray-900">
+              {(meta?.code ?? code.trim().toUpperCase()) || 'KOSPI'} Livermore Price Record
+            </h1>
+            <div className={`rounded px-3 py-1 text-sm font-semibold ${STATE_BADGE_STYLE[currentState]}`}>
+              Current: {STATE_LABELS[currentState]}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div className="relative">
+              <label className="flex flex-col gap-1 text-sm text-gray-700">
+                Name / Code
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    if (/^[A-Za-z0-9]+$/.test(e.target.value.trim())) {
+                      setCode(e.target.value.trim().toUpperCase());
+                    }
+                  }}
+                  placeholder="삼성전자, KOSPI, 005930"
+                  className="rounded border border-gray-300 px-2 py-1 text-sm"
+                />
+              </label>
+              {suggestions.length > 0 && (
+                <div className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded border border-gray-200 bg-white shadow">
+                  {suggestions.map((item) => (
+                    <button
+                      key={item.code}
+                      type="button"
+                      onClick={() => {
+                        setQuery(`${item.name} (${item.code})`);
+                        setCode(item.code.toUpperCase());
+                        setSuggestions([]);
+                      }}
+                      className="flex w-full items-center justify-between px-2 py-1.5 text-left text-sm hover:bg-gray-50"
+                    >
+                      <span className="truncate text-gray-800">{item.name}</span>
+                      <span className="ml-2 font-mono text-xs text-gray-500">{item.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-1 text-xs text-gray-500">
+                selected code: <span className="font-mono">{code.trim().toUpperCase() || '-'}</span>
+                {searching ? ' | searching...' : ''}
+              </div>
+            </div>
+
+            <label className="flex flex-col gap-1 text-sm text-gray-700">
+              Years ({years})
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={years}
+                onChange={(e) => setYears(Number(e.target.value))}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm text-gray-700">
+              반전 배수 ({reversalMult.toFixed(1)}x ATR20)
+              <input
+                type="range"
+                min={1}
+                max={8}
+                step={0.5}
+                value={reversalMult}
+                onChange={(e) => setReversalMult(Number(e.target.value))}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-sm text-gray-700">
+              확정 배수 ({confirmMult.toFixed(1)}x ATR20)
+              <input
+                type="range"
+                min={0.5}
+                max={6}
+                step={0.5}
+                value={confirmMult}
+                onChange={(e) => setConfirmMult(Number(e.target.value))}
+              />
+            </label>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
             <button
-              onClick={saveData}
-              disabled={candidates.length === 0}
-              className="px-6 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+              type="button"
+              onClick={fetchData}
+              className="rounded bg-black px-3 py-1.5 text-sm text-white hover:bg-gray-800"
+              disabled={loading}
             >
-              저장
+              {loading ? 'Loading...' : 'Recalculate'}
             </button>
+            {meta && (
+              <div className="text-xs text-gray-500">
+                code: {meta.code} | {meta.startDate} ~ {meta.endDate} | rows: {meta.rowCount} | timestamp date rows:{' '}
+                {meta.hasTimestampRows ? 'yes' : 'no'} | missing high/low: {meta.missingHighLowCount}
+              </div>
+            )}
+          </div>
+
+          {error && <div className="mt-3 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</div>}
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <LivermoreStateChart rows={rows} />
+          <div className="mt-2 text-xs text-gray-500">
+            Background: Uptrend(green), Downtrend(red), Natural(gray), Secondary(yellow), Insufficient(gray).
           </div>
         </div>
 
-        {/* 테이블 */}
-        <div className="flex-1 bg-white rounded-lg shadow border overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-gray-100 text-[10px] text-gray-600 uppercase sticky top-0 z-10">
+        <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="mb-2 text-base font-semibold text-gray-900">Latest State Changes</h2>
+          <div className="max-h-80 overflow-auto border border-gray-100">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-gray-50 text-xs text-gray-600">
                 <tr>
-                  <th className="px-2 py-3 font-bold border-b">종목명</th>
-                  <th className="px-2 py-3 font-bold border-b">매매</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">현재가</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">손절가격</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">손익(%)</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">1R</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">포지션 규모</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">'26년<br/>매출성장</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">'26년<br/>영업이익성장</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">'27년<br/>매출성장</th>
-                  <th className="px-2 py-3 font-bold border-b text-right">'27년<br/>영업이익성장</th>
-                  <th className="px-2 py-3 font-bold border-b">코멘트</th>
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">State</th>
+                  <th className="px-2 py-2">Reason</th>
+                  <th className="px-2 py-2">Close</th>
+                  <th className="px-2 py-2">ATR20</th>
+                  <th className="px-2 py-2">반전 임계값</th>
+                  <th className="px-2 py-2">확정 임계값</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
-                {loading ? (
-                  <tr>
-                    <td colSpan={12} className="p-10 text-center text-gray-400">
-                      데이터 로딩 중...
-                    </td>
-                  </tr>
-                ) : candidates.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="p-10 text-center text-gray-400">
-                      관심종목 그룹을 선택하세요
-                    </td>
-                  </tr>
-                ) : (
-                  candidates.map((candidate, idx) => {
-                    const profitLoss = calculateProfitLoss(candidate.stopLoss, candidate.currentPrice);
-                    const positionSize = calculatePositionSize(candidate.oneR, candidate.currentPrice, candidate.stopLoss);
-
-                    return (
-                      <tr key={candidate.code} className="hover:bg-gray-50">
-                        <td className="px-2 py-2">
-                          <div className="font-bold text-gray-800">{candidate.name}</div>
-                          <div className="text-[9px] text-gray-400">{candidate.code}</div>
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="text"
-                            value={candidate.tradeType}
-                            onChange={(e) => handleInputChange(idx, 'tradeType', e.target.value)}
-                            className="w-20 border p-1 rounded text-xs"
-                          />
-                        </td>
-                        <td className="px-2 py-2 text-right font-mono text-blue-600 font-bold">
-                          {formatMoney(candidate.currentPrice)}
-                        </td>
-                        <td className="px-2 py-2 text-right">
-                          <input
-                            type="number"
-                            value={candidate.stopLoss || ''}
-                            onChange={(e) => handleInputChange(idx, 'stopLoss', Number(e.target.value))}
-                            className="w-24 border p-1 rounded text-xs text-right"
-                          />
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${profitLoss !== null && profitLoss < 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                          {profitLoss !== null ? `${formatNumber(profitLoss)}%` : '-'}
-                        </td>
-                        <td className="px-2 py-2 text-right">
-                          <input
-                            type="number"
-                            value={candidate.oneR || ''}
-                            onChange={(e) => handleInputChange(idx, 'oneR', Number(e.target.value))}
-                            className="w-24 border p-1 rounded text-xs text-right"
-                          />
-                        </td>
-                        <td className="px-2 py-2 text-right font-mono text-green-600 font-bold">
-                          {positionSize !== null ? formatMoney(positionSize) : '-'}
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${candidate.revenue_growth_2026 !== null && candidate.revenue_growth_2026 > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {formatGrowth(candidate.revenue_growth_2026)}
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${candidate.op_income_growth_2026 !== null && candidate.op_income_growth_2026 > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {formatGrowth(candidate.op_income_growth_2026)}
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${candidate.revenue_growth_2027 !== null && candidate.revenue_growth_2027 > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {formatGrowth(candidate.revenue_growth_2027)}
-                        </td>
-                        <td className={`px-2 py-2 text-right font-bold ${candidate.op_income_growth_2027 !== null && candidate.op_income_growth_2027 > 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                          {formatGrowth(candidate.op_income_growth_2027)}
-                        </td>
-                        <td className="px-2 py-2">
-                          <input
-                            type="text"
-                            value={candidate.comment}
-                            onChange={(e) => handleInputChange(idx, 'comment', e.target.value)}
-                            className="w-32 border p-1 rounded text-xs"
-                            placeholder="메모"
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+              <tbody>
+                {transitions
+                  .slice()
+                  .reverse()
+                  .slice(0, 80)
+                  .map((row) => (
+                    <tr key={`${row.date}-${row.state}`} className="border-t border-gray-100">
+                      <td className="px-2 py-1.5 font-mono text-xs">{row.date}</td>
+                      <td className="px-2 py-1.5">{STATE_LABELS[row.state]}</td>
+                      <td className="px-2 py-1.5 text-xs text-gray-600">{row.reason}</td>
+                      <td className="px-2 py-1.5">{row.close.toLocaleString()}</td>
+                      <td className="px-2 py-1.5">{row.atr20?.toFixed(2) ?? '-'}</td>
+                      <td className="px-2 py-1.5">{row.reversal_threshold_value?.toFixed(2) ?? '-'}</td>
+                      <td className="px-2 py-1.5">{row.confirm_threshold_value?.toFixed(2) ?? '-'}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
