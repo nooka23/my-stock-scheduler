@@ -1,9 +1,6 @@
 name: Daily Stock Update
 
 on:
-  schedule:
-    # 평일(월~금) 한국 시간 오후 4시 (UTC 7시)
-    - cron: '30 6 * * 1-5'
   workflow_dispatch:
 
 jobs:
