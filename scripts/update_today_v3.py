@@ -152,6 +152,27 @@ def get_kis_daily_ohlcv(code: str, start_date: str, end_date: str) -> list[dict]
     return data.get("output2", []) if data.get("rt_cd") == "0" else []
 
 
+def get_kis_current_quote(code: str) -> dict:
+    headers = {
+        "content-type": "application/json; charset=utf-8",
+        "appkey": APP_KEY,
+        "appsecret": APP_SECRET,
+        "tr_id": "FHKST01010100",
+    }
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": code,
+    }
+
+    data = kis_request(
+        "GET",
+        "/uapi/domestic-stock/v1/quotations/inquire-price",
+        headers,
+        params,
+    )
+    return data.get("output", {}) if data.get("rt_cd") == "0" else {}
+
+
 def get_kis_index_ohlcv(kis_code: str, start_date: str, end_date: str) -> list[dict]:
     headers = {
         "content-type": "application/json; charset=utf-8",
@@ -213,6 +234,30 @@ def normalize_kis_row(item: dict) -> dict:
     }
 
 
+def parse_market_cap(stock: dict) -> float | None:
+    marcap = stock.get("Marcap")
+    if pd.isna(marcap):
+        return None
+    return float(marcap)
+
+
+def parse_current_market_cap(quote: dict) -> float | None:
+    value = quote.get("hts_avls")
+    if value in (None, ""):
+        return None
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def with_market_cap(record: dict, market_cap: float | None) -> dict:
+    enriched = dict(record)
+    enriched["market_cap"] = market_cap
+    return enriched
+
+
 def update_indices() -> None:
     print("\nUpdating indices with KIS data...")
 
@@ -249,6 +294,7 @@ def update_indices() -> None:
                     "close": float(item.get("bstp_nmix_prpr", 0) or 0),
                     "volume": float(item.get("acml_vol", 0) or 0),
                     "trading_value": float(item.get("acml_tr_pbmn", 0) or 0),
+                    "market_cap": None,
                     "change": 0,
                 }
             )
@@ -325,6 +371,7 @@ def main() -> None:
     for idx, stock in enumerate(target_stocks):
         code = str(stock["Code"])
         name = stock["Name"]
+        fallback_market_cap = parse_market_cap(stock)
 
         if idx % 50 == 0:
             print(
@@ -372,6 +419,12 @@ def main() -> None:
             else:
                 need_full_reload = True
 
+            quote = get_kis_current_quote(code)
+            api_call_count += 1
+            current_market_cap = parse_current_market_cap(quote)
+            if current_market_cap is None:
+                current_market_cap = fallback_market_cap
+
             if need_full_reload:
                 updated_count += 1
                 full_series = fetch_kis_daily_series(code, full_start_date, today)
@@ -381,20 +434,25 @@ def main() -> None:
                     continue
 
                 upload_list = []
+                latest_series_date = max(full_series.keys()) if full_series else None
                 for date_str, item in full_series.items():
                     normalized = normalize_kis_row(item)
+                    row = {
+                        "code": code,
+                        "date": date_str,
+                        "open": normalized["open"],
+                        "high": normalized["high"],
+                        "low": normalized["low"],
+                        "close": normalized["close"],
+                        "volume": normalized["volume"],
+                        "trading_value": normalized["trading_value"],
+                        "change": 0.0,
+                    }
                     upload_list.append(
-                        {
-                            "code": code,
-                            "date": date_str,
-                            "open": normalized["open"],
-                            "high": normalized["high"],
-                            "low": normalized["low"],
-                            "close": normalized["close"],
-                            "volume": normalized["volume"],
-                            "trading_value": normalized["trading_value"],
-                            "change": 0.0,
-                        }
+                        with_market_cap(
+                            row,
+                            current_market_cap if date_str == latest_series_date else None,
+                        )
                     )
 
                 for i in range(0, len(upload_list), 1000):
@@ -420,17 +478,20 @@ def main() -> None:
                 for date_str, item in new_rows.items():
                     normalized = normalize_kis_row(item)
                     upload_list.append(
-                        {
-                            "code": code,
-                            "date": date_str,
-                            "open": normalized["open"],
-                            "high": normalized["high"],
-                            "low": normalized["low"],
-                            "close": normalized["close"],
-                            "volume": normalized["volume"],
-                            "trading_value": normalized["trading_value"],
-                            "change": 0.0,
-                        }
+                        with_market_cap(
+                            {
+                                "code": code,
+                                "date": date_str,
+                                "open": normalized["open"],
+                                "high": normalized["high"],
+                                "low": normalized["low"],
+                                "close": normalized["close"],
+                                "volume": normalized["volume"],
+                                "trading_value": normalized["trading_value"],
+                                "change": 0.0,
+                            },
+                            current_market_cap,
+                        )
                     )
 
                 supabase.table("daily_prices_v2").upsert(

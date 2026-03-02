@@ -11,8 +11,12 @@ import {
 } from '@/utils/indicators';
 
 type PortfolioStock = {
+  id: string;
   code: string;
   name: string;
+  subtitle?: string;
+  tradeDate?: string;
+  listType: 'active' | 'closed';
 };
 
 type ChartData = {
@@ -34,9 +38,17 @@ type TradeMarker = {
   type: 'buy' | 'sell';
 };
 
+type PortfolioMarkerRow = {
+  entry_date: string | null;
+  close_date: string | null;
+  is_closed: boolean | null;
+  is_custom_asset: boolean | null;
+};
+
 export default function PortfolioChartPage() {
   const supabase = createClientComponentClient();
 
+  const [currentTab, setCurrentTab] = useState<'active' | 'closed'>('active');
   const [portfolio, setPortfolio] = useState<PortfolioStock[]>([]);
   const [currentStock, setCurrentStock] = useState<PortfolioStock | null>(null);
 
@@ -83,34 +95,75 @@ export default function PortfolioChartPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data: portfolioData } = await supabase
+    const { data: activePortfolioData } = await supabase
       .from('user_portfolio')
       .select('company_code, company_name, is_custom_asset, is_closed, entry_date')
       .eq('user_id', user.id)
       .eq('is_closed', false)
       .order('entry_date', { ascending: false });
 
-    if (!portfolioData || portfolioData.length === 0) {
-      setPortfolio([]);
-      setCurrentStock(null);
-      return;
-    }
+    const { data: transactionData } = await supabase
+      .from('user_portfolio_transactions')
+      .select('portfolio_id, company_code, company_name, transaction_date')
+      .eq('user_id', user.id)
+      .order('transaction_date', { ascending: false })
+      .order('created_at', { ascending: false });
 
-    const map = new Map<string, PortfolioStock>();
-    portfolioData
+    const { data: legacyClosedData } = await supabase
+      .from('user_portfolio')
+      .select('id, company_code, company_name, is_custom_asset, close_date')
+      .eq('user_id', user.id)
+      .eq('is_closed', true)
+      .order('close_date', { ascending: false });
+
+    const activeMap = new Map<string, PortfolioStock>();
+    (activePortfolioData || [])
       .filter(p => !p.is_custom_asset)
       .forEach(p => {
-        if (!map.has(p.company_code)) {
-          map.set(p.company_code, { code: p.company_code, name: p.company_name || p.company_code });
+        if (!activeMap.has(p.company_code)) {
+          activeMap.set(p.company_code, {
+            id: `active-${p.company_code}`,
+            code: p.company_code,
+            name: p.company_name || p.company_code,
+            subtitle: '보유 종목',
+            listType: 'active',
+          });
         }
       });
 
-    const list = Array.from(map.values());
-    setPortfolio(list);
-    if (!currentStock && list.length > 0) {
-      setCurrentStock(list[0]);
-    }
-  }, [supabase, currentStock]);
+    const loggedPortfolioIds = new Set((transactionData || []).map(t => t.portfolio_id));
+    const closedList: PortfolioStock[] = [
+      ...(transactionData || []).map(t => ({
+        id: `closed-tx-${t.portfolio_id}-${t.transaction_date}-${t.company_code}`,
+        code: t.company_code,
+        name: t.company_name || t.company_code,
+        subtitle: t.transaction_date ? `매도 ${t.transaction_date}` : '매도 내역',
+        tradeDate: t.transaction_date || undefined,
+        listType: 'closed' as const,
+      })),
+      ...((legacyClosedData || [])
+        .filter(p => !p.is_custom_asset && !loggedPortfolioIds.has(p.id))
+        .map(p => ({
+          id: `closed-legacy-${p.id}`,
+          code: p.company_code,
+          name: p.company_name || p.company_code,
+          subtitle: p.close_date ? `청산 ${p.close_date}` : '청산 내역',
+          tradeDate: p.close_date || undefined,
+          listType: 'closed' as const,
+        }))),
+    ];
+
+    const nextPortfolio = currentTab === 'active' ? Array.from(activeMap.values()) : closedList;
+    setPortfolio(nextPortfolio);
+    setCurrentStock(prev => {
+      if (prev && nextPortfolio.some(stock => (
+        stock.id === prev.id
+      ))) {
+        return prev;
+      }
+      return nextPortfolio[0] || null;
+    });
+  }, [supabase, currentTab]);
 
   useEffect(() => {
     fetchPortfolio();
@@ -140,9 +193,17 @@ export default function PortfolioChartPage() {
             .eq('user_id', user.id)
             .eq('company_code', code)
             .eq('is_custom_asset', false)
-        : Promise.resolve({ data: [] as any[] });
+        : Promise.resolve({ data: [] as PortfolioMarkerRow[] });
 
-      const [dbRes, rsRes, portfolioRes] = await Promise.all([dbPromise, rsPromise, portfolioPromise]);
+      const transactionPromise = user
+        ? supabase
+            .from('user_portfolio_transactions')
+            .select('transaction_date')
+            .eq('user_id', user.id)
+            .eq('company_code', code)
+        : Promise.resolve({ data: [] as { transaction_date: string | null }[] });
+
+      const [dbRes, rsRes, portfolioRes, transactionRes] = await Promise.all([dbPromise, rsPromise, portfolioPromise, transactionPromise]);
 
       const dataMap = new Map<string, ChartData>();
 
@@ -185,6 +246,13 @@ export default function PortfolioChartPage() {
           }
           if (p.is_closed && p.close_date) {
             markers.push({ time: p.close_date, type: 'sell' });
+          }
+        });
+      }
+      if (transactionRes.data && transactionRes.data.length > 0) {
+        transactionRes.data.forEach(t => {
+          if (t.transaction_date) {
+            markers.push({ time: t.transaction_date, type: 'sell' });
           }
         });
       }
@@ -238,23 +306,47 @@ export default function PortfolioChartPage() {
     <div className="h-full bg-gray-50 flex">
       <aside className="w-72 bg-white border-r h-full flex flex-col">
         <div className="p-4 border-b">
-          <h2 className="font-bold text-sm text-gray-800">보유 종목</h2>
+          <h2 className="font-bold text-sm text-gray-800">거래 리스트</h2>
+          <div className="mt-3 flex rounded-lg bg-gray-100 p-1">
+            <button
+              className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                currentTab === 'active' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+              }`}
+              onClick={() => setCurrentTab('active')}
+            >
+              보유 종목
+            </button>
+            <button
+              className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                currentTab === 'closed' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+              }`}
+              onClick={() => setCurrentTab('closed')}
+            >
+              청산 매매
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {portfolio.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">보유 종목이 없습니다.</div>
+            <div className="p-4 text-sm text-gray-500">
+              {currentTab === 'active' ? '보유 종목이 없습니다.' : '청산 매매 내역이 없습니다.'}
+            </div>
           ) : (
             <ul className="p-2 space-y-1">
               {portfolio.map(stock => {
-                const active = currentStock?.code === stock.code;
+                const active =
+                  currentStock?.id === stock.id;
                 return (
-                  <li key={stock.code}>
+                  <li key={stock.id}>
                     <button
                       className={`w-full text-left px-3 py-2 rounded text-sm transition ${active ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-800'}`}
                       onClick={() => setCurrentStock(stock)}
                     >
                       <div className="font-semibold">{stock.name}</div>
-                      <div className={`text-xs ${active ? 'text-blue-100' : 'text-gray-400'}`}>{stock.code}</div>
+                      <div className={`text-xs ${active ? 'text-blue-100' : 'text-gray-400'}`}>
+                        {stock.code}
+                        {stock.subtitle ? ` · ${stock.subtitle}` : ''}
+                      </div>
                     </button>
                   </li>
                 );
@@ -271,6 +363,9 @@ export default function PortfolioChartPage() {
             <div className="font-bold text-gray-900">
               {currentStock ? `${currentStock.name} (${currentStock.code})` : '종목을 선택하세요'}
             </div>
+            {currentStock?.subtitle && (
+              <div className="text-xs text-gray-500 mt-1">{currentStock.subtitle}</div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button

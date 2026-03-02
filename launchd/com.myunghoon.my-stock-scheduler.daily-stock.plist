@@ -14,18 +14,54 @@
   <string>/Users/myunghoon/my-stock-scheduler</string>
 
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key>
-    <integer>15</integer>
-    <key>Minute</key>
-    <integer>30</integer>
-  </dict>
+  <array>
+    <dict>
+      <key>Weekday</key>
+      <integer>1</integer>
+      <key>Hour</key>
+      <integer>15</integer>
+      <key>Minute</key>
+      <integer>35</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>2</integer>
+      <key>Hour</key>
+      <integer>15</integer>
+      <key>Minute</key>
+      <integer>35</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>3</integer>
+      <key>Hour</key>
+      <integer>15</integer>
+      <key>Minute</key>
+      <integer>35</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>4</integer>
+      <key>Hour</key>
+      <integer>15</integer>
+      <key>Minute</key>
+      <integer>35</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>5</integer>
+      <key>Hour</key>
+      <integer>15</integer>
+      <key>Minute</key>
+      <integer>35</integer>
+    </dict>
+  </array>
 
   <key>StandardOutPath</key>
-  <string>/Users/myunghoon/Library/Logs/my-stock-scheduler-daily-stock.out.log</string>
+  <string>/Users/myunghoon/Library/Logs/my-stock-scheduler/daily-stock.out.log</string>
 
   <key>StandardErrorPath</key>
-  <string>/Users/myunghoon/Library/Logs/my-stock-scheduler-daily-stock.err.log</string>
+  <string>/Users/myunghoon/Library/Logs/my-stock-scheduler/daily-stock.err.log</string>
 
   <key>RunAtLoad</key>
   <false/>

@@ -32,37 +32,42 @@ print(f"1. 주가 데이터 로딩 중 ({FETCH_START_DATE} ~ {TARGET_DATE})...")
 try:
     all_rows = []
     chunk_limit = 10000
-    last_date = None
-    last_code = None
+    window_days = 31
+    start_dt = datetime.strptime(FETCH_START_DATE, '%Y-%m-%d')
+    target_dt = datetime.strptime(TARGET_DATE, '%Y-%m-%d')
+    window_start = start_dt
 
-    while True:
-        # 날짜 범위로 필터링하여 데이터 조회
-        # RS 계산에는 종가(close)만 있으면 충분함
-        query = supabase.table('daily_prices_v2') \
-            .select('code, date, close') \
-            .gte('date', FETCH_START_DATE) \
-            .lte('date', TARGET_DATE) \
-            .order('date') \
-            .order('code') \
-            .limit(chunk_limit)
+    while window_start <= target_dt:
+        window_end = min(window_start + timedelta(days=window_days - 1), target_dt)
+        window_start_str = window_start.strftime('%Y-%m-%d')
+        window_end_str = window_end.strftime('%Y-%m-%d')
+        offset = 0
 
-        # Keyset pagination: (date > last_date) OR (date = last_date AND code > last_code)
-        if last_date is not None and last_code is not None:
-            query = query.or_(f"and(date.eq.{last_date},code.gt.{last_code}),date.gt.{last_date}")
+        print(f"   - 구간 로딩 중: {window_start_str} ~ {window_end_str}")
 
-        res = query.execute()
+        while True:
+            # 날짜 구간을 작게 나눠 statement timeout 가능성을 낮춘다.
+            query = supabase.table('daily_prices_v2') \
+                .select('code, date, close') \
+                .gte('date', window_start_str) \
+                .lte('date', window_end_str) \
+                .order('date') \
+                .order('code') \
+                .range(offset, offset + chunk_limit - 1)
 
-        if not res.data:
-            break
+            res = query.execute()
 
-        all_rows.extend(res.data)
+            if not res.data:
+                break
 
-        if len(res.data) < chunk_limit:
-            break
+            all_rows.extend(res.data)
+            offset += len(res.data)
+            print(f"   {len(all_rows)}건 로드 중...", end='\r')
 
-        last_date = res.data[-1]['date']
-        last_code = res.data[-1]['code']
-        print(f"   {len(all_rows)}건 로드 중...", end='\r')
+            if len(res.data) < chunk_limit:
+                break
+
+        window_start = window_end + timedelta(days=1)
 
     print(f"\n✅ 로드 완료: {len(all_rows)}건")
     
