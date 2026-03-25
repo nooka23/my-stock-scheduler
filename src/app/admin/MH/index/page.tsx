@@ -49,8 +49,8 @@ export default function MhIndexPage() {
   const [suggestions, setSuggestions] = useState<CompanySearchRow[]>([]);
   const [searching, setSearching] = useState(false);
   const [years, setYears] = useState(3);
-  const [reversalMult, setReversalMult] = useState(4);
-  const [confirmMult, setConfirmMult] = useState(2);
+  const [reversalMult, setReversalMult] = useState(3);
+  const [confirmMult, setConfirmMult] = useState(1.5);
 
   const [rows, setRows] = useState<LivermoreComputedRow[]>([]);
   const [meta, setMeta] = useState<ApiResponse['meta'] | null>(null);

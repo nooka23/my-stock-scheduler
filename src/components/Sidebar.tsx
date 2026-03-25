@@ -80,6 +80,7 @@ export default function Sidebar() {
       icon: '🔍',
       subItems: [
         { name: 'RS', href: '/discovery/rs' },
+        { name: '시총 TOP 100', href: '/discovery/cap' },
         { name: '거래대금', href: '/discovery/volume' }
       ]
     },

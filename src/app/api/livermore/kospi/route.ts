@@ -60,13 +60,19 @@ async function fetchDailyPrices(code: string, startDate: string, endDate: string
   return allRows;
 }
 
+function addYears(date: Date, years: number): Date {
+  const next = new Date(date);
+  next.setFullYear(next.getFullYear() + years);
+  return next;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const code = searchParams.get('code') ?? 'KOSPI';
     const yearsRaw = Number(searchParams.get('years') ?? '3');
-    const reversalMultiplierRaw = Number(searchParams.get('reversalMult') ?? '4');
-    const confirmMultiplierRaw = Number(searchParams.get('confirmMult') ?? '2');
+    const reversalMultiplierRaw = Number(searchParams.get('reversalMult') ?? '3');
+    const confirmMultiplierRaw = Number(searchParams.get('confirmMult') ?? '1.5');
 
     const years = Number.isFinite(yearsRaw) ? Math.min(Math.max(yearsRaw, 1), 20) : 3;
     const reversalMultiplier = Number.isFinite(reversalMultiplierRaw)
@@ -77,13 +83,15 @@ export async function GET(req: NextRequest) {
       : 2;
 
     const end = new Date();
-    const start = new Date(end);
-    start.setFullYear(end.getFullYear() - years);
+    const displayStart = new Date(end);
+    displayStart.setFullYear(end.getFullYear() - years);
+    const warmupStart = addYears(displayStart, -3);
 
-    const startDate = start.toISOString().slice(0, 10);
+    const startDate = displayStart.toISOString().slice(0, 10);
+    const fetchStartDate = warmupStart.toISOString().slice(0, 10);
     const endDate = end.toISOString().slice(0, 10);
 
-    const rawRows = await fetchDailyPrices(code, startDate, endDate);
+    const rawRows = await fetchDailyPrices(code, fetchStartDate, endDate);
 
     if (rawRows.length === 0) {
       return NextResponse.json(
@@ -116,18 +124,19 @@ export async function GET(req: NextRequest) {
     const missingHighLowCount = normalizedRows.filter((row) => row.high === null || row.low === null).length;
     const hasTimestampRows = rawRows.some((row) => row.date.includes('T') || row.date.includes(' '));
 
-    const computed = computeLivermoreStateRows(normalizedRows, {
+    const computedAll = computeLivermoreStateRows(normalizedRows, {
       reversalMultiplier,
       confirmMultiplier,
       momentumLookback: 60,
     });
+    const computed = computedAll.filter((row) => row.date >= startDate);
 
     return NextResponse.json({
       meta: {
         code,
         startDate,
         endDate,
-        rowCount: normalizedRows.length,
+        rowCount: computed.length,
         hasTimestampRows,
         missingHighLowCount,
         reversalMultiplier,

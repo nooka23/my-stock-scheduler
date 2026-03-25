@@ -174,34 +174,26 @@ export default function LivermoreStateChart({ rows }: Props) {
       text?: string;
     }> = [];
 
-    for (let start = 0; start < rows.length; ) {
-      let end = start;
-      while (end + 1 < rows.length && rows[end + 1].state === rows[start].state) {
-        end += 1;
-      }
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      const prevRow = i > 0 ? rows[i - 1] : null;
 
-      let sIndex: number | null = null;
-      let sValue: number | null = null;
-      let bIndex: number | null = null;
-      let bValue: number | null = null;
+      const hasNewSPivot = row.pivot_high !== null && row.pivot_high_date !== null && (
+        row.pivot_high !== prevRow?.pivot_high || row.pivot_high_date !== prevRow?.pivot_high_date
+      );
+      const hasNewBPivot = row.pivot_low !== null && row.pivot_low_date !== null && (
+        row.pivot_low !== prevRow?.pivot_low || row.pivot_low_date !== prevRow?.pivot_low_date
+      );
+      const hasNewSsPivot = row.pivot_ss !== null && row.pivot_ss_date !== null && (
+        row.pivot_ss !== prevRow?.pivot_ss || row.pivot_ss_date !== prevRow?.pivot_ss_date
+      );
+      const hasNewBbPivot = row.pivot_bb !== null && row.pivot_bb_date !== null && (
+        row.pivot_bb !== prevRow?.pivot_bb || row.pivot_bb_date !== prevRow?.pivot_bb_date
+      );
 
-      for (let i = start; i <= end; i += 1) {
-        const row = rows[i];
-
-        if (row.pivot_high !== null && (sValue === null || row.pivot_high >= sValue)) {
-          sValue = row.pivot_high;
-          sIndex = i;
-        }
-
-        if (row.pivot_low !== null && (bValue === null || row.pivot_low <= bValue)) {
-          bValue = row.pivot_low;
-          bIndex = i;
-        }
-      }
-
-      if (sIndex !== null) {
+      if (hasNewSPivot) {
         markers.push({
-          time: rows[sIndex].date as Time,
+          time: row.pivot_high_date as Time,
           position: 'aboveBar',
           shape: 'circle',
           color: '#1d4ed8',
@@ -209,9 +201,9 @@ export default function LivermoreStateChart({ rows }: Props) {
         });
       }
 
-      if (bIndex !== null) {
+      if (hasNewBPivot) {
         markers.push({
-          time: rows[bIndex].date as Time,
+          time: row.pivot_low_date as Time,
           position: 'belowBar',
           shape: 'circle',
           color: '#b45309',
@@ -219,7 +211,25 @@ export default function LivermoreStateChart({ rows }: Props) {
         });
       }
 
-      start = end + 1;
+      if (hasNewSsPivot) {
+        markers.push({
+          time: row.pivot_ss_date as Time,
+          position: 'aboveBar',
+          shape: 'square',
+          color: '#7c3aed',
+          text: 'SS',
+        });
+      }
+
+      if (hasNewBbPivot) {
+        markers.push({
+          time: row.pivot_bb_date as Time,
+          position: 'belowBar',
+          shape: 'square',
+          color: '#047857',
+          text: 'BB',
+        });
+      }
     }
 
     if (!markersRef.current) {
@@ -246,4 +256,3 @@ export default function LivermoreStateChart({ rows }: Props) {
     </div>
   );
 }
-

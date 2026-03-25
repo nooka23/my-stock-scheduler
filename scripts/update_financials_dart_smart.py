@@ -15,6 +15,10 @@ import io
 import xml.etree.ElementTree as ET
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from financials_account_map import (
+    parse_amount,
+    select_preferred_account_row,
+)
 import pandas as pd
 from datetime import datetime
 
@@ -143,15 +147,6 @@ def get_financial_statement(stock_code, year, quarter):
 def parse_financial_data(financial_list, year, quarter):
     """재무제표 데이터에서 필요한 항목 추출"""
 
-    # 필요한 계정과목 매핑
-    account_map = {
-        'revenue': ['매출액', '수익(매출액)', '영업수익', '매출'],
-        'op_income': ['영업이익', '영업이익(손실)'],
-        'net_income': ['당기순이익', '당기순이익(손실)', '분기순이익'],
-        'assets': ['자산총계'],
-        'equity': ['자본총계']
-    }
-
     result = {
         'year': year,
         'quarter': quarter,
@@ -170,27 +165,18 @@ def parse_financial_data(financial_list, year, quarter):
     if financial_list[0].get('fs_div') == 'CFS':
         result['is_consolidated'] = True
 
-    for item in financial_list:
-        account_nm = item.get('account_nm', '')
-        thstrm_amount = item.get('thstrm_amount', '')  # 당기금액
+    for key in ('revenue', 'op_income', 'net_income', 'assets', 'equity'):
+        matched_row = select_preferred_account_row(financial_list, key)
+        if not matched_row:
+            continue
 
-        # 쉼표 제거 및 숫자 변환
-        if thstrm_amount and thstrm_amount != '-':
-            try:
-                amount = int(thstrm_amount.replace(',', ''))
-
-                # 단위가 백만원이므로 억원 단위로 변환 (백만원 / 100 = 억원)
-                amount_in_billion = amount // 100
-
-                # 계정과목 매칭
-                for key, account_names in account_map.items():
-                    if any(name in account_nm for name in account_names):
-                        if result[key] is None:  # 첫 번째 매칭만 사용
-                            result[key] = amount_in_billion
-                        break
-
-            except ValueError:
-                continue
+        amount = (
+            parse_amount(matched_row.get('thstrm_amount'))
+            or parse_amount(matched_row.get('thstrm_add_amount'))
+            or parse_amount(matched_row.get('frmtrm_amount'))
+        )
+        if amount is not None:
+            result[key] = amount // 100
 
     # 최소한 하나의 항목이라도 있는지 체크
     has_any_data = any([

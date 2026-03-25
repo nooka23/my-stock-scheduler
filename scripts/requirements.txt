@@ -5,6 +5,7 @@ python-dotenv
 numpy
 pykrx
 requests
+openpyxl
 selenium
 webdriver-manager
 beautifulsoup4

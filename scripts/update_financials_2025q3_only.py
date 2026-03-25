@@ -15,6 +15,11 @@ from dotenv import load_dotenv
 import pandas as pd
 from datetime import datetime
 import argparse
+from financials_account_map import (
+    DART_CORE_ACCOUNT_MAP,
+    parse_amount,
+    select_preferred_account_row,
+)
 
 # ==========================================
 # 수동 실행할 종목 코드 리스트 (여기에 코드를 입력하세요)
@@ -143,15 +148,6 @@ def get_financial_statement(stock_code, year, quarter):
 def parse_financial_data(financial_list, year, quarter):
     """재무제표 데이터에서 필요한 항목 추출"""
 
-    account_map = {
-        'revenue': ['매출액', '수익(매출액)', '영업수익', '매출'],
-        'op_income': ['영업이익', '영업이익(손실)', '영업손실','영업손익','영업활동으로부터의 이익(손실)', '영업순손익'],
-        'net_income': ['당기순이익', '당기순이익(손실)', '분기순이익','분기순손실','분기연결순이익', '분기손이익','당기순손익','분기순손익','당기순손실','반기순이익(손실)','분기순이익(손실)'],
-        'assets': ['자산총계', '자산 총계', '자산 계', '자 산 총 계','총자산','자  산  총  계'],
-        'equity': ['자본총계','자본 총계', '자본 계', '자 본 총 계','기말자본','자  본  총  계'],
-        'liabilities': ['부채총계', '부채 총계','부채 계','부 채 총 계','총부채','부  채  총  계']
-    }
-
     result = {
         'year': year,
         'quarter': quarter,
@@ -170,23 +166,18 @@ def parse_financial_data(financial_list, year, quarter):
     if financial_list[0].get('fs_div') == 'CFS':
         result['is_consolidated'] = True
 
-    for item in financial_list:
-        account_nm = item.get('account_nm', '')
-        thstrm_amount = item.get('thstrm_amount', '')
+    for key in DART_CORE_ACCOUNT_MAP:
+        matched_row = select_preferred_account_row(financial_list, key)
+        if not matched_row:
+            continue
 
-        if thstrm_amount and thstrm_amount != '-':
-            try:
-                amount = int(thstrm_amount.replace(',', ''))
-                amount_in_billion = amount // 100
-
-                for key, account_names in account_map.items():
-                    if any(name in account_nm for name in account_names):
-                        if result[key] is None:
-                            result[key] = amount_in_billion
-                        break
-
-            except ValueError:
-                continue
+        amount = (
+            parse_amount(matched_row.get('thstrm_amount'))
+            or parse_amount(matched_row.get('thstrm_add_amount'))
+            or parse_amount(matched_row.get('frmtrm_amount'))
+        )
+        if amount is not None:
+            result[key] = amount // 100
 
     # 최소한 하나의 항목이라도 있는지 체크
     has_any_data = any([
