@@ -634,22 +634,23 @@ export default function MarketIndexPage() {
   };
 
   return (
-    <div className="h-full overflow-hidden">
-      <div className="p-6 flex h-full flex-col gap-4">
+    <div className="h-full overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">시장 지수</h1>
-            <p className="text-sm text-gray-500">최근 상승률 기준 업종·테마 순위를 함께 확인하세요.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Market Research</p>
+            <h1 className="mt-2 text-3xl font-semibold text-slate-950">시장 지수</h1>
+            <p className="text-sm text-[var(--text-muted)]">최근 상승률 기준 업종·테마 순위를 함께 확인하세요.</p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white p-1 text-xs shadow-sm">
+            <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-white p-1 text-xs shadow-[var(--shadow-sm)]">
               <button
                 type="button"
                 onClick={() => setPageTab('indices')}
                 className={`rounded-full px-4 py-1.5 font-semibold ${
                   pageTab === 'indices'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
+                    ? 'bg-slate-950 text-white shadow-[var(--shadow-sm)]'
+                    : 'text-[var(--text-muted)] hover:text-gray-800'
                 }`}
               >
                 지수
@@ -659,14 +660,14 @@ export default function MarketIndexPage() {
                 onClick={() => setPageTab('leaders')}
                 className={`rounded-full px-4 py-1.5 font-semibold ${
                   pageTab === 'leaders'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-gray-600 hover:text-gray-800'
+                    ? 'bg-slate-950 text-white shadow-[var(--shadow-sm)]'
+                    : 'text-[var(--text-muted)] hover:text-gray-800'
                 }`}
               >
                 오늘의 선도주
               </button>
             </div>
-            <span className="hidden md:inline-block text-xs text-gray-400">
+            <span className="hidden md:inline-block text-xs text-[var(--text-subtle)]">
               탭을 눌러 화면을 전환하세요
             </span>
           </div>
@@ -674,20 +675,20 @@ export default function MarketIndexPage() {
 
         {pageTab === 'indices' && (
           <div className="flex flex-1 gap-4 min-h-0">
-          <div className="w-[30%] rounded-lg border border-gray-200 bg-white p-4 flex flex-col min-h-0">
+          <div className="w-[30%] app-card-strong p-4 flex flex-col min-h-0">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-gray-700">
                 업종/테마 상승률 순위
               </div>
               {activeSelectionLabel && (
-                <div className="text-xs text-blue-600">선택됨: {activeSelectionLabel}</div>
+                <div className="text-xs text-[var(--primary)]">선택됨: {activeSelectionLabel}</div>
               )}
             </div>
-            <div className="mt-3 flex flex-col gap-2 text-xs text-gray-600">
+            <div className="mt-3 flex flex-col gap-2 text-xs text-[var(--text-muted)]">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="accent-blue-600"
+                  className="accent-[var(--primary)]"
                   checked={minCountEnabled}
                   onChange={e => setMinCountEnabled(e.target.checked)}
                 />
@@ -696,21 +697,21 @@ export default function MarketIndexPage() {
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="accent-blue-600"
+                  className="accent-[var(--primary)]"
                   checked={minMarcapEnabled}
                   onChange={e => setMinMarcapEnabled(e.target.checked)}
                 />
                 구성 종목 시가총액 합 200조 미만 제외
               </label>
               {(minCountEnabled || minMarcapEnabled) && loadingStats && (
-                <div className="text-[11px] text-gray-400">필터 계산 중...</div>
+                <div className="text-[11px] text-[var(--text-subtle)]">필터 계산 중...</div>
               )}
               {(minCountEnabled || minMarcapEnabled) && statsError && (
                 <div className="text-[11px] text-red-500">{statsError}</div>
               )}
             </div>
 
-            <div className="mt-4 flex-1 min-h-0 overflow-y-auto">
+            <div className="mt-4 flex-1 min-h-0 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-3">
               {loadingRanks && (
                 <div className="text-sm text-gray-500">순위 계산 중...</div>
               )}
@@ -782,7 +783,7 @@ export default function MarketIndexPage() {
                         <tr
                           key={`${row.code}-${idx}`}
                           className={`border-b last:border-0 cursor-pointer hover:bg-gray-50 ${
-                            isSelected ? 'bg-blue-50' : ''
+                            isSelected ? 'bg-[var(--surface-accent)]' : ''
                           }`}
                         onClick={() => handleSelect(row, row.indexType)}
                         >
@@ -790,7 +791,7 @@ export default function MarketIndexPage() {
                           <td className="py-2 pr-2">
                             <button
                               type="button"
-                              className={`block w-full text-left text-blue-600 hover:underline ${
+                              className={`block w-full text-left text-[var(--primary)] hover:underline ${
                                 isSelected ? 'font-semibold' : ''
                               }`}
                               onClick={e => {
@@ -828,23 +829,23 @@ export default function MarketIndexPage() {
             </div>
           </div>
 
-          <div className="w-[70%] rounded-lg border border-gray-200 bg-white p-4 flex flex-col min-h-0">
+          <div className="w-[70%] app-card-strong p-4 flex flex-col min-h-0">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-sm font-semibold text-gray-700">
+                <div className="text-sm font-semibold text-slate-700">
                   {viewMode === 'chart' ? '차트' : '구성 종목'}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-[var(--text-muted)]">
                   {selectedName ? `${selectedName} (${selectedCode})` : '업종/테마를 선택하세요.'}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex rounded-full bg-gray-100 p-1 text-xs">
+                <div className="flex rounded-full bg-[var(--surface-muted)] p-1 text-xs">
                   <button
                     type="button"
                     onClick={() => setViewMode('chart')}
                     className={`rounded-full px-3 py-1 ${
-                      viewMode === 'chart' ? 'bg-blue-600 text-white' : 'text-gray-600'
+                      viewMode === 'chart' ? 'bg-slate-950 text-white' : 'text-[var(--text-muted)]'
                     }`}
                   >
                     차트
@@ -860,22 +861,22 @@ export default function MarketIndexPage() {
                     }}
                     className={`rounded-full px-3 py-1 ${
                       viewMode === 'constituents'
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600'
+                        ? 'bg-slate-950 text-white'
+                        : 'text-[var(--text-muted)]'
                     }`}
                   >
                     구성 종목
                   </button>
                 </div>
                 {viewMode === 'chart' && (
-                  <div className="text-xs text-gray-500">전체 기간 표시</div>
+                  <div className="text-xs text-[var(--text-muted)]">전체 기간 표시</div>
                 )}
                 {viewMode === 'constituents' && (
                   <input
                     value={constituentsQuery}
                     onChange={e => setConstituentsQuery(e.target.value)}
                     placeholder="종목명 또는 코드 검색..."
-                    className="w-full md:w-64 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                    className="w-full md:w-64 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm"
                   />
                 )}
               </div>
@@ -930,7 +931,7 @@ export default function MarketIndexPage() {
                 selectedCode &&
                 !loadingConstituents &&
                 !constituentsError && (
-                  <div className="h-full min-h-0 overflow-y-auto rounded-md border border-gray-100">
+                  <div className="h-full min-h-0 overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-3">
                     {filteredConstituents.length === 0 ? (
                       <div className="flex h-full items-center justify-center text-sm text-gray-500">
                         표시할 종목이 없습니다.
@@ -967,18 +968,18 @@ export default function MarketIndexPage() {
         )}
 
         {pageTab === 'leaders' && (
-          <div className="flex-1 rounded-lg border border-gray-200 bg-white p-4 flex flex-col min-h-0">
+          <div className="flex-1 app-card-strong p-4 flex flex-col min-h-0">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="text-sm font-semibold text-gray-700">오늘의 선도주</div>
-                <div className="text-xs text-gray-500">
+                <div className="text-sm font-semibold text-slate-700">오늘의 선도주</div>
+                <div className="text-xs text-[var(--text-muted)]">
                   {leaderDate ? `기준일: ${leaderDate}` : '데이터 없음'}
                 </div>
-                <div className="text-xs text-gray-400">
+                <div className="text-xs text-[var(--text-subtle)]">
                   거래대금 상위 200, RS 지수 상위 500 종목 중 다음 계산식에 따라 순위를 메긴
                   페이지 입니다.
                 </div>
-                <div className="text-xs text-gray-400">
+                <div className="text-xs text-[var(--text-subtle)]">
                   계산식: 1일 상승률 랭크×0.4 + 거래대금 랭크×0.4 + RS(가중치)×0.2
                 </div>
               </div>
@@ -986,35 +987,35 @@ export default function MarketIndexPage() {
                 value={leaderQuery}
                 onChange={e => setLeaderQuery(e.target.value)}
                 placeholder="종목명/코드 검색.."
-                className="w-full md:w-64 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+                className="w-full md:w-64 rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm"
               />
             </div>
 
-            <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+            <div className="mt-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-gray-700">
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-gray-600">업종 Top 10</span>
+                    <span className="font-semibold text-slate-600">업종 Top 10</span>
                   {leaderTopGroups.topIndustries.length === 0 && (
                     <span className="text-gray-400">-</span>
                   )}
                   {leaderTopGroups.topIndustries.map(([name, count]) => (
                     <span
                       key={`ind-${name}`}
-                      className="rounded-full bg-white px-2 py-0.5 text-gray-700 shadow-sm"
+                      className="rounded-full bg-white px-2 py-0.5 text-gray-700 shadow-[var(--shadow-sm)]"
                     >
                       {name} ({count})
                     </span>
                   ))}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-gray-600">테마 Top 10</span>
+                    <span className="font-semibold text-slate-600">테마 Top 10</span>
                   {leaderTopGroups.topThemes.length === 0 && (
                     <span className="text-gray-400">-</span>
                   )}
                   {leaderTopGroups.topThemes.map(([name, count]) => (
                     <span
                       key={`theme-${name}`}
-                      className="rounded-full bg-white px-2 py-0.5 text-gray-700 shadow-sm"
+                      className="rounded-full bg-white px-2 py-0.5 text-gray-700 shadow-[var(--shadow-sm)]"
                     >
                       {name} ({count})
                     </span>

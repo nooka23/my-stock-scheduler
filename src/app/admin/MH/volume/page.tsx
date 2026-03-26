@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import StockChartPortfolio from '@/components/StockChartPortfolio';
+import FullscreenPanel from '@/components/FullscreenPanel';
 import {
   calculateEMA,
   calculateWMA,
@@ -303,22 +304,22 @@ export default function PortfolioChartPage() {
   }, [rawDailyData, timeframe]);
 
   return (
-    <div className="h-full bg-gray-50 flex">
-      <aside className="w-72 bg-white border-r h-full flex flex-col">
-        <div className="p-4 border-b">
-          <h2 className="font-bold text-sm text-gray-800">거래 리스트</h2>
-          <div className="mt-3 flex rounded-lg bg-gray-100 p-1">
+    <div className="flex h-full gap-4">
+      <aside className="app-card-strong flex h-full w-72 flex-col overflow-hidden">
+        <div className="border-b border-[var(--border)] p-4">
+          <h2 className="text-base font-semibold text-slate-900">거래 리스트</h2>
+          <div className="mt-3 flex rounded-2xl bg-[var(--surface-muted)] p-1">
             <button
-              className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                currentTab === 'active' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+              className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                currentTab === 'active' ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-800'
               }`}
               onClick={() => setCurrentTab('active')}
             >
               보유 종목
             </button>
             <button
-              className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                currentTab === 'closed' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'
+              className={`flex-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                currentTab === 'closed' ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-800'
               }`}
               onClick={() => setCurrentTab('closed')}
             >
@@ -328,7 +329,7 @@ export default function PortfolioChartPage() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {portfolio.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">
+            <div className="p-4 text-sm text-[var(--text-muted)]">
               {currentTab === 'active' ? '보유 종목이 없습니다.' : '청산 매매 내역이 없습니다.'}
             </div>
           ) : (
@@ -339,11 +340,11 @@ export default function PortfolioChartPage() {
                 return (
                   <li key={stock.id}>
                     <button
-                      className={`w-full text-left px-3 py-2 rounded text-sm transition ${active ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-800'}`}
+                      className={`w-full rounded-2xl px-3 py-2 text-left text-sm transition ${active ? 'bg-[var(--surface-accent)] text-[var(--primary-strong)]' : 'text-gray-800 hover:bg-[var(--surface-muted)]'}`}
                       onClick={() => setCurrentStock(stock)}
                     >
                       <div className="font-semibold">{stock.name}</div>
-                      <div className={`text-xs ${active ? 'text-blue-100' : 'text-gray-400'}`}>
+                      <div className={`text-xs ${active ? 'text-[var(--primary)]' : 'text-[var(--text-subtle)]'}`}>
                         {stock.code}
                         {stock.subtitle ? ` · ${stock.subtitle}` : ''}
                       </div>
@@ -356,26 +357,26 @@ export default function PortfolioChartPage() {
         </div>
       </aside>
 
-      <section className="flex-1 flex flex-col">
-        <div className="flex items-center justify-between bg-white p-4 border-b">
-          <div>
-            <div className="text-sm text-gray-500">선택 종목</div>
-            <div className="font-bold text-gray-900">
+      <section className="app-card-strong flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3">
+          <div className="min-w-0">
+            <div className="text-xs font-medium text-[var(--text-muted)]">선택 종목</div>
+            <div className="font-semibold text-slate-950">
               {currentStock ? `${currentStock.name} (${currentStock.code})` : '종목을 선택하세요'}
             </div>
             {currentStock?.subtitle && (
-              <div className="text-xs text-gray-500 mt-1">{currentStock.subtitle}</div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">{currentStock.subtitle}</div>
             )}
           </div>
           <div className="flex items-center gap-2">
             <button
-              className={`px-3 py-1.5 rounded text-sm border ${timeframe === 'daily' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
+              className={`rounded-2xl border px-3 py-1.5 text-sm ${timeframe === 'daily' ? 'border-slate-950 bg-slate-950 text-white' : 'border-[var(--border)] bg-white text-gray-700'}`}
               onClick={() => setTimeframe('daily')}
             >
               일봉
             </button>
             <button
-              className={`px-3 py-1.5 rounded text-sm border ${timeframe === 'weekly' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'}`}
+              className={`rounded-2xl border px-3 py-1.5 text-sm ${timeframe === 'weekly' ? 'border-slate-950 bg-slate-950 text-white' : 'border-[var(--border)] bg-white text-gray-700'}`}
               onClick={() => setTimeframe('weekly')}
             >
               주봉
@@ -383,16 +384,16 @@ export default function PortfolioChartPage() {
           </div>
         </div>
 
-        <div className="flex-1 p-4">
-          <div className="h-full bg-white border rounded shadow-sm">
+        <div className="min-h-0 flex-1 p-3">
+          <FullscreenPanel className="bg-[var(--surface-muted)]">
             {chartLoading ? (
-              <div className="h-full flex items-center justify-center text-gray-500">차트 로딩 중...</div>
+              <div className="flex h-full items-center justify-center text-[var(--text-muted)]">차트 로딩 중...</div>
             ) : data.length > 0 ? (
               <StockChartPortfolio data={data} trades={tradeMarkers} />
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">차트 데이터가 없습니다.</div>
+              <div className="flex h-full items-center justify-center text-[var(--text-subtle)]">차트 데이터가 없습니다.</div>
             )}
-          </div>
+          </FullscreenPanel>
         </div>
       </section>
     </div>

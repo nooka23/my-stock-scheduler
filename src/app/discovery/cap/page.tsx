@@ -491,17 +491,18 @@ export default function CapDiscoveryPage() {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
-      <main className="flex-1 p-4 flex gap-4 overflow-hidden">
-        <div className="w-[30%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
-          <div className="p-4 border-b bg-gray-50">
-            <h2 className="text-lg font-bold text-gray-800 mb-3">🏦 시총 TOP 100</h2>
-            <div className="text-[10px] text-gray-500 flex justify-between">
+    <div className="flex h-full flex-col overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
+      <main className="flex-1 flex gap-4 overflow-hidden">
+        <div className="w-[30%] app-card-strong flex flex-col overflow-hidden">
+          <div className="border-b border-[var(--border)] bg-[var(--surface-muted)] p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Discovery</p>
+            <h2 className="mb-3 mt-2 text-xl font-semibold text-slate-950">시총 TOP 100</h2>
+            <div className="text-[11px] text-[var(--text-muted)] flex justify-between">
               <span>기준: {referenceDate || '-'}</span>
               <span>총 {stocks.length}개</span>
             </div>
             {error && (
-              <div className="mt-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded">
+              <div className="mt-2 rounded-xl bg-red-50 p-2 text-xs font-semibold text-red-500">
                 {error}
               </div>
             )}
@@ -509,7 +510,7 @@ export default function CapDiscoveryPage() {
 
           <div className="flex-1 overflow-y-auto min-h-0">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10 shadow-sm">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)] shadow-sm">
                 <tr>
                   <th className="px-2 py-2 font-medium w-10 text-center">#</th>
                   <th className="px-2 py-2 font-medium">종목명</th>
@@ -517,7 +518,7 @@ export default function CapDiscoveryPage() {
                     <button
                       type="button"
                       onClick={() => handleSort('rsRating')}
-                      className="w-full text-right hover:text-gray-700"
+                      className="w-full text-right hover:text-slate-900"
                     >
                       {getSortLabel('rsRating', 'RS')}
                     </button>
@@ -526,7 +527,7 @@ export default function CapDiscoveryPage() {
                     <button
                       type="button"
                       onClick={() => handleSort('marcap')}
-                      className="w-full text-right hover:text-gray-700"
+                      className="w-full text-right hover:text-slate-900"
                     >
                       {getSortLabel('marcap', '시총')}
                     </button>
@@ -535,51 +536,51 @@ export default function CapDiscoveryPage() {
                     <button
                       type="button"
                       onClick={() => handleSort('volume')}
-                      className="w-full text-right hover:text-gray-700"
+                      className="w-full text-right hover:text-slate-900"
                     >
                       {getSortLabel('volume', '거래량')}
                     </button>
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
+              <tbody className="divide-y divide-[var(--border)] text-xs">
                 {!loading &&
                   displayedStocks.map((stock, idx) => (
                     <tr
                       key={stock.code}
                       onClick={() => handleStockClick(stock)}
-                      className={`cursor-pointer hover:bg-blue-50 transition-colors ${
-                        selectedStock?.code === stock.code ? 'bg-blue-100' : ''
+                      className={`cursor-pointer transition-colors ${
+                        selectedStock?.code === stock.code ? 'bg-[var(--surface-accent)]' : 'hover:bg-[var(--surface-muted)]'
                       }`}
                     >
-                      <td className="px-2 py-2 text-gray-500 text-center">
+                      <td className="px-2 py-2 text-[var(--text-muted)] text-center">
                         {(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}
                       </td>
-                      <td className="px-2 py-2 font-bold text-gray-800 truncate max-w-[96px]">
+                      <td className="px-2 py-2 font-semibold text-slate-900 truncate max-w-[96px]">
                         {stock.companies?.name}
-                        <div className="text-[9px] text-gray-400 font-normal">{stock.code}</div>
+                        <div className="text-[9px] text-[var(--text-subtle)] font-normal">{stock.code}</div>
                       </td>
-                      <td className="px-2 py-2 text-right font-bold text-blue-600">
+                      <td className="px-2 py-2 text-right font-semibold text-[var(--primary)]">
                         {stock.rsRating ?? '-'}
                       </td>
-                      <td className="px-2 py-2 text-right text-gray-600 whitespace-nowrap">
+                      <td className="px-2 py-2 text-right text-[var(--text-muted)] whitespace-nowrap">
                         {formatMarcap(stock.marcap)}
                       </td>
-                      <td className="px-2 py-2 text-right font-mono text-gray-600">
+                      <td className="px-2 py-2 text-right font-mono text-[var(--text-muted)]">
                         {formatVolume(stock.volume)}
                       </td>
                     </tr>
                   ))}
                 {loading && (
                   <tr>
-                    <td colSpan={5} className="p-4 text-center text-gray-400 text-xs">
+                    <td colSpan={5} className="p-4 text-center text-[var(--text-subtle)] text-xs">
                       데이터 로딩 중...
                     </td>
                   </tr>
                 )}
                 {!loading && stocks.length === 0 && !error && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-400 text-xs">
+                    <td colSpan={5} className="p-8 text-center text-[var(--text-subtle)] text-xs">
                       조건에 맞는 종목이 없습니다.
                     </td>
                   </tr>
@@ -589,21 +590,21 @@ export default function CapDiscoveryPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="p-2 border-t bg-gray-50 flex justify-center items-center gap-2 text-[10px]">
+            <div className="flex items-center justify-center gap-2 border-t border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[10px]">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50"
+                className="rounded-lg border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
               >
                 &lt;
               </button>
-              <span className="text-gray-600 font-bold">
+              <span className="font-semibold text-[var(--text-muted)]">
                 {currentPage} / {totalPages}
               </span>
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50"
+                className="rounded-lg border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
               >
                 &gt;
               </button>
@@ -611,23 +612,23 @@ export default function CapDiscoveryPage() {
           )}
         </div>
 
-        <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
+        <div className="app-card-strong relative flex flex-1 flex-col overflow-hidden">
           {selectedStock ? (
             <>
-              <div className="p-4 border-b bg-gray-50">
+              <div className="border-b border-[var(--border)] bg-[var(--surface-muted)] p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col gap-2">
                     <div className="flex items-baseline gap-2">
-                      <h2 className="text-xl font-bold text-gray-800">{selectedStock.name}</h2>
-                      <span className="text-base text-gray-500">({selectedStock.code})</span>
+                      <h2 className="text-2xl font-semibold text-slate-950">{selectedStock.name}</h2>
+                      <span className="text-base text-[var(--text-muted)]">({selectedStock.code})</span>
                     </div>
 
                     <div className="flex flex-wrap gap-2 text-xs">
                       {industries.length > 0 && (
                         <div className="flex items-center gap-1">
-                          <span className="text-gray-500 font-medium">업종:</span>
+                          <span className="text-[var(--text-muted)] font-medium">업종:</span>
                           {industries.map((industry, idx) => (
-                            <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                            <span key={idx} className="rounded-full bg-[var(--surface-accent)] px-2 py-0.5 text-[var(--primary)]">
                               {industry}
                             </span>
                           ))}
@@ -635,17 +636,17 @@ export default function CapDiscoveryPage() {
                       )}
                       {themes.length > 0 && (
                         <div className="flex items-center gap-1">
-                          <span className="text-gray-500 font-medium">테마:</span>
+                          <span className="text-[var(--text-muted)] font-medium">테마:</span>
                           <div className="flex flex-wrap gap-1">
                             {(showAllThemes ? themes : themes.slice(0, 5)).map((theme, idx) => (
-                              <span key={idx} className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                              <span key={idx} className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
                                 {theme}
                               </span>
                             ))}
                             {themes.length > 5 && (
                               <button
                                 onClick={() => setShowAllThemes(!showAllThemes)}
-                                className="text-gray-500 hover:text-gray-700 px-1 text-xs font-medium underline"
+                                className="px-1 text-xs font-medium text-[var(--text-muted)] underline hover:text-slate-900"
                                 title={showAllThemes ? '접기' : '전체 보기'}
                               >
                                 {showAllThemes ? '접기' : `+${themes.length - 5} 더보기`}
@@ -659,16 +660,16 @@ export default function CapDiscoveryPage() {
 
                   <div className="flex items-center gap-2">
                     {isChartLoading && (
-                      <span className="text-xs text-blue-500 font-bold animate-pulse">
+                      <span className="text-xs font-semibold text-[var(--primary)] animate-pulse">
                         데이터 로딩 중...
                       </span>
                     )}
 
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-[var(--shadow-sm)]">
                       <select
                         value={targetGroup}
                         onChange={(e) => setTargetGroup(e.target.value)}
-                        className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
+                        className="cursor-pointer bg-transparent px-1 text-xs font-semibold text-slate-700 outline-none"
                       >
                         {favGroups.map((group) => (
                           <option key={group} value={group}>
@@ -678,7 +679,7 @@ export default function CapDiscoveryPage() {
                       </select>
                       <button
                         onClick={toggleFavorite}
-                        className={`text-xl px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                        className={`px-1 text-xl ${isFavorite ? 'text-amber-400' : 'text-gray-300'}`}
                       >
                         {isFavorite ? '⭐' : '☆'}
                       </button>
@@ -687,19 +688,19 @@ export default function CapDiscoveryPage() {
                 </div>
               </div>
 
-              <div className="flex-1 relative w-full h-full bg-white min-h-0">
+              <div className="relative min-h-0 h-full w-full flex-1 bg-white">
                 {chartData.length > 0 ? (
                   <StockChartDiscovery data={chartData} />
                 ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                  <div className="absolute inset-0 flex items-center justify-center text-[var(--text-subtle)]">
                     {isChartLoading ? '차트 그리는 중...' : '데이터가 없습니다.'}
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
-              <p className="font-bold">왼쪽 목록에서 종목을 선택하세요</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--surface-muted)]/60 text-[var(--text-subtle)]">
+              <p className="font-semibold">왼쪽 목록에서 종목을 선택하세요</p>
               <p className="text-xs mt-1">캔들 차트와 RS 지수를 확인할 수 있습니다.</p>
             </div>
           )}

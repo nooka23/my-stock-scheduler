@@ -61,7 +61,7 @@ export default function LivermoreStateChart({ rows }: Props) {
       rightPriceScale: { borderColor: '#e5e7eb' },
       timeScale: { borderColor: '#e5e7eb', timeVisible: true },
       width: containerRef.current.clientWidth,
-      height: 520,
+      height: containerRef.current.clientHeight || 520,
       localization: {
         priceFormatter: (value: number) => Math.round(value).toLocaleString(),
       },
@@ -96,6 +96,7 @@ export default function LivermoreStateChart({ rows }: Props) {
       if (!containerRef.current || !chartRef.current) return;
       chartRef.current.applyOptions({
         width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight || 520,
       });
     };
 
@@ -247,8 +248,8 @@ export default function LivermoreStateChart({ rows }: Props) {
   }, [rows]);
 
   return (
-    <div className="relative w-full border border-gray-200 bg-white">
-      <div ref={containerRef} className="w-full" />
+    <div className="relative h-full min-h-[520px] w-full border border-gray-200 bg-white">
+      <div ref={containerRef} className="h-full w-full" />
       <div
         ref={tooltipRef}
         className="absolute left-2 top-2 hidden max-w-[85%] rounded bg-white/95 px-2 py-1 text-xs text-gray-700 shadow"

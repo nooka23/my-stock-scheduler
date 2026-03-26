@@ -106,6 +106,14 @@ def normalize_statement_name(value: str | None) -> str:
     return normalize_account_name(value or "")
 
 
+def normalize_account_id(value: str | None) -> str:
+    return (value or "").strip().upper()
+
+
+def row_matches_account_id(row: dict[str, object], account_id: str) -> bool:
+    return normalize_account_id(str(row.get("account_id") or "")) == normalize_account_id(account_id)
+
+
 def statement_priority(field: str, statement_name: str | None) -> int:
     priorities = DART_STATEMENT_PRIORITY_MAP.get(field, [])
     normalized_statement = normalize_statement_name(statement_name)
@@ -133,6 +141,22 @@ def collect_account_matches(
     return matches
 
 
+def collect_account_id_matches(
+    rows: list[dict[str, object]],
+    account_ids: list[str],
+) -> list[dict[str, object]]:
+    normalized_ids = [normalize_account_id(account_id) for account_id in account_ids if normalize_account_id(account_id)]
+    if not normalized_ids:
+        return []
+
+    matches = []
+    for row in rows:
+        row_account_id = normalize_account_id(str(row.get("account_id") or ""))
+        if row_account_id in normalized_ids:
+            matches.append(row)
+    return matches
+
+
 def select_preferred_account_row(
     rows: list[dict[str, object]],
     field: str,
@@ -150,3 +174,19 @@ def select_preferred_account_row(
         ),
     )
     return ranked_matches[0][1]
+
+
+def select_account_row_by_priority(
+    rows: list[dict[str, object]],
+    account_ids: list[str],
+) -> tuple[dict[str, object] | None, str | None, int | None]:
+    for priority_index, account_id in enumerate(account_ids, start=1):
+        normalized_account_id = normalize_account_id(account_id)
+        if not normalized_account_id:
+            continue
+
+        for row in rows:
+            if row_matches_account_id(row, normalized_account_id):
+                return row, normalized_account_id, priority_index
+
+    return None, None, None

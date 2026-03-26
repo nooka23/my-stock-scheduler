@@ -566,28 +566,24 @@ export default function BandChartPage() {
   }, [favorites, activeGroup]);
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
-      {/* Header removed - now using Sidebar */}
-
-      <main className="flex-1 p-6 flex gap-6 overflow-hidden relative">
-        {/* === [1] 좌측: 밴드 설정 패널 === */}
-        <div className="w-96 bg-white p-6 rounded-xl shadow border h-full flex flex-col overflow-y-auto">
-          {/* 종목 검색 */}
+    <div className="flex h-full flex-col overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
+      <main className="flex-1 flex gap-6 overflow-hidden relative">
+        <div className="app-card-strong w-96 p-6 h-full flex flex-col overflow-y-auto">
           <div className="mb-4 relative">
             <input
               type="text"
-              className="w-full border p-2 rounded font-bold"
+              className="app-input font-semibold"
               value={inputCompany}
               onChange={handleSearchChange}
               placeholder="종목 검색..."
             />
             {showDropdown && (
-              <ul className="absolute z-20 w-full bg-white border mt-1 rounded max-h-60 overflow-y-auto shadow-xl">
+              <ul className="absolute z-20 w-full bg-white border border-[var(--border)] mt-2 rounded-2xl max-h-60 overflow-y-auto shadow-[var(--shadow-md)]">
                 {filteredCompanies.map(c => (
                   <li
                     key={c.code}
                     onClick={() => selectCompany(c)}
-                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                    className="p-2 hover:bg-[var(--surface-muted)] cursor-pointer"
                   >
                     {c.name} ({c.code})
                   </li>
@@ -596,34 +592,34 @@ export default function BandChartPage() {
             )}
           </div>
 
-          <div className="flex mb-4 border bg-gray-100 p-1 rounded-lg">
+          <div className="flex mb-4 border border-[var(--border)] bg-[var(--surface-muted)] p-1 rounded-2xl">
             <button
               onClick={() => setViewMode('server')}
-              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'server' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${viewMode === 'server' ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}
             >
               🏢 서버
             </button>
             <button
               onClick={() => setViewMode('user')}
-              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${viewMode === 'user' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${viewMode === 'user' ? 'bg-white text-emerald-600 shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}
             >
               ✏️ 편집
             </button>
           </div>
 
           <>
-                <h2 className="text-lg font-bold mb-4 text-gray-800 border-b pb-2 flex justify-between items-center">
-                    <span>🛠️ 밴드 설정</span>
-                    {viewMode === 'user' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">편집 모드</span>}
+                <h2 className="text-lg font-semibold mb-4 text-slate-900 border-b border-[var(--border)] pb-2 flex justify-between items-center">
+                    <span>밴드 설정</span>
+                    {viewMode === 'user' && <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded-full">편집 모드</span>}
                 </h2>
 
                 <div className="mb-6">
-                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <div className="flex bg-[var(--surface-muted)] border border-[var(--border)] p-1 rounded-2xl">
                     {['PER', 'PBR', 'POR'].map(type => (
                         <button
                         key={type}
                         onClick={() => setBandType(type as any)}
-                        className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${bandType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        className={`flex-1 py-1.5 text-sm font-semibold rounded-xl transition-all ${bandType === type ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}
                         >
                         {type}
                         </button>
@@ -633,11 +629,11 @@ export default function BandChartPage() {
 
                 <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
-                        <label className="block text-sm font-bold text-gray-700">📅 연도별 {labels.input} (단위: {labels.unit})</label>
+                        <label className="block text-sm font-semibold text-slate-700">연도별 {labels.input} (단위: {labels.unit})</label>
                     </div>
-                    <div className="border rounded-lg overflow-hidden bg-gray-50">
+                    <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-[var(--surface-muted)]">
                         <table className="w-full text-sm">
-                        <thead className="bg-blue-50 text-blue-800 font-bold">
+                        <thead className="bg-[var(--surface-accent)] text-[var(--primary-strong)] font-semibold">
                             <tr>
                               <th className="p-2 border-r border-blue-100 w-16 text-center">연도</th>
                               <th className="p-2 text-center">{labels.input}</th>
@@ -662,14 +658,14 @@ export default function BandChartPage() {
                                 const yearLabel = year >= 2025 ? `${year}(E)` : `${year}`;
 
                                 return (
-                                <tr key={year} className="border-b last:border-none">
-                                    <td className="p-2 border-r bg-gray-50 font-bold text-center w-16">{yearLabel}</td>
+                                <tr key={year} className="border-b border-[var(--border)] last:border-none">
+                                    <td className="p-2 border-r border-[var(--border)] bg-[var(--surface-muted)] font-semibold text-center w-16">{yearLabel}</td>
                                     <td className="p-1">
                                     <input
                                         type="text"
                                         readOnly={viewMode === 'server'}
-                                        className={`w-full text-right p-1 outline-none font-mono border border-transparent rounded transition-all font-bold
-                                            ${viewMode === 'server' ? 'bg-transparent text-gray-500 cursor-default' : 'bg-white focus:border-green-400 focus:bg-green-50 text-gray-800'}`}
+                                        className={`w-full text-right p-1 outline-none font-mono border border-transparent rounded-lg transition-all font-semibold
+                                            ${viewMode === 'server' ? 'bg-transparent text-[var(--text-muted)] cursor-default' : 'bg-white focus:border-emerald-400 focus:bg-emerald-50 text-gray-800'}`}
                                         value={valInBillions}
                                         onChange={(e) => {
                                             const rawValue = e.target.value.replace(/,/g, '');
@@ -688,15 +684,15 @@ export default function BandChartPage() {
                 </div>
 
                 <div className="mb-6">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">멀티플 (배수) 설정</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">멀티플 (배수) 설정</label>
                     <div className="flex flex-col gap-2">
                     {multipliers.map((m, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                         <span className={`w-3 h-3 rounded-full ${idx===0?'bg-yellow-500':idx===1?'bg-green-500':'bg-blue-500'}`}></span>
-                        <span className="text-sm w-12 text-gray-600 font-bold">{idx === 2 ? 'Target' : `Line ${idx+1}`}</span>
+                        <span className="text-sm w-12 text-[var(--text-muted)] font-semibold">{idx === 2 ? 'Target' : `Line ${idx+1}`}</span>
                         <input 
                             type="number" 
-                            className="flex-1 border p-1.5 rounded text-center font-medium outline-none focus:border-blue-500 bg-white"
+                            className="flex-1 border border-[var(--border)] p-1.5 rounded-xl text-center font-medium outline-none focus:border-[var(--primary)] bg-white"
                             value={m}
                             onChange={(e) => {
                             const newM = [...multipliers];
@@ -704,7 +700,7 @@ export default function BandChartPage() {
                             setMultipliers(newM);
                             }}
                         />
-                        <span className="text-sm text-gray-500">배</span>
+                        <span className="text-sm text-[var(--text-muted)]">배</span>
                         </div>
                     ))}
                     </div>
@@ -714,14 +710,14 @@ export default function BandChartPage() {
                     <button
                         onClick={saveAllSettings}
                         disabled={isSaving}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md transition-all mb-4 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="w-full bg-slate-950 hover:bg-slate-800 text-white font-semibold py-3 rounded-2xl transition-all mb-4 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                         {isSaving ? '저장 중...' : '💾 나만의 데이터 저장하기'}
                     </button>
                 )}
                 
                 {viewMode === 'server' && (
-                    <div className="bg-blue-50 p-3 rounded text-xs text-blue-600 text-center font-medium mb-6">
+                    <div className="bg-[var(--surface-accent)] p-3 rounded-2xl text-xs text-[var(--primary)] text-center font-medium mb-6">
                         💡 서버 데이터는 수정할 수 없습니다. <br/> '나만의 데이터' 탭에서 편집하세요.
                     </div>
                 )}
@@ -730,20 +726,18 @@ export default function BandChartPage() {
           </>
         </div>
 
-        {/* === [2] 중앙: 차트 영역 === */}
         <div className="flex-1 flex flex-col min-w-0 h-full">
-            {/* Header style control bar */}
-            <div className="bg-white p-6 rounded-xl shadow border flex flex-col h-full">
+            <div className="app-card-strong p-6 flex flex-col h-full">
               <div className="mb-4 flex-shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-3xl font-bold text-gray-800">
+                    <h2 className="text-3xl font-semibold text-slate-950">
                       {currentCompany.name}
-                      <span className="text-xl text-gray-400 font-normal ml-2">({currentCompany.code})</span>
+                      <span className="text-xl text-[var(--text-subtle)] font-normal ml-2">({currentCompany.code})</span>
                     </h2>
                     <button
                       onClick={toggleFavorite}
-                      className={`text-2xl focus:outline-none transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                      className={`text-2xl focus:outline-none transition-transform hover:scale-110 ${isFavorite ? 'text-amber-400' : 'text-gray-300'}`}
                       title={`${activeGroup}에 ${isFavorite ? '삭제' : '추가'}`}
                     >
                       {isFavorite ? '⭐' : '☆'}
@@ -753,7 +747,7 @@ export default function BandChartPage() {
                   {/* 관심종목 토글 버튼 */}
                   <button
                     onClick={() => setShowFavorites(!showFavorites)}
-                    className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${showFavorites ? 'bg-yellow-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    className={`px-4 py-2 rounded-2xl font-semibold text-sm transition-all ${showFavorites ? 'bg-amber-400 text-slate-950' : 'bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-strong)]'}`}
                   >
                     {showFavorites ? '✕ 관심종목 닫기' : '⭐ 관심종목'}
                   </button>
@@ -761,27 +755,27 @@ export default function BandChartPage() {
 
                 {/* 목표가 및 수익률 표시 */}
                 <div className="flex gap-4 text-sm">
-                  <div className="flex gap-2 items-center bg-blue-50 px-3 py-1 rounded-lg border border-blue-100">
-                    <span className="font-bold text-blue-800">{target26.label}:</span>
-                    <span className="font-mono text-gray-800">{target26.price.toLocaleString()}원</span>
+                  <div className="flex gap-2 items-center bg-[var(--surface-muted)] px-3 py-1.5 rounded-2xl border border-[var(--border)]">
+                    <span className="font-semibold text-slate-800">{target26.label}:</span>
+                    <span className="font-mono text-slate-900">{target26.price.toLocaleString()}원</span>
                     <span className={`font-bold ${target26.yield > 0 ? 'text-red-500' : 'text-blue-500'}`}>
                       ({target26.yield > 0 ? '+' : ''}{target26.yield.toFixed(1)}%)
                     </span>
                   </div>
-                  <div className="flex gap-2 items-center bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">
-                    <span className="font-bold text-purple-800">{target27.label}:</span>
-                    <span className="font-mono text-gray-800">{target27.price.toLocaleString()}원</span>
+                  <div className="flex gap-2 items-center bg-[var(--surface-muted)] px-3 py-1.5 rounded-2xl border border-[var(--border)]">
+                    <span className="font-semibold text-slate-800">{target27.label}:</span>
+                    <span className="font-mono text-slate-900">{target27.price.toLocaleString()}원</span>
                     <span className={`font-bold ${target27.yield > 0 ? 'text-red-500' : 'text-blue-500'}`}>
                       ({target27.yield > 0 ? '+' : ''}{target27.yield.toFixed(1)}%)
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="mb-2 text-gray-500 text-sm flex-shrink-0">
+              <div className="mb-2 text-[var(--text-muted)] text-sm flex-shrink-0">
                  {financialHistory.length > 0 && `최신 ${labels.output}: ${currentBaseValue.toLocaleString()}원`} × [{multipliers.join(', ')}] 배
               </div>
 
-              <div className="flex-1 w-full border rounded-lg overflow-hidden bg-gray-50 min-h-0 relative">
+              <div className="flex-1 w-full border border-[var(--border)] rounded-[20px] overflow-hidden bg-[var(--surface-muted)] min-h-0 relative">
                  {stockData.length > 0 ? (
                    <div className="absolute inset-0">
                      <BandChart data={stockData} settings={bandSettings} />
@@ -795,28 +789,26 @@ export default function BandChartPage() {
 
         {/* === [3] 우측: 관심 종목 패널 (토글 가능) === */}
         {showFavorites && (
-          <div className="w-80 bg-white p-4 rounded-xl shadow border h-full flex flex-col overflow-hidden transition-all duration-300">
-            <h2 className="text-lg font-bold mb-3 text-gray-800 border-b pb-2">
+          <div className="w-80 app-card-strong p-4 h-full flex flex-col overflow-hidden transition-all duration-300">
+            <h2 className="text-lg font-semibold mb-3 text-slate-900 border-b border-[var(--border)] pb-2">
               ⭐ 관심 종목
             </h2>
 
-            {/* 그룹 탭 */}
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 border-b shrink-0">
+            <div className="flex gap-2 overflow-x-auto pb-2 mb-3 border-b border-[var(--border)] shrink-0">
               {groups.map(group => (
                 <button
                   key={group}
                   onClick={() => setActiveGroup(group)}
-                  className={`px-3 py-1 text-xs rounded-full font-bold whitespace-nowrap transition-all
+                  className={`px-3 py-1 text-xs rounded-full font-semibold whitespace-nowrap transition-all
                     ${activeGroup === group
-                      ? 'bg-yellow-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-strong)]'}`}
                 >
                   {group} ({favorites.filter(f => f.group_name === group).length})
                 </button>
               ))}
             </div>
 
-            {/* 종목 리스트 */}
             <div className="flex-1 overflow-y-auto min-h-0 pr-1">
               {currentGroupFavorites.length > 0 ? (
                 <ul className="flex flex-col gap-2">
@@ -824,16 +816,16 @@ export default function BandChartPage() {
                     <li
                       key={`${fav.code}-${fav.group_name}`}
                       onClick={() => selectCompany({ name: fav.name, code: fav.code })}
-                      className={`p-2 rounded-lg border cursor-pointer transition-all
-                        ${currentCompany.code === fav.code ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+                      className={`p-2 rounded-2xl border cursor-pointer transition-all
+                        ${currentCompany.code === fav.code ? 'bg-[var(--surface-accent)] border-[var(--primary-soft)] ring-1 ring-[var(--primary-soft)]' : 'bg-white border-[var(--border)] hover:bg-[var(--surface-muted)]'}`}
                     >
-                      <div className="font-bold text-gray-800 text-sm">{fav.name}</div>
-                      <div className="text-xs text-gray-400">{fav.code}</div>
+                      <div className="font-semibold text-slate-900 text-sm">{fav.name}</div>
+                      <div className="text-xs text-[var(--text-subtle)]">{fav.code}</div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <div className="flex flex-col items-center justify-center h-40 text-gray-400 text-xs border-2 border-dashed rounded-lg bg-gray-50">
+                <div className="flex flex-col items-center justify-center h-40 text-[var(--text-subtle)] text-xs border-2 border-dashed border-[var(--border)] rounded-2xl bg-[var(--surface-muted)]">
                   <span>종목이 없습니다.</span>
                   <span>차트에서 별(⭐)을 눌러 추가하세요.</span>
                 </div>

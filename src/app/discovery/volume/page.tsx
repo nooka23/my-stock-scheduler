@@ -431,48 +431,48 @@ export default function VolumeDiscoveryPage() {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
-      <main className="flex-1 p-4 flex gap-4 overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
+      <main className="flex-1 flex gap-4 overflow-hidden">
         
         {/* [왼쪽] 리스트 영역 */}
-        <div className="w-[30%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
-            {/* 헤더 및 탭 */}
-            <div className="p-4 border-b bg-gray-50 pb-0">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">💰 거래대금 분석</h2>
-                <div className="flex gap-2 border-b border-gray-200">
+        <div className="w-[30%] app-card-strong flex flex-col overflow-hidden">
+            <div className="border-b border-[var(--border)] bg-[var(--surface-muted)] p-4 pb-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Discovery</p>
+                <h2 className="mb-4 mt-2 text-xl font-semibold text-slate-950">거래대금 분석</h2>
+                <div className="flex gap-2 border-b border-[var(--border)]">
                     <button 
                         onClick={() => setActiveTab('top200')}
-                        className={`pb-2 px-1 text-sm font-bold transition-colors ${activeTab === 'top200' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-2 px-1 text-sm font-semibold transition-colors ${activeTab === 'top200' ? 'text-[var(--primary)] border-b-2 border-[var(--primary)]' : 'text-[var(--text-subtle)] hover:text-slate-700'}`}
                     >
                         상위 200
                     </button>
                     <button 
                         onClick={() => setActiveTab('weekly_risers')}
-                        className={`pb-2 px-1 text-sm font-bold transition-colors ${activeTab === 'weekly_risers' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-2 px-1 text-sm font-semibold transition-colors ${activeTab === 'weekly_risers' ? 'text-[var(--primary)] border-b-2 border-[var(--primary)]' : 'text-[var(--text-subtle)] hover:text-slate-700'}`}
                     >
                         주간 급상승
                     </button>
                     <button
                         onClick={() => setActiveTab('monthly_risers')}
-                        className={`pb-2 px-1 text-sm font-bold transition-colors ${activeTab === 'monthly_risers' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        className={`pb-2 px-1 text-sm font-semibold transition-colors ${activeTab === 'monthly_risers' ? 'text-[var(--primary)] border-b-2 border-[var(--primary)]' : 'text-[var(--text-subtle)] hover:text-slate-700'}`}
                     >
                         월간 급상승
                     </button>
                 </div>
 
-                <div className="text-[10px] text-gray-500 mt-2 mb-2 flex justify-between items-center">
+                <div className="mb-2 mt-2 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
                     <span>
                         기준: {currentDate} 
                         {activeTab !== 'top200' && referenceDate && ` (vs ${referenceDate})`}
                     </span>
                     <span>총 {stocks.length}개</span>
                 </div>
-                {error && <div className="mb-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded">{error}</div>}
+                {error && <div className="mb-2 rounded-xl bg-red-50 p-2 text-xs font-semibold text-red-500">{error}</div>}
             </div>
 
             <div className="flex-1 overflow-y-auto min-h-0">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10 shadow-sm">
+                    <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)] shadow-sm">
                         <tr>
                             <th className="px-2 py-2 font-medium w-10 text-center">#</th>
                             <th className="px-2 py-2 font-medium">종목명</th>
@@ -482,34 +482,34 @@ export default function VolumeDiscoveryPage() {
                             <th className="px-2 py-2 font-medium text-right">거래대금(60일)</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 text-xs">
+                    <tbody className="divide-y divide-[var(--border)] text-xs">
                         {!loading && displayedStocks.map((stock, idx) => (
                             <tr 
                                 key={stock.code} 
                                 onClick={() => handleStockClick(stock)}
-                                className={`cursor-pointer hover:bg-blue-50 transition-colors ${selectedStock?.code === stock.code ? 'bg-blue-100' : ''}`}
+                                className={`cursor-pointer transition-colors ${selectedStock?.code === stock.code ? 'bg-[var(--surface-accent)]' : 'hover:bg-[var(--surface-muted)]'}`}
                             >
-                                <td className="px-2 py-2 text-gray-500 text-center">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-                                <td className="px-2 py-2 font-bold text-gray-800 truncate max-w-[120px]">
+                                <td className="px-2 py-2 text-[var(--text-muted)] text-center">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+                                <td className="px-2 py-2 font-semibold text-slate-900 truncate max-w-[120px]">
                                     {stock.companies?.name}
-                                    <div className="text-[9px] text-gray-400 font-normal">{stock.code}</div>
+                                    <div className="text-[9px] text-[var(--text-subtle)] font-normal">{stock.code}</div>
                                 </td>
                                 {activeTab !== 'top200' && (
                                     <td className="px-2 py-2 text-center">
-                                        <span className="text-red-500 font-bold">+{stock.rank_diff}</span>
-                                        <div className="text-[9px] text-gray-400">
+                                        <span className="font-semibold text-red-500">+{stock.rank_diff}</span>
+                                        <div className="text-[9px] text-[var(--text-subtle)]">
                                             ({stock.prev_rank}→{stock.rank_amount_60})
                                         </div>
                                     </td>
                                 )}
-                                <td className="px-2 py-2 text-right font-mono text-blue-600 font-bold">
+                                <td className="px-2 py-2 text-right font-mono text-[var(--primary)] font-semibold">
                                     {formatMoney(stock.total_value)}
                                 </td>
                             </tr>
                         ))}
-                        {loading && <tr><td colSpan={activeTab !== 'top200' ? 4 : 3} className="p-4 text-center text-gray-400 text-xs">데이터 로딩 중...</td></tr>}
+                        {loading && <tr><td colSpan={activeTab !== 'top200' ? 4 : 3} className="p-4 text-center text-[var(--text-subtle)] text-xs">데이터 로딩 중...</td></tr>}
                         {!loading && stocks.length === 0 && !error && (
-                            <tr><td colSpan={activeTab !== 'top200' ? 4 : 3} className="p-8 text-center text-gray-400 text-xs">조건에 맞는 종목이 없습니다.</td></tr>
+                            <tr><td colSpan={activeTab !== 'top200' ? 4 : 3} className="p-8 text-center text-[var(--text-subtle)] text-xs">조건에 맞는 종목이 없습니다.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -517,33 +517,32 @@ export default function VolumeDiscoveryPage() {
 
             {/* 페이지네이션 */}
             {totalPages > 1 && (
-                <div className="p-2 border-t bg-gray-50 flex justify-center items-center gap-2 text-[10px]">
-                    <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">&lt;</button>
-                    <span className="text-gray-600 font-bold">{currentPage} / {totalPages}</span>
-                    <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-2 py-1 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">&gt;</button>
+                <div className="flex items-center justify-center gap-2 border-t border-[var(--border)] bg-[var(--surface-muted)] p-2 text-[10px]">
+                    <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="rounded-lg border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50">&lt;</button>
+                    <span className="font-semibold text-[var(--text-muted)]">{currentPage} / {totalPages}</span>
+                    <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="rounded-lg border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50">&gt;</button>
                 </div>
             )}
         </div>
 
-        {/* [오른쪽] 차트 영역 */}
-        <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
+        <div className="app-card-strong relative flex flex-1 flex-col overflow-hidden">
             {selectedStock ? (
                 <>
-                    <div className="p-4 border-b bg-gray-50">
+                    <div className="border-b border-[var(--border)] bg-[var(--surface-muted)] p-4">
                         <div className="flex justify-between items-start">
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-baseline gap-2">
-                                    <h2 className="text-xl font-bold text-gray-800">{selectedStock.name}</h2>
-                                    <span className="text-base text-gray-500">({selectedStock.code})</span>
+                                    <h2 className="text-2xl font-semibold text-slate-950">{selectedStock.name}</h2>
+                                    <span className="text-base text-[var(--text-muted)]">({selectedStock.code})</span>
                                 </div>
 
                                 {/* 업종/테마 표시 */}
                                 <div className="flex flex-wrap gap-2 text-xs">
                                     {industries.length > 0 && (
                                         <div className="flex items-center gap-1">
-                                            <span className="text-gray-500 font-medium">업종:</span>
+                                            <span className="text-[var(--text-muted)] font-medium">업종:</span>
                                             {industries.map((industry, idx) => (
-                                                <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                                <span key={idx} className="rounded-full bg-[var(--surface-accent)] px-2 py-0.5 text-[var(--primary)]">
                                                     {industry}
                                                 </span>
                                             ))}
@@ -551,17 +550,17 @@ export default function VolumeDiscoveryPage() {
                                     )}
                                     {themes.length > 0 && (
                                         <div className="flex items-center gap-1">
-                                            <span className="text-gray-500 font-medium">테마:</span>
+                                            <span className="text-[var(--text-muted)] font-medium">테마:</span>
                                             <div className="flex flex-wrap gap-1">
                                                 {(showAllThemes ? themes : themes.slice(0, 5)).map((theme, idx) => (
-                                                    <span key={idx} className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                                    <span key={idx} className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
                                                         {theme}
                                                     </span>
                                                 ))}
                                                 {themes.length > 5 && (
                                                     <button
                                                         onClick={() => setShowAllThemes(!showAllThemes)}
-                                                        className="text-gray-500 hover:text-gray-700 px-1 text-xs font-medium underline"
+                                                        className="px-1 text-xs font-medium text-[var(--text-muted)] underline hover:text-slate-900"
                                                         title={showAllThemes ? '접기' : '전체 보기'}
                                                     >
                                                         {showAllThemes ? '접기' : `+${themes.length - 5} 더보기`}
@@ -574,19 +573,19 @@ export default function VolumeDiscoveryPage() {
                             </div>
 
                             <div className="flex items-center gap-2">
-                                {isChartLoading && <span className="text-xs text-blue-500 font-bold animate-pulse">데이터 로딩 중...</span>}
+                                {isChartLoading && <span className="text-xs font-semibold text-[var(--primary)] animate-pulse">데이터 로딩 중...</span>}
 
-                                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-[var(--shadow-sm)]">
                                     <select
                                         value={targetGroup}
                                         onChange={(e) => setTargetGroup(e.target.value)}
-                                        className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
+                                        className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer px-1"
                                     >
                                         {favGroups.map(g => <option key={g} value={g}>{g}</option>)}
                                     </select>
                                     <button
                                         onClick={toggleFavorite}
-                                        className={`text-xl px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                                        className={`text-xl px-1 ${isFavorite ? 'text-amber-400' : 'text-gray-300'}`}
                                     >
                                         {isFavorite ? '⭐' : '☆'}
                                     </button>
@@ -598,15 +597,15 @@ export default function VolumeDiscoveryPage() {
                         {chartData.length > 0 ? (
                             <StockChartVolume data={chartData} />
                         ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                            <div className="absolute inset-0 flex items-center justify-center text-[var(--text-subtle)]">
                                 {isChartLoading ? '차트 그리는 중...' : '데이터가 없습니다.'}
                             </div>
                         )}
                     </div>
                 </>
             ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
-                    <p className="font-bold">종목을 선택하세요</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-subtle)] bg-[var(--surface-muted)]/60">
+                    <p className="font-semibold">종목을 선택하세요</p>
                 </div>
             )}
         </div>

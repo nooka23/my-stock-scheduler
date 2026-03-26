@@ -97,3 +97,28 @@
 
 - 계정 ID 중심 시스템 설계를 위한 기초 데이터셋을 자동 생성할 수 있게 됨
 - 기존 매칭 검증(금액 포함) 스크립트와 별개로, ID 카탈로그 전용 파이프라인을 분리함
+
+## 2026-03-26
+
+### Financials rebuild
+
+오늘 한 일:
+
+- `scripts/financials_account_map.py`
+  - `account_id` 정규화 및 우선순위 선택 유틸 추가
+- `scripts/export_dart_financials_by_account_id.py` 추가
+  - 사용자가 재무 항목별 `account_id` 우선순위 목록을 직접 입력하도록 템플릿 제공
+  - 각 기업에서 1순위 `account_id`가 없으면 다음 보조 `account_id`를 순서대로 선택
+  - 결과를 재정의된 `company_financials_v2`에 upsert 하도록 구성
+- `supabase/migrations/20260326_reset_company_financials_v2_for_account_id.sql` 추가
+  - 기존 `company_financials_v2`를 drop 후 재생성하는 초기화 migration 추가
+  - `account_id` 수동 우선순위 기반 normalized 재무 저장 스키마로 재정의
+  - 선택된 `account_id`, 계정명, statement명, 우선순위를 JSON으로 함께 저장
+- `scripts/README_FINANCIALS_V2.md` 재작성
+  - 과거 forecast 혼합 구조 설명을 제거하고 새 v2 기준만 남김
+
+의미:
+
+- 문자열 매칭이 아니라 `account_id` 우선순위 기반으로 재무 항목 선택을 검증할 수 있게 됨
+- 기업별 계정 차이를 보조 `account_id` 체인으로 흡수하는 실험 파이프라인이 생김
+- 단순 엑셀 검토가 아니라 재정의된 `company_financials_v2`에 누적 저장하면서 후속 쿼리와 검증이 가능해짐

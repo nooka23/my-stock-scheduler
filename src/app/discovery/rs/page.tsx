@@ -595,48 +595,46 @@ export default function RsDiscoveryPage() {
     : false;
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col overflow-hidden">
-      {/* Header removed - now using Sidebar */}
-      
-      {/* 메인 컨텐츠 (좌우 분할) */}
-      <main className="flex-1 p-4 flex gap-4 overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
+      <main className="flex-1 flex gap-4 overflow-hidden">
         
         {/* [왼쪽] 종목 테이블 영역 (너비 30%) */}
-        <div className="w-[30%] bg-white rounded-xl shadow border flex flex-col overflow-hidden">
-            {/* 컨트롤 패널 (탭 & 필터) */}
-            <div className="p-4 border-b bg-gray-50">
+        <div className="w-[30%] app-card-strong flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-muted)]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Discovery</p>
+                <div className="mb-3 mt-2 text-xl font-semibold text-slate-950">RS 분석</div>
                 <div className="flex justify-between items-end mb-3">
                     <div className="flex gap-1">
-                        <button onClick={() => setCurrentTab('TOP')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'TOP' ? 'bg-blue-600 text-white shadow' : 'bg-white border text-gray-500'}`}>TOP</button>
-                        <button onClick={() => setCurrentTab('RISING')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow' : 'bg-white border text-gray-500'}`}>급상승</button>
-                        <button onClick={() => setCurrentTab('FALLING')} className={`px-2 py-1 rounded-lg font-bold text-[10px] transition-all ${currentTab === 'FALLING' ? 'bg-blue-800 text-white shadow' : 'bg-white border text-gray-500'}`}>급하락</button>
+                        <button onClick={() => setCurrentTab('TOP')} className={`px-2 py-1 rounded-xl font-semibold text-[10px] transition-all ${currentTab === 'TOP' ? 'bg-slate-950 text-white shadow-[var(--shadow-sm)]' : 'bg-white border border-[var(--border)] text-[var(--text-muted)]'}`}>TOP</button>
+                        <button onClick={() => setCurrentTab('RISING')} className={`px-2 py-1 rounded-xl font-semibold text-[10px] transition-all ${currentTab === 'RISING' ? 'bg-red-500 text-white shadow-[var(--shadow-sm)]' : 'bg-white border border-[var(--border)] text-[var(--text-muted)]'}`}>급상승</button>
+                        <button onClick={() => setCurrentTab('FALLING')} className={`px-2 py-1 rounded-xl font-semibold text-[10px] transition-all ${currentTab === 'FALLING' ? 'bg-blue-900 text-white shadow-[var(--shadow-sm)]' : 'bg-white border border-[var(--border)] text-[var(--text-muted)]'}`}>급하락</button>
                     </div>
                     <div className="flex flex-col gap-1 items-end">
                         {currentTab === 'RISING' && (
-                            <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-red-500"/> 90점↑ 제외</label>
+                            <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-red-500"/> 90점↑ 제외</label>
                         )}
                         {currentTab === 'FALLING' && (
-                            <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-blue-800"/> 90점↓ 제외</label>
+                            <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-blue-800"/> 90점↓ 제외</label>
                         )}
-                        <label className="flex items-center gap-1 text-[10px] font-bold text-gray-600 cursor-pointer"><input type="checkbox" checked={minRs50} onChange={(e) => setMinRs50(e.target.checked)} className="accent-blue-500"/> RS 50↑</label>
+                        <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={minRs50} onChange={(e) => setMinRs50(e.target.checked)} className="accent-blue-500"/> RS 50↑</label>
                     </div>
                 </div>
 
                 {currentTab === 'RISING' && (
                     <div className="flex gap-2 mb-2">
-                        <button onClick={() => setRisingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${risingPeriod === 'WEEKLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-gray-500'}`}>📅 주간</button>
-                        <button onClick={() => setRisingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${risingPeriod === 'MONTHLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white text-gray-500'}`}>🗓️ 월간</button>
+                        <button onClick={() => setRisingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded-xl border font-semibold ${risingPeriod === 'WEEKLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white border-[var(--border)] text-[var(--text-muted)]'}`}>주간</button>
+                        <button onClick={() => setRisingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded-xl border font-semibold ${risingPeriod === 'MONTHLY' ? 'bg-red-50 text-red-700 border-red-300' : 'bg-white border-[var(--border)] text-[var(--text-muted)]'}`}>월간</button>
                     </div>
                 )}
 
                 {currentTab === 'FALLING' && (
                     <div className="flex gap-2 mb-2">
-                        <button onClick={() => setFallingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${fallingPeriod === 'WEEKLY' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white text-gray-500'}`}>📅 주간</button>
-                        <button onClick={() => setFallingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded border font-bold ${fallingPeriod === 'MONTHLY' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white text-gray-500'}`}>🗓️ 월간</button>
+                        <button onClick={() => setFallingPeriod('WEEKLY')} className={`text-[10px] px-2 py-1 rounded-xl border font-semibold ${fallingPeriod === 'WEEKLY' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white border-[var(--border)] text-[var(--text-muted)]'}`}>주간</button>
+                        <button onClick={() => setFallingPeriod('MONTHLY')} className={`text-[10px] px-2 py-1 rounded-xl border font-semibold ${fallingPeriod === 'MONTHLY' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-white border-[var(--border)] text-[var(--text-muted)]'}`}>월간</button>
                     </div>
                 )}
                 
-                <div className="text-[10px] text-gray-500 flex justify-between">
+                <div className="text-[11px] text-[var(--text-muted)] flex justify-between">
                     <span>기준: {referenceDate}</span>
                     <span>총 {getFilteredCount()}개</span>
                 </div>
@@ -645,7 +643,7 @@ export default function RsDiscoveryPage() {
             {/* 테이블 */}
             <div className="flex-1 overflow-y-auto min-h-0">
                 <table className="w-full text-left border-collapse">
-                    <thead className="bg-gray-100 text-[10px] text-gray-500 uppercase sticky top-0 z-10 shadow-sm">
+                    <thead className="bg-[var(--surface-muted)] text-[10px] text-[var(--text-subtle)] uppercase sticky top-0 z-10 shadow-sm">
                         <tr>
                             <th className="px-2 py-2 font-medium">순위</th>
                             <th className="px-2 py-2 font-medium">종목명</th>
@@ -659,17 +657,17 @@ export default function RsDiscoveryPage() {
                             <th className="px-2 py-2 font-medium text-right">시총(억)</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 text-xs">
+                    <tbody className="divide-y divide-[var(--border)] text-xs">
                         {!loading && displayedStocks.map((stock, idx) => (
                             <tr 
                                 key={stock.code} 
                                 onClick={() => handleStockClick(stock)}
-                                className={`cursor-pointer hover:bg-blue-50 transition-colors ${selectedStock?.code === stock.code ? 'bg-blue-100' : ''}`}
+                                className={`cursor-pointer transition-colors ${selectedStock?.code === stock.code ? 'bg-[var(--surface-accent)]' : 'hover:bg-[var(--surface-muted)]'}`}
                             >
-                                <td className="px-2 py-2 text-gray-500">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
-                                <td className="px-2 py-2 font-bold text-gray-800 truncate max-w-[80px]">
+                                <td className="px-2 py-2 text-[var(--text-muted)]">{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</td>
+                                <td className="px-2 py-2 font-semibold text-slate-900 truncate max-w-[80px]">
                                     {stock.companies?.name}
-                                    <div className="text-[9px] text-gray-400 font-normal">{stock.code}</div>
+                                    <div className="text-[9px] text-[var(--text-subtle)] font-normal">{stock.code}</div>
                                 </td>
                                 {currentTab === 'TOP' ? (
                                     <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_rating}</td>
@@ -678,51 +676,50 @@ export default function RsDiscoveryPage() {
                                 ) : (
                                     <td className="px-2 py-2 text-right font-bold text-blue-800">{stock.rs_diff}</td>
                                 )}
-                                <td className="px-2 py-2 text-right text-gray-600">
+                                <td className="px-2 py-2 text-right text-[var(--text-muted)]">
                                     {stock.marcap ? Math.round(stock.marcap / 100000000).toLocaleString() : '-'}
                                 </td>
                             </tr>
                         ))}
-                        {loading && <tr><td colSpan={4} className="p-4 text-center text-gray-400 text-xs">로딩 중...</td></tr>}
+                        {loading && <tr><td colSpan={4} className="p-4 text-center text-[var(--text-subtle)] text-xs">로딩 중...</td></tr>}
                     </tbody>
                 </table>
             </div>
 
             {/* 페이지네이션 */}
-            <div className="p-2 border-t bg-gray-50 flex justify-center items-center gap-1 text-[10px]">
-                <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-1.5 py-0.5 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">&lt;</button>
+            <div className="p-2 border-t border-[var(--border)] bg-[var(--surface-muted)] flex justify-center items-center gap-1 text-[10px]">
+                <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1} className="px-1.5 py-0.5 border border-[var(--border)] rounded bg-white hover:bg-[var(--surface-muted)] disabled:opacity-50">&lt;</button>
                 <input 
                     type="text" 
-                    className="w-8 border rounded p-0.5 text-center font-bold focus:ring-1 focus:ring-blue-500 outline-none" 
+                    className="w-8 border border-[var(--border)] rounded p-0.5 text-center font-semibold focus:ring-1 focus:ring-blue-500 outline-none" 
                     value={inputPage} 
                     onChange={handleInputPageChange} 
                     onBlur={submitPageInput} 
                     onKeyDown={handleKeyDown} 
                 />
-                <span className="text-gray-500">/ {totalPages}</span>
-                <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-1.5 py-0.5 border rounded bg-white hover:bg-gray-100 disabled:opacity-50">&gt;</button>
+                <span className="text-[var(--text-muted)]">/ {totalPages}</span>
+                <button onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages} className="px-1.5 py-0.5 border border-[var(--border)] rounded bg-white hover:bg-[var(--surface-muted)] disabled:opacity-50">&gt;</button>
             </div>
         </div>
 
-        {/* [오른쪽] 차트 영역 (나머지 공간) */}
-        <div className="flex-1 bg-white rounded-xl shadow border flex flex-col overflow-hidden relative">
+        <div className="flex-1 app-card-strong flex flex-col overflow-hidden relative">
             {selectedStock ? (
                 <>
-                    <div className="p-4 border-b bg-gray-50">
+                    <div className="p-4 border-b border-[var(--border)] bg-[var(--surface-muted)]">
                         <div className="flex justify-between items-start">
                             <div className="flex flex-col gap-2">
                                 <div className="flex items-baseline gap-2">
-                                    <h2 className="text-xl font-bold text-gray-800">{selectedStock.name}</h2>
-                                    <span className="text-base text-gray-500">({selectedStock.code})</span>
+                                    <h2 className="text-2xl font-semibold text-slate-950">{selectedStock.name}</h2>
+                                    <span className="text-base text-[var(--text-muted)]">({selectedStock.code})</span>
                                 </div>
 
                                 {/* 업종/테마 표시 */}
                                 <div className="flex flex-wrap gap-2 text-xs">
                                     {industries.length > 0 && (
                                         <div className="flex items-center gap-1">
-                                            <span className="text-gray-500 font-medium">업종:</span>
+                                            <span className="text-[var(--text-muted)] font-medium">업종:</span>
                                             {industries.map((industry, idx) => (
-                                                <span key={idx} className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                                                <span key={idx} className="rounded-full bg-[var(--surface-accent)] px-2 py-0.5 text-[var(--primary)]">
                                                     {industry}
                                                 </span>
                                             ))}
@@ -730,17 +727,17 @@ export default function RsDiscoveryPage() {
                                     )}
                                     {themes.length > 0 && (
                                         <div className="flex items-center gap-1">
-                                            <span className="text-gray-500 font-medium">테마:</span>
+                                            <span className="text-[var(--text-muted)] font-medium">테마:</span>
                                             <div className="flex flex-wrap gap-1">
                                                 {(showAllThemes ? themes : themes.slice(0, 5)).map((theme, idx) => (
-                                                    <span key={idx} className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded">
+                                                    <span key={idx} className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
                                                         {theme}
                                                     </span>
                                                 ))}
                                                 {themes.length > 5 && (
                                                     <button
                                                         onClick={() => setShowAllThemes(!showAllThemes)}
-                                                        className="text-gray-500 hover:text-gray-700 px-1 text-xs font-medium underline"
+                                                        className="px-1 text-xs font-medium text-[var(--text-muted)] underline hover:text-slate-900"
                                                         title={showAllThemes ? '접기' : '전체 보기'}
                                                     >
                                                         {showAllThemes ? '접기' : `+${themes.length - 5} 더보기`}
@@ -753,14 +750,14 @@ export default function RsDiscoveryPage() {
                             </div>
 
                             <div className="flex items-center gap-2">
-                                {isChartLoading && <span className="text-xs text-blue-500 font-bold animate-pulse">데이터 로딩 중...</span>}
+                                {isChartLoading && <span className="text-xs text-[var(--primary)] font-semibold animate-pulse">데이터 로딩 중...</span>}
 
                                 {/* [신규] 즐겨찾기 그룹 선택 드롭다운 + 별 버튼 */}
-                                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-[var(--shadow-sm)]">
                                     <select
                                         value={targetGroup}
                                         onChange={(e) => setTargetGroup(e.target.value)}
-                                        className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer px-1"
+                                        className="bg-transparent text-xs font-semibold text-slate-700 outline-none cursor-pointer px-1"
                                     >
                                         {favGroups.map(g => (
                                             <option key={g} value={g}>{g}</option>
@@ -768,7 +765,7 @@ export default function RsDiscoveryPage() {
                                     </select>
                                     <button
                                         onClick={toggleFavorite}
-                                        className={`text-xl focus:outline-none transition-transform hover:scale-110 px-1 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                                        className={`text-xl focus:outline-none transition-transform hover:scale-110 px-1 ${isFavorite ? 'text-amber-400' : 'text-gray-300'}`}
                                         title={`'${targetGroup}'에 ${isFavorite ? '삭제' : '추가'}`}
                                     >
                                         {isFavorite ? '⭐' : '☆'}
@@ -782,16 +779,16 @@ export default function RsDiscoveryPage() {
                             // 차트 컴포넌트 (Price, Volume, RS)
                             <StockChartDiscovery data={chartData} />
                         ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                            <div className="absolute inset-0 flex items-center justify-center text-[var(--text-subtle)]">
                                 {isChartLoading ? '차트 그리는 중...' : '데이터가 없습니다.'}
                             </div>
                         )}
                     </div>
                 </>
             ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-[var(--text-subtle)] bg-[var(--surface-muted)]/60">
                     <div className="text-4xl mb-2">👈</div>
-                    <p className="font-bold">왼쪽 목록에서 종목을 선택하세요</p>
+                    <p className="font-semibold">왼쪽 목록에서 종목을 선택하세요</p>
                     <p className="text-xs mt-1">상세 차트와 RS 지수를 확인할 수 있습니다.</p>
                 </div>
             )}

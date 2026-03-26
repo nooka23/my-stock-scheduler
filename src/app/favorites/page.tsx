@@ -368,17 +368,16 @@ export default function FavoritesPage() {
     }
   }, [favorites, selectedGroup, lastUpdate]);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">로딩 중...</div>;
+  if (loading) return <div className="p-8 text-center text-[var(--text-muted)]">로딩 중...</div>;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* --- [1] 왼쪽 사이드바: 그룹 관리 --- */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-6 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            📂 관심 그룹
-          </h2>
-          <p className="text-xs text-gray-400 mt-1">그룹을 선택하여 관리하세요.</p>
+    <div className="flex h-full overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
+      <div className="flex min-h-0 w-full gap-4">
+      <div className="app-card-strong flex w-80 flex-col overflow-hidden">
+        <div className="border-b border-[var(--border)] px-6 py-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Favorites</p>
+          <h2 className="mt-2 text-xl font-semibold text-slate-950">관심 그룹</h2>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">그룹을 선택하여 관리하세요.</p>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -392,22 +391,22 @@ export default function FavoritesPage() {
               onDragOver={(e) => e.preventDefault()}
               onClick={() => setSelectedGroup(group)}
               className={`
-                group flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border select-none
+                group flex items-center justify-between p-3 rounded-2xl cursor-pointer transition-all border select-none
                 ${selectedGroup === group 
-                  ? 'bg-blue-50 border-blue-200 shadow-sm' 
-                  : 'bg-white border-transparent hover:bg-gray-100 hover:border-gray-200'}
-                ${dragItem === index ? 'opacity-50 bg-gray-100 border-dashed border-gray-400' : ''}
-                ${dragOverItem === index && dragItem !== index ? 'border-t-2 border-blue-500' : ''}
+                  ? 'bg-[var(--surface-accent)] border-[var(--primary-soft)] shadow-[var(--shadow-sm)]' 
+                  : 'bg-white border-transparent hover:bg-[var(--surface-muted)] hover:border-[var(--border)]'}
+                ${dragItem === index ? 'opacity-50 bg-[var(--surface-muted)] border-dashed border-[var(--border-strong)]' : ''}
+                ${dragOverItem === index && dragItem !== index ? 'border-t-2 border-[var(--primary)]' : ''}
               `}
             >
               <div className="flex items-center gap-3">
                 <span className={`text-xl ${group !== '기본 그룹' ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                     {group === '기본 그룹' ? '⭐' : '📁'}
                 </span>
-                <span className={`font-bold ${selectedGroup === group ? 'text-blue-800' : 'text-gray-600'}`}>
+                <span className={`font-semibold ${selectedGroup === group ? 'text-[var(--primary-strong)]' : 'text-[var(--text-muted)]'}`}>
                   {group}
                 </span>
-                <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-500">
+                <span className="text-xs px-2 py-0.5 bg-[var(--surface-muted)] rounded-full text-[var(--text-muted)]">
                   {favorites.filter(f => f.group_name === group).length}
                 </span>
               </div>
@@ -418,7 +417,7 @@ export default function FavoritesPage() {
                     e.stopPropagation();
                     handleDeleteGroup(group);
                   }}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-1.5 text-[var(--text-subtle)] hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                   title="그룹 삭제"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -429,12 +428,12 @@ export default function FavoritesPage() {
 
           {/* 그룹 추가 입력창 */}
           {isAddingGroup ? (
-            <div className="p-3 bg-gray-50 rounded-xl border border-blue-200 animate-in fade-in slide-in-from-top-2">
+            <div className="p-3 bg-[var(--surface-muted)] rounded-2xl border border-[var(--primary-soft)]">
               <input
                 type="text"
                 autoFocus
                 placeholder="새 그룹 이름"
-                className="w-full p-2 text-sm border border-gray-300 rounded mb-2 focus:outline-none focus:border-blue-500"
+                className="app-input mb-2 text-sm"
                 value={newGroupName}
                 onChange={e => setNewGroupName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAddGroup()}
@@ -442,13 +441,13 @@ export default function FavoritesPage() {
               <div className="flex gap-2 justify-end">
                 <button 
                   onClick={() => setIsAddingGroup(false)}
-                  className="px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-200 rounded"
+                  className="px-3 py-1.5 text-xs text-[var(--text-muted)] hover:bg-white rounded-xl"
                 >
                   취소
                 </button>
                 <button 
                   onClick={handleAddGroup}
-                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-bold"
+                  className="px-3 py-1.5 text-xs bg-slate-950 text-white rounded-xl hover:bg-slate-800 font-semibold"
                 >
                   확인
                 </button>
@@ -457,7 +456,7 @@ export default function FavoritesPage() {
           ) : (
             <button
               onClick={() => setIsAddingGroup(true)}
-              className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-bold text-sm"
+              className="w-full py-3 border-2 border-dashed border-[var(--border)] rounded-2xl text-[var(--text-subtle)] hover:border-[var(--primary-soft)] hover:text-[var(--primary)] hover:bg-[var(--surface-accent)] transition-all flex items-center justify-center gap-2 font-semibold text-sm"
             >
               + 새 그룹 추가
             </button>
@@ -465,15 +464,14 @@ export default function FavoritesPage() {
         </div>
       </div>
 
-      {/* --- [2] 오른쪽 메인: 종목 관리 --- */}
-      <div className="flex-1 flex flex-col min-w-0 bg-gray-50/50">
-        {/* 헤더 */}
-        <div className="p-8 pb-4">
+      <div className="app-card-strong flex-1 flex flex-col min-w-0">
+        <div className="p-8 pb-4 border-b border-[var(--border)]">
           <div className="flex items-center justify-between mb-6">
              <div>
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">{selectedGroup}</h1>
-                <p className="text-gray-500">
-                    총 <span className="font-bold text-blue-600">{currentGroupFavorites.length}</span>개의 종목이 등록되어 있습니다.
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Group View</p>
+                <h1 className="text-3xl font-semibold text-slate-950 mb-2 mt-2">{selectedGroup}</h1>
+                <p className="text-[var(--text-muted)]">
+                    총 <span className="font-semibold text-[var(--primary)]">{currentGroupFavorites.length}</span>개의 종목이 등록되어 있습니다.
                 </p>
              </div>
              
@@ -483,27 +481,27 @@ export default function FavoritesPage() {
                     <input
                         type="text"
                         placeholder="종목명 또는 코드 검색..."
-                        className="w-full pl-10 pr-4 py-3 rounded-full border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-[var(--primary)] transition-all bg-white"
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
                     />
-                    <span className="absolute left-3.5 top-3.5 text-gray-400">🔍</span>
+                    <span className="absolute left-3.5 top-3.5 text-[var(--text-subtle)]">🔍</span>
                 </div>
 
                 {/* 검색 결과 드롭다운 */}
                 {isSearchOpen && filteredCompanies.length > 0 && (
-                    <div className="absolute z-50 w-full mt-2 bg-white rounded-xl shadow-xl border border-gray-100 max-h-80 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-[var(--shadow-md)] border border-[var(--border)] max-h-80 overflow-y-auto">
                         {filteredCompanies.map(company => (
                             <div
                                 key={company.code}
                                 onClick={() => handleAddStock(company)}
-                                className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-none flex justify-between items-center group"
+                                className="px-4 py-3 hover:bg-[var(--surface-accent)] cursor-pointer border-b border-[var(--surface-muted)] last:border-none flex justify-between items-center group"
                             >
                                 <div>
-                                    <div className="font-bold text-gray-800">{company.name}</div>
-                                    <div className="text-xs text-gray-400">{company.code}</div>
+                                    <div className="font-semibold text-slate-900">{company.name}</div>
+                                    <div className="text-xs text-[var(--text-subtle)]">{company.code}</div>
                                 </div>
-                                <span className="text-blue-600 font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="text-[var(--primary)] font-semibold text-sm opacity-0 group-hover:opacity-100 transition-opacity">
                                     + 추가
                                 </span>
                             </div>
@@ -515,7 +513,7 @@ export default function FavoritesPage() {
         </div>
 
         {/* 종목 리스트 */}
-        <div className="flex-1 overflow-y-auto px-8 pb-8">
+        <div className="flex-1 overflow-y-auto px-8 pb-8 pt-6">
             {currentGroupFavorites.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {currentGroupFavorites.map((fav, index) => (
@@ -527,22 +525,22 @@ export default function FavoritesPage() {
                             onDragEnd={handleStockDragEnd}
                             onDragOver={(e) => e.preventDefault()}
                             className={`
-                                bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between cursor-move
-                                ${dragStockItem === index ? 'opacity-50 border-dashed border-gray-400' : ''}
-                                ${dragStockOverItem === index && dragStockItem !== index ? 'border-t-4 border-blue-500' : ''}
+                                bg-white p-3 rounded-2xl border border-[var(--border)] shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)] hover:border-[var(--border-strong)] transition-all flex items-center justify-between cursor-move
+                                ${dragStockItem === index ? 'opacity-50 border-dashed border-[var(--border-strong)]' : ''}
+                                ${dragStockOverItem === index && dragStockItem !== index ? 'border-t-4 border-[var(--primary)]' : ''}
                             `}
                         >
                             <div className="flex items-baseline gap-2">
-                                <span className="text-sm text-blue-400 font-bold w-5 text-center">{index + 1}</span>
-                                <span className="font-bold text-base text-gray-800">{fav.company_name}</span>
-                                <span className="text-xs font-mono text-gray-500">{fav.company_code}</span>
+                                <span className="text-sm text-[var(--primary)] font-semibold w-5 text-center">{index + 1}</span>
+                                <span className="font-semibold text-base text-slate-900">{fav.company_name}</span>
+                                <span className="text-xs font-mono text-[var(--text-muted)]">{fav.company_code}</span>
                             </div>
                             <button 
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     handleRemoveStock(fav.id);
                                 }}
-                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                className="p-1.5 text-[var(--text-subtle)] hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
                                 title="종목 삭제"
                                 onMouseDown={(e) => e.stopPropagation()}
                             >
@@ -552,15 +550,16 @@ export default function FavoritesPage() {
                     ))}
                 </div>
             ) : (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-2xl mb-4">
+                <div className="h-full flex flex-col items-center justify-center text-[var(--text-subtle)]">
+                    <div className="w-16 h-16 bg-[var(--surface-muted)] rounded-full flex items-center justify-center text-2xl mb-4">
                         ⭐
                     </div>
-                    <p className="font-bold text-lg text-gray-600">등록된 종목이 없습니다.</p>
+                    <p className="font-semibold text-lg text-slate-700">등록된 종목이 없습니다.</p>
                     <p className="text-sm mt-1">우측 상단 검색창을 통해 관심 종목을 추가해보세요.</p>
                 </div>
             )}
         </div>
+      </div>
       </div>
     </div>
   );

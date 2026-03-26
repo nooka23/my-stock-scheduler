@@ -55,7 +55,9 @@ const getCurrentMonthStart = (): string => {
 };
 
 const getTodayDate = (): string => {
-  return new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  return new Date(now.getTime() - timezoneOffsetMs).toISOString().split('T')[0];
 };
 
 const getClosedEventDate = (position: PortfolioPosition): string | null => {
@@ -84,7 +86,7 @@ export default function PortfolioManagementPage() {
   const [sellingPosition, setSellingPosition] = useState<PortfolioPosition | null>(null);
   const [sellAmount, setSellAmount] = useState(0);
   const [sellRealizedPnl, setSellRealizedPnl] = useState(0);
-  const [sellDate, setSellDate] = useState(new Date().toISOString().split('T')[0]);
+  const [sellDate, setSellDate] = useState(() => getTodayDate());
   const [cash, setCash] = useState<number>(0);
   const [isEditingCash, setIsEditingCash] = useState(false);
   const [sortField, setSortField] = useState<'entry_date' | 'close_date' | 'company_name' | 'evaluation' | 'sector' | 'pnl_ratio' | 'unrealized_pnl' | 'realized_pnl' | 'total_pnl' | null>(null);
@@ -100,8 +102,8 @@ export default function PortfolioManagementPage() {
   const [searchResults, setSearchResults] = useState<{ code: string; name: string }[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  const emptyForm: FormData = {
-    entry_date: new Date().toISOString().split('T')[0],
+  const createEmptyForm = (): FormData => ({
+    entry_date: getTodayDate(),
     trade_type: '',
     company_code: '',
     company_name: '',
@@ -115,9 +117,9 @@ export default function PortfolioManagementPage() {
     comment: '',
     is_custom_asset: false,
     manual_current_price: null,
-  };
+  });
 
-  const [formData, setFormData] = useState<FormData>(emptyForm);
+  const [formData, setFormData] = useState<FormData>(() => createEmptyForm());
 
   // 현금 로드
   useEffect(() => {
@@ -346,20 +348,40 @@ export default function PortfolioManagementPage() {
       let baseRows: PortfolioPosition[] = [];
 
       if (currentTab === 'closed') {
-        const { data: transactionData, error: transactionError } = await supabase
+        let transactionQuery = supabase
           .from('user_portfolio_transactions')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', user.id);
+
+        if (closedFromDate) {
+          transactionQuery = transactionQuery.gte('transaction_date', closedFromDate);
+        }
+
+        if (closedToDate) {
+          transactionQuery = transactionQuery.lte('transaction_date', closedToDate);
+        }
+
+        const { data: transactionData, error: transactionError } = await transactionQuery
           .order('transaction_date', { ascending: false })
           .order('created_at', { ascending: false });
 
         if (transactionError) throw transactionError;
 
-        const { data: legacyClosedData, error: legacyClosedError } = await supabase
+        let legacyClosedQuery = supabase
           .from('user_portfolio')
           .select('*')
           .eq('user_id', user.id)
-          .eq('is_closed', true)
+          .eq('is_closed', true);
+
+        if (closedFromDate) {
+          legacyClosedQuery = legacyClosedQuery.gte('close_date', closedFromDate);
+        }
+
+        if (closedToDate) {
+          legacyClosedQuery = legacyClosedQuery.lte('close_date', closedToDate);
+        }
+
+        const { data: legacyClosedData, error: legacyClosedError } = await legacyClosedQuery
           .order('close_date', { ascending: false });
 
         if (legacyClosedError) throw legacyClosedError;
@@ -420,7 +442,7 @@ export default function PortfolioManagementPage() {
       const codes = [...new Set(tradablePositions.map(p => p.company_code))];
 
       let latestDate: string | undefined;
-      if (codes.length > 0) {
+      if (currentTab === 'active' && codes.length > 0) {
         const { data: dateData } = await supabase
           .from('daily_prices_v2')
           .select('date')
@@ -431,7 +453,7 @@ export default function PortfolioManagementPage() {
         latestDate = dateData?.date;
       }
 
-      const { data: priceData } = codes.length > 0 && latestDate
+      const { data: priceData } = currentTab === 'active' && codes.length > 0 && latestDate
         ? await supabase
           .from('daily_prices_v2')
           .select('code, close')
@@ -445,10 +467,12 @@ export default function PortfolioManagementPage() {
       }
 
       const atrMap = new Map<string, number>();
-      for (const code of codes) {
-        const atr = await calculateATR(code);
-        if (atr > 0) {
-          atrMap.set(code, atr);
+      if (currentTab === 'active') {
+        for (const code of codes) {
+          const atr = await calculateATR(code);
+          if (atr > 0) {
+            atrMap.set(code, atr);
+          }
         }
       }
 
@@ -488,7 +512,7 @@ export default function PortfolioManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [calculateATR, supabase, currentTab]);
+  }, [calculateATR, supabase, currentTab, closedFromDate, closedToDate]);
 
   useEffect(() => {
     fetchPositions();
@@ -565,7 +589,7 @@ export default function PortfolioManagementPage() {
 
       alert('포지션이 추가되었습니다.');
       setShowAddModal(false);
-      setFormData(emptyForm);
+      setFormData(createEmptyForm());
       setSearchQuery('');
       setSearchResults([]);
       setShowSearchResults(false);
@@ -649,7 +673,7 @@ export default function PortfolioManagementPage() {
     setSellingPosition(position);
     setSellAmount(0);
     setSellRealizedPnl(0);
-    setSellDate(new Date().toISOString().split('T')[0]);
+    setSellDate(getTodayDate());
     setShowSellModal(true);
   };
 
@@ -684,7 +708,7 @@ export default function PortfolioManagementPage() {
       setSellingPosition(null);
       setSellAmount(0);
       setSellRealizedPnl(0);
-      setSellDate(new Date().toISOString().split('T')[0]);
+      setSellDate(getTodayDate());
       fetchPositions();
     } catch (error: unknown) {
       console.error('Error selling position:', error);
@@ -693,98 +717,132 @@ export default function PortfolioManagementPage() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 p-6">
-      {/* 헤더 */}
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-3">
-          <h1 className="text-2xl font-bold text-gray-800">💼 포트폴리오 관리</h1>
-          {currentTab === 'active' && (
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
+      <div className="app-card-strong p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold text-slate-950">포트폴리오 관리</h1>
+              <span className="rounded-full bg-[var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)]">
+                {currentTab === 'active' ? `${positionStats.count}개 종목` : `${filteredPositions.length}건 청산`}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
+              <span>총 자산 {formatAssetAmount(totalAssets)}원</span>
+              <span>현금 {formatAssetAmount(cash)}원</span>
+              {currentTab === 'active' && <span>R 합계 {formatAssetAmount(positionStats.totalR)}원</span>}
+              {currentTab === 'closed' && <span>실현손익 {formatAmount(filteredRealizedPnlSum)}원</span>}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setShowAddModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+              onClick={() => setIsAmountHidden(!isAmountHidden)}
+              className="rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
             >
-              ➕ 포지션 추가
+              {isAmountHidden ? '금액 보기' : '금액 숨기기'}
             </button>
-          )}
+            {viewMode === 'table' && currentTab === 'active' && (
+              <button
+                onClick={() => setShowTableDetails(prev => !prev)}
+                className="rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
+              >
+                {showTableDetails ? '간단히보기' : '자세히보기'}
+              </button>
+            )}
+            {currentTab === 'active' && (
+              <button
+                onClick={() => {
+                  setFormData(createEmptyForm());
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setShowSearchResults(false);
+                  setShowAddModal(true);
+                }}
+                className="rounded-2xl bg-slate-950 px-4 py-2 font-semibold text-white hover:bg-slate-800"
+              >
+                포지션 추가
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* 탭 */}
-        <div className="flex gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
               setCurrentTab('active');
               setViewMode('table');
             }}
-            className={`px-4 py-2 rounded-lg font-bold transition-all ${
+            className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-all ${
               currentTab === 'active'
-                ? 'bg-blue-600 text-white shadow'
-                : 'bg-white text-gray-600 border hover:bg-gray-50'
+                ? 'bg-slate-950 text-white shadow-[var(--shadow-sm)]'
+                : 'border border-[var(--border)] bg-white text-gray-600 hover:bg-[var(--surface-muted)]'
             }`}
           >
-            📊 현재 포지션
+            현재 포지션
           </button>
           <button
             onClick={() => {
               setCurrentTab('closed');
               setViewMode('table');
             }}
-            className={`px-4 py-2 rounded-lg font-bold transition-all ${
+            className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-all ${
               currentTab === 'closed'
-                ? 'bg-gray-700 text-white shadow'
-                : 'bg-white text-gray-600 border hover:bg-gray-50'
+                ? 'bg-slate-700 text-white shadow-[var(--shadow-sm)]'
+                : 'border border-[var(--border)] bg-white text-gray-600 hover:bg-[var(--surface-muted)]'
             }`}
           >
-            🏁 청산 매매
+            청산 매매
           </button>
+
+          {currentTab === 'active' && (
+            <>
+              <div className="mx-1 h-5 w-px bg-[var(--border)]" />
+              <button
+                onClick={() => setViewMode('table')}
+                className={`rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
+                  viewMode === 'table'
+                    ? 'border border-[var(--primary-soft)] bg-[var(--surface-accent)] text-[var(--primary)]'
+                    : 'bg-[var(--surface-muted)] text-gray-600 hover:bg-[var(--surface-strong)]'
+                }`}
+              >
+                테이블
+              </button>
+              <button
+                onClick={() => setViewMode('sector')}
+                className={`rounded-2xl px-3 py-2 text-sm font-medium transition-all ${
+                  viewMode === 'sector'
+                    ? 'border border-[var(--primary-soft)] bg-[var(--surface-accent)] text-[var(--primary)]'
+                    : 'bg-[var(--surface-muted)] text-gray-600 hover:bg-[var(--surface-strong)]'
+                }`}
+              >
+                업종별 비중
+              </button>
+            </>
+          )}
         </div>
 
-        {/* 뷰 모드 전환 (현재 포지션 탭에서만 표시) */}
-        {currentTab === 'active' && (
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                viewMode === 'table'
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              📋 테이블 보기
-            </button>
-            <button
-              onClick={() => setViewMode('sector')}
-              className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
-                viewMode === 'sector'
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              🥧 업종별 비중
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* 총 자산 및 현금 */}
       {!isAmountHidden && (
-        <div className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">총 자산</div>
-            <div className="mt-2 text-2xl font-bold text-gray-900">{formatAssetAmount(totalAssets)}원</div>
-            <div className="mt-1 text-sm text-gray-500">평가금액 + 현금</div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="app-card-strong p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">총 자산</div>
+            <div className="mt-2 text-2xl font-bold text-slate-950">{formatAssetAmount(totalAssets)}원</div>
+            <div className="mt-1 text-sm text-[var(--text-muted)]">평가금액 + 현금</div>
           </div>
 
-          <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
+          <div className="app-card-strong p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">보유 현금</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">보유 현금</div>
                 {isEditingCash ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <input
                       type="number"
                       value={cash}
                       onChange={e => setCash(parseFloat(e.target.value) || 0)}
-                      className="w-40 rounded border px-3 py-1 text-sm"
+                      className="w-40 rounded-xl border border-[var(--border)] px-3 py-1 text-sm"
                       autoFocus
                     />
                     <button
@@ -792,7 +850,7 @@ export default function PortfolioManagementPage() {
                         saveCash(cash);
                         setIsEditingCash(false);
                       }}
-                      className="rounded bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
+                      className="rounded-xl bg-green-600 px-3 py-1 text-sm text-white hover:bg-green-700"
                     >
                       저장
                     </button>
@@ -801,19 +859,19 @@ export default function PortfolioManagementPage() {
                         setCash(parseFloat(localStorage.getItem('portfolio_cash') || '0'));
                         setIsEditingCash(false);
                       }}
-                      className="rounded bg-gray-400 px-3 py-1 text-sm text-white hover:bg-gray-500"
+                      className="rounded-xl bg-gray-400 px-3 py-1 text-sm text-white hover:bg-gray-500"
                     >
                       취소
                     </button>
                   </div>
                 ) : (
-                  <div className="mt-2 text-2xl font-bold text-gray-900">{formatAssetAmount(cash)}원</div>
+                  <div className="mt-2 text-2xl font-bold text-slate-950">{formatAssetAmount(cash)}원</div>
                 )}
               </div>
               {!isEditingCash && (
                 <button
                   onClick={() => setIsEditingCash(true)}
-                  className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+                  className="rounded-xl border border-[var(--border)] bg-white px-3 py-1 text-sm text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
                 >
                   수정
                 </button>
@@ -821,61 +879,34 @@ export default function PortfolioManagementPage() {
             </div>
           </div>
 
-          {currentTab === 'active' && (
-            <>
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">포지션 수</div>
-                <div className="mt-2 text-2xl font-bold text-gray-900">{positionStats.count}개</div>
-                <div className="mt-1 text-sm text-gray-500">보유 종목 기준</div>
-              </div>
+          <div className="app-card-strong p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {currentTab === 'active' ? '포지션 수' : '청산 건수'}
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-950">
+              {currentTab === 'active' ? `${positionStats.count}개` : `${filteredPositions.length}건`}
+            </div>
+            <div className="mt-1 text-sm text-[var(--text-muted)]">
+              {currentTab === 'active' ? '보유 종목 기준' : '필터 적용 기준'}
+            </div>
+          </div>
 
-              <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
-                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">R 합계</div>
-                <div className="mt-2 text-2xl font-bold text-gray-900">{formatAssetAmount(positionStats.totalR)}원</div>
-                <div className="mt-1 text-sm text-gray-500">현재 포지션 리스크 총합</div>
-              </div>
-            </>
-          )}
+          <div className="app-card-strong p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {currentTab === 'active' ? 'R 합계' : '실현손익'}
+            </div>
+            <div className="mt-2 text-2xl font-bold text-slate-950">
+              {currentTab === 'active' ? `${formatAssetAmount(positionStats.totalR)}원` : `${formatAmount(filteredRealizedPnlSum)}원`}
+            </div>
+            <div className="mt-1 text-sm text-[var(--text-muted)]">
+              {currentTab === 'active' ? '현재 포지션 리스크 총합' : '기간 내 청산 합계'}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* 금액 숨김/보이기 토글 버튼 */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <button
-          onClick={() => setIsAmountHidden(!isAmountHidden)}
-          className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
-        >
-          {isAmountHidden ? (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-              </svg>
-              <span>총 자산 보기</span>
-            </>
-          ) : (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
-                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
-              </svg>
-              <span>총 자산 숨기기</span>
-            </>
-          )}
-        </button>
-        {viewMode === 'table' && currentTab === 'active' && (
-          <button
-            onClick={() => setShowTableDetails(prev => !prev)}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            {showTableDetails ? '간단히보기' : '자세히보기'}
-          </button>
-        )}
-      </div>
-
-      {/* 메인 컨텐츠 영역 */}
       {currentTab === 'closed' && (
-        <div className="mb-4 bg-white rounded-lg shadow p-4">
+        <div className="app-card-strong p-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-700">매도 날짜:</span>
@@ -912,7 +943,7 @@ export default function PortfolioManagementPage() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
         {/* 요약 테이블 (테이블 보기 + 간단히보기) */}
         {showSummaryTable && (
           <div className="flex-1 overflow-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
@@ -978,9 +1009,13 @@ export default function PortfolioManagementPage() {
                   const evaluationAmount = (position.current_price || 0) * position.position_size;
                   return (
                     <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50/80">
-                      <td className="px-3 py-3 text-left font-semibold text-gray-900">
+                      <td className="sticky left-0 z-[1] bg-white px-3 py-3 text-left font-semibold text-gray-900">
                         <div className="text-sm">{position.company_name}</div>
-                        <div className="text-[10px] text-gray-400">{position.company_code} · {position.sector || '업종없음'}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
+                          <span>{position.company_code}</span>
+                          <span>·</span>
+                          <span>{position.sector || '업종없음'}</span>
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span className={`inline-flex min-w-12 justify-center rounded-full px-2 py-1 text-[11px] font-bold ${
@@ -1179,7 +1214,7 @@ export default function PortfolioManagementPage() {
                         position.trade_type
                       )}
                     </td>
-                    <td className="px-3 py-2 text-center font-semibold text-gray-900">
+                    <td className="sticky left-0 z-[1] bg-white px-3 py-2 text-center font-semibold text-gray-900">
                       {isEditing && currentTab === 'active' ? (
                         <div className="flex flex-col gap-1">
                           <input
@@ -1198,10 +1233,14 @@ export default function PortfolioManagementPage() {
                           />
                         </div>
                       ) : (
-                        <>
-                          {position.company_name}
-                          <div className="text-[10px] text-gray-400">{position.company_code}</div>
-                        </>
+                        <div>
+                          <div>{position.company_name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center justify-center gap-1 text-[10px] text-gray-400">
+                            <span>{position.company_code}</span>
+                            <span>·</span>
+                            <span>{position.sector || '업종없음'}</span>
+                          </div>
+                        </div>
                       )}
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -1357,7 +1396,7 @@ export default function PortfolioManagementPage() {
                       )}
                     </td>
                     {currentTab === 'active' && (
-                      <td className="px-2 py-2 text-center">
+                      <td className="sticky right-0 z-[1] bg-white px-2 py-2 text-center">
                         {isEditing ? (
                         <div className="flex items-center justify-center gap-1">
                           <button
@@ -1775,7 +1814,7 @@ export default function PortfolioManagementPage() {
               <button
                 onClick={() => {
                   setShowAddModal(false);
-                  setFormData(emptyForm);
+                  setFormData(createEmptyForm());
                   setSearchQuery('');
                   setSearchResults([]);
                   setShowSearchResults(false);
@@ -1873,7 +1912,7 @@ export default function PortfolioManagementPage() {
                   setSellingPosition(null);
                   setSellAmount(0);
                   setSellRealizedPnl(0);
-                  setSellDate(new Date().toISOString().split('T')[0]);
+                  setSellDate(getTodayDate());
                 }}
                 className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
               >

@@ -114,9 +114,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-xl shadow-md w-96">
-        <h1 className="text-2xl font-bold text-center text-blue-800 mb-6">
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="app-card-strong w-full max-w-md p-8">
+        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">
+          Research OS
+        </p>
+        <h1 className="mb-6 mt-2 text-center text-3xl font-semibold text-slate-950">
           {isSignUpMode ? "회원가입 신청" : "로그인"}
         </h1>
         
@@ -124,7 +127,7 @@ export default function LoginPage() {
           <input
             type="email"
             placeholder="이메일"
-            className="border p-3 rounded-lg"
+            className="app-input"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -132,7 +135,7 @@ export default function LoginPage() {
           <input
             type="password"
             placeholder="비밀번호 (6자리 이상)"
-            className="border p-3 rounded-lg"
+            className="app-input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -142,7 +145,7 @@ export default function LoginPage() {
             <input
               type="password"
               placeholder="Confirm password"
-              className="border p-3 rounded-lg"
+              className="app-input"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
@@ -155,7 +158,7 @@ export default function LoginPage() {
             <input
               type="text"
               placeholder="사용할 닉네임 (예: 김주식)"
-              className="border p-3 rounded-lg bg-blue-50 focus:bg-white transition-colors"
+              className="app-input bg-[var(--surface-accent)] focus:bg-white transition-colors"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               required
@@ -165,7 +168,7 @@ export default function LoginPage() {
           <button 
             type="submit" 
             disabled={loading}
-            className={`text-white p-3 rounded-lg font-bold hover:opacity-90 disabled:bg-gray-400 transition-colors ${isSignUpMode ? 'bg-green-600' : 'bg-blue-600'}`}
+            className={`rounded-2xl p-3 font-semibold text-white transition-colors hover:opacity-90 disabled:bg-gray-400 ${isSignUpMode ? 'bg-emerald-600' : 'bg-slate-950'}`}
           >
             {loading ? '처리 중...' : (isSignUpMode ? '가입 신청하기' : '로그인')}
           </button>
@@ -176,7 +179,7 @@ export default function LoginPage() {
           <div className="text-right mt-2">
             <button 
               onClick={() => router.push('/forgot-password')}
-              className="text-xs text-gray-500 hover:text-blue-600 hover:underline"
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--primary)] hover:underline"
             >
               비밀번호를 잊으셨나요?
             </button>
@@ -184,8 +187,8 @@ export default function LoginPage() {
         )}
 
         {/* 모드 전환 (로그인 <-> 회원가입) */}
-        <div className="mt-6 text-center pt-4 border-t">
-          <p className="text-sm text-gray-600 mb-1">
+        <div className="mt-6 border-t border-[var(--border)] pt-4 text-center">
+          <p className="mb-1 text-sm text-[var(--text-muted)]">
             {isSignUpMode ? "이미 계정이 있으신가요?" : "계정이 없으신가요?"}
           </p>
           <button 
@@ -197,7 +200,7 @@ export default function LoginPage() {
 
               setConfirmPassword('');
             }}
-            className="text-sm font-bold text-blue-600 hover:underline"
+            className="text-sm font-semibold text-[var(--primary)] hover:underline"
           >
             {isSignUpMode ? "로그인하러 가기" : "회원가입 신청하기"}
           </button>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import StockChart from '@/components/StockChart';
+import FullscreenPanel from '@/components/FullscreenPanel';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   calculateEMA,
@@ -806,70 +807,81 @@ export default function ChartPage() {
   const isFavorite = favorites.some((fav) => fav.code === currentCompany.code && fav.group === targetGroup);
 
   return (
-    <div className="flex h-full flex-col bg-gray-50">
-      <div className="relative z-20 flex shrink-0 items-center justify-between border-b bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-6">
-          <div className="relative w-72">
-            <input
-              type="text"
-              className="w-full rounded border p-2 text-sm font-bold outline-none transition-all focus:ring-2 focus:ring-blue-500"
-              value={inputCompany}
-              onChange={handleSearchChange}
-              onFocus={() => inputCompany && setShowDropdown(true)}
-              placeholder="종목명 또는 코드 검색..."
-            />
-            {showDropdown && filteredCompanies.length > 0 && (
-              <ul className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded border bg-white shadow-xl">
-                {filteredCompanies.map((company) => (
-                  <li
-                    key={company.code}
-                    onClick={() => selectCompany(company)}
-                    className="flex cursor-pointer justify-between border-b p-2 text-sm last:border-none hover:bg-gray-100"
+    <div className="flex h-full overflow-hidden">
+      <main className="flex flex-1 gap-3 overflow-hidden">
+        <div className="app-card-strong flex w-[30%] min-w-[300px] max-w-[420px] flex-col overflow-hidden">
+          <div className="flex flex-col gap-2 border-b border-[var(--border)] bg-[var(--surface-muted)] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <h3 className="font-semibold text-slate-800">종목발굴</h3>
+                  {indicesRS.kospi !== null && (
+                    <span className="text-[10px] font-normal text-gray-400">
+                      KOSPI {indicesRS.kospi} / KOSDAQ {indicesRS.kosdaq}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                  <span>{reviewStocks.length}개</span>
+                  <span>후보 {candidateCount}</span>
+                  <span>제외 {excludedCount}</span>
+                  <label className="flex items-center gap-1 font-semibold">
+                    RS
+                    <input
+                      type="number"
+                      min="0"
+                      max="99"
+                      value={minRS}
+                      onChange={(e) => {
+                        setMinRS(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="w-12 rounded-xl border border-[var(--border)] bg-white p-1 text-center outline-none focus:border-[var(--primary)]"
+                    />
+                    이상
+                  </label>
+                  <span>그룹</span>
+                  <select
+                    value={checkGroup}
+                    onChange={(e) => setCheckGroup(e.target.value)}
+                    className="max-w-[110px] rounded-xl border border-[var(--border)] bg-white p-1 outline-none"
                   >
-                    <span className="font-bold text-gray-700">{company.name}</span>
-                    <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-400">{company.code}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-            <div className="font-bold">오늘의 매매 종목 정리</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-blue-700">
-              <span>{reviewStocks.length}개 차트</span>
-              <span>후보 {candidateCount}</span>
-              <span>제외 {excludedCount}</span>
-              {currentReviewIndex >= 0 && (
-                <span>
-                  현재 {currentReviewIndex + 1} / {reviewStocks.length}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="text-sm text-gray-500">기준일: {latestDate}</div>
-      </div>
-
-      <main className="flex flex-1 gap-4 overflow-hidden p-4">
-        <div className="flex w-[35%] flex-col overflow-hidden rounded-xl border bg-white shadow">
-          <div className="flex flex-col gap-2 border-b bg-gray-50 p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-baseline gap-2">
-                <h3 className="font-bold text-gray-700">종목발굴</h3>
-                {indicesRS.kospi !== null && (
-                  <span className="text-[10px] font-normal text-gray-400">
-                    (KOSPI: <span className="font-bold">{indicesRS.kospi}</span> / KOSDAQ: <span className="font-bold">{indicesRS.kosdaq}</span>)
-                  </span>
-                )}
+                    {favGroups.map((group) => (
+                      <option key={group} value={group}>{group}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="relative mt-2 max-w-sm">
+                  <input
+                    type="text"
+                    className="app-input text-sm font-semibold"
+                    value={inputCompany}
+                    onChange={handleSearchChange}
+                    onFocus={() => inputCompany && setShowDropdown(true)}
+                    placeholder="종목명 또는 코드 검색..."
+                  />
+                  {showDropdown && filteredCompanies.length > 0 && (
+                    <ul className="absolute z-30 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-[var(--border)] bg-white shadow-[var(--shadow-md)]">
+                      {filteredCompanies.map((company) => (
+                        <li
+                          key={company.code}
+                          onClick={() => selectCompany(company)}
+                          className="flex cursor-pointer justify-between border-b border-[var(--border)] p-2 text-sm last:border-none hover:bg-[var(--surface-muted)]"
+                        >
+                          <span className="font-bold text-gray-700">{company.name}</span>
+                          <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-400">{company.code}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
 
               <div className="flex items-center gap-1 text-xs">
                 <button
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((page) => page - 1)}
-                  className="rounded border bg-white px-2 py-1 hover:bg-gray-100 disabled:opacity-50"
+                  className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
                 >
                   ◀
                 </button>
@@ -878,57 +890,23 @@ export default function ChartPage() {
                   value={inputPage}
                   onChange={handlePageInput}
                   onKeyDown={handlePageSubmit}
-                  className="w-10 rounded border p-1 text-center outline-none focus:border-blue-500"
+                  className="w-10 rounded-xl border border-[var(--border)] p-1 text-center outline-none focus:border-[var(--primary)]"
                 />
                 <span className="text-gray-500">/ {totalPages}</span>
                 <button
                   disabled={currentPage === totalPages}
                   onClick={() => setCurrentPage((page) => page + 1)}
-                  className="rounded border bg-white px-2 py-1 hover:bg-gray-100 disabled:opacity-50"
+                  className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
                 >
                   ▶
                 </button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1 font-bold text-gray-600">
-                  RS 지수
-                  <input
-                    type="number"
-                    min="0"
-                    max="99"
-                    value={minRS}
-                    onChange={(e) => {
-                      setMinRS(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="w-12 rounded border bg-white p-1 text-center outline-none focus:border-blue-500"
-                  />
-                  이상
-                </label>
-                <span className="ml-2 text-gray-400">기준일: {latestDate}</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-gray-600">그룹:</span>
-                <select
-                  value={checkGroup}
-                  onChange={(e) => setCheckGroup(e.target.value)}
-                  className="max-w-[100px] rounded border bg-white p-1 outline-none"
-                >
-                  {favGroups.map((group) => (
-                    <option key={group} value={group}>{group}</option>
-                  ))}
-                </select>
               </div>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             <table className="w-full border-collapse text-left">
-              <thead className="sticky top-0 z-10 bg-gray-100 text-[10px] uppercase text-gray-500">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
                 <tr>
                   <th className="px-3 py-2">순위</th>
                   <th className="px-2 py-2">종목</th>
@@ -941,7 +919,7 @@ export default function ChartPage() {
               <tbody className="divide-y divide-gray-100 text-xs">
                 {tableLoading ? (
                   <tr>
-                    <td colSpan={6} className="p-10 text-center text-gray-400">로딩 중...</td>
+                    <td colSpan={6} className="p-10 text-center text-[var(--text-subtle)]">로딩 중...</td>
                   </tr>
                 ) : tableData.map((stock, index) => {
                   const isIncluded = favorites.some((fav) => fav.code === stock.code && fav.group === checkGroup);
@@ -950,14 +928,14 @@ export default function ChartPage() {
                     <tr
                       key={stock.code}
                       onClick={() => handleStockClick(stock)}
-                      className={`cursor-pointer transition-colors hover:bg-blue-50 ${getRowClassName(stock)}`}
+                      className={`cursor-pointer transition-colors hover:bg-[var(--surface-muted)] ${getRowClassName(stock)}`}
                     >
                       <td className="px-3 py-2 text-gray-500">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
                           <div>
-                            <div className="font-bold text-gray-800">{stock.name}</div>
-                            <div className="text-[9px] text-gray-400">{stock.code}</div>
+                          <div className="font-semibold text-slate-900">{stock.name}</div>
+                          <div className="text-[9px] text-[var(--text-subtle)]">{stock.code}</div>
                           </div>
                           {renderReviewBadge(stock.code)}
                         </div>
@@ -986,142 +964,121 @@ export default function ChartPage() {
           </div>
         </div>
 
-        <div className="relative flex flex-1 flex-col overflow-hidden rounded-xl border bg-white shadow">
-          <div className="shrink-0 border-b p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-bold text-gray-800">{currentCompany.name}</h2>
-                  <span className="text-lg font-medium text-gray-500">({currentCompany.code})</span>
-                  {currentReviewStock && renderReviewBadge(currentReviewStock.code)}
-                </div>
-
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {industries.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-500">업종:</span>
+        <div className="app-card-strong relative flex flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 p-2">
+            <FullscreenPanel>
+              <div className="absolute left-3 top-3 right-24 z-10 flex flex-wrap items-start gap-2">
+                <div className="rounded-2xl bg-white/92 px-3 py-2 shadow-[var(--shadow-sm)] backdrop-blur">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base font-semibold text-slate-950">{currentCompany.name}</span>
+                    <span className="text-xs font-medium text-[var(--text-muted)]">{currentCompany.code}</span>
+                    {currentReviewStock && renderReviewBadge(currentReviewStock.code)}
+                    <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
+                      {currentReviewIndex >= 0 ? `${currentReviewIndex + 1}/${reviewStocks.length}` : `${reviewStocks.length}개`}
+                    </span>
+                    <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
+                      {latestDate || '-'}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    <div className="flex rounded-xl border border-[var(--border)] bg-white p-[2px]">
+                      <button
+                        onClick={() => setTimeframe('daily')}
+                        className={`rounded-lg px-2 py-0.5 font-semibold ${timeframe === 'daily' ? 'bg-slate-950 text-white' : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)]'}`}
+                      >
+                        일
+                      </button>
+                      <button
+                        onClick={() => setTimeframe('weekly')}
+                        className={`rounded-lg px-2 py-0.5 font-semibold ${timeframe === 'weekly' ? 'bg-slate-950 text-white' : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)]'}`}
+                      >
+                        주
+                      </button>
+                    </div>
+                    <select
+                      value={targetGroup}
+                      onChange={(e) => setTargetGroup(e.target.value)}
+                      className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 font-semibold text-gray-700 outline-none"
+                    >
+                      {favGroups.map((group) => (
+                        <option key={group} value={group}>{group}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={toggleFavorite}
+                      className={`px-1 text-xl transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
+                      title={`'${targetGroup}'에 ${isFavorite ? '삭제' : '추가'}`}
+                    >
+                      {isFavorite ? '⭐' : '☆'}
+                    </button>
+                    <button
+                      onClick={() => handleArrowAction('ArrowLeft')}
+                      disabled={!currentReviewStock}
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 font-bold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ← 제외
+                    </button>
+                    <button
+                      onClick={() => handleArrowAction('ArrowUp')}
+                      disabled={currentReviewIndex <= 0}
+                      className="rounded-lg border bg-white px-2.5 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      onClick={() => handleArrowAction('ArrowDown')}
+                      disabled={currentReviewIndex < 0 || currentReviewIndex >= reviewStocks.length - 1}
+                      className="rounded-lg border bg-white px-2.5 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      onClick={() => handleArrowAction('ArrowRight')}
+                      disabled={!currentReviewStock}
+                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 font-bold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      → 후보
+                    </button>
+                    <button
+                      onClick={saveReviewCandidates}
+                      disabled={savingReviewGroup || candidateCount === 0}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                    >
+                      저장
+                    </button>
+                  </div>
+                  {(industries.length > 0 || themes.length > 0) && (
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                       {industries.map((industry) => (
-                        <span key={industry} className="rounded bg-blue-100 px-2 py-0.5 text-blue-700">
+                        <span key={industry} className="rounded-full bg-[var(--surface-accent)] px-2 py-0.5 text-[var(--primary)]">
                           {industry}
                         </span>
                       ))}
-                    </div>
-                  )}
-                  {themes.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      <span className="font-medium text-gray-500">테마:</span>
-                      <div className="flex flex-wrap gap-1">
-                        {(showAllThemes ? themes : themes.slice(0, 5)).map((theme) => (
-                          <span key={theme} className="rounded bg-purple-100 px-2 py-0.5 text-purple-700">
-                            {theme}
-                          </span>
-                        ))}
-                        {themes.length > 5 && (
-                          <button
-                            onClick={() => setShowAllThemes((prev) => !prev)}
-                            className="px-1 text-xs font-medium text-gray-500 underline hover:text-gray-700"
-                            title={showAllThemes ? '접기' : '전체 보기'}
-                          >
-                            {showAllThemes ? '접기' : `+${themes.length - 5} 더보기`}
-                          </button>
-                        )}
-                      </div>
+                      {(showAllThemes ? themes : themes.slice(0, 4)).map((theme) => (
+                        <span key={theme} className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                          {theme}
+                        </span>
+                      ))}
+                      {themes.length > 4 && (
+                        <button
+                          onClick={() => setShowAllThemes((prev) => !prev)}
+                          className="px-1 font-medium text-[var(--text-muted)] underline hover:text-slate-900"
+                        >
+                          {showAllThemes ? '접기' : `+${themes.length - 4}`}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="rounded bg-gray-100 px-2 py-1 text-gray-600">← 제외</span>
-                  <span className="rounded bg-gray-100 px-2 py-1 text-gray-600">→ 후보 편입</span>
-                  <span className="rounded bg-gray-100 px-2 py-1 text-gray-600">↑ 이전 차트</span>
-                  <span className="rounded bg-gray-100 px-2 py-1 text-gray-600">↓ 다음 차트</span>
-                </div>
               </div>
-
-              <div className="flex flex-col items-end gap-2">
-                <div className="flex items-center gap-1 rounded-lg bg-gray-100 p-1">
-                  <div className="mr-2 flex rounded border border-gray-200 bg-white p-[2px]">
-                    <button
-                      onClick={() => setTimeframe('daily')}
-                      className={`rounded px-2 py-0.5 text-xs font-bold ${timeframe === 'daily' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-                    >
-                      일
-                    </button>
-                    <button
-                      onClick={() => setTimeframe('weekly')}
-                      className={`rounded px-2 py-0.5 text-xs font-bold ${timeframe === 'weekly' ? 'bg-blue-500 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
-                    >
-                      주
-                    </button>
-                  </div>
-
-                  <select
-                    value={targetGroup}
-                    onChange={(e) => setTargetGroup(e.target.value)}
-                    className="cursor-pointer bg-transparent px-1 text-xs font-bold text-gray-700 outline-none"
-                  >
-                    {favGroups.map((group) => (
-                      <option key={group} value={group}>{group}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={toggleFavorite}
-                    className={`px-1 text-xl transition-transform hover:scale-110 ${isFavorite ? 'text-yellow-400' : 'text-gray-300'}`}
-                    title={`'${targetGroup}'에 ${isFavorite ? '삭제' : '추가'}`}
-                  >
-                    {isFavorite ? '⭐' : '☆'}
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <button
-                    onClick={() => handleArrowAction('ArrowLeft')}
-                    disabled={!currentReviewStock}
-                    className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    ← 제외
-                  </button>
-                  <button
-                    onClick={() => handleArrowAction('ArrowUp')}
-                    disabled={currentReviewIndex <= 0}
-                    className="rounded-lg border bg-white px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    ↑ 이전
-                  </button>
-                  <button
-                    onClick={() => handleArrowAction('ArrowDown')}
-                    disabled={currentReviewIndex < 0 || currentReviewIndex >= reviewStocks.length - 1}
-                    className="rounded-lg border bg-white px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    ↓ 다음
-                  </button>
-                  <button
-                    onClick={() => handleArrowAction('ArrowRight')}
-                    disabled={!currentReviewStock}
-                    className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    → 후보 편입
-                  </button>
-                  <button
-                    onClick={saveReviewCandidates}
-                    disabled={savingReviewGroup || candidateCount === 0}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                  >
-                    관심종목 저장
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative min-h-0 flex-1 bg-white">
-            {chartLoading ? (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400">차트 로딩 중...</div>
-            ) : data.length > 0 ? (
-              <StockChart data={data} />
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-400">데이터가 없습니다</div>
-            )}
+              {chartLoading ? (
+                <div className="flex h-full items-center justify-center text-gray-400">차트 로딩 중...</div>
+              ) : data.length > 0 ? (
+                <StockChart data={data} />
+              ) : (
+                <div className="flex h-full items-center justify-center text-gray-400">데이터가 없습니다</div>
+              )}
+            </FullscreenPanel>
           </div>
         </div>
       </main>

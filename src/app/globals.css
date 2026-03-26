@@ -1,14 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f7fb;
+  --foreground: #111827;
   --surface: #ffffff;
-  --surface-muted: #f9fafb;
-  --surface-strong: #f3f4f6;
-  --border: #e5e7eb;
-  --text-muted: #6b7280;
-  --text-subtle: #9ca3af;
+  --surface-muted: #f8fafc;
+  --surface-strong: #eef2f7;
+  --surface-accent: #e8f0ff;
+  --border: #d7deea;
+  --border-strong: #c3cede;
+  --text-muted: #5f6f85;
+  --text-subtle: #8a97aa;
+  --primary: #1d4ed8;
+  --primary-strong: #1e40af;
+  --primary-soft: #dbeafe;
+  --success-soft: #dcfce7;
+  --success-strong: #166534;
+  --danger-soft: #fee2e2;
+  --danger-strong: #b91c1c;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.06);
 }
 
 @theme inline {
@@ -18,8 +29,71 @@
   --font-mono: var(--font-geist-mono);
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--primary-soft);
+  color: var(--foreground);
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at top left, rgba(219, 234, 254, 0.8), transparent 28%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 36%, #f5f7fb 100%);
+}
+
+.app-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.app-card-strong {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-md);
+}
+
+.app-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  border-radius: 14px;
+  padding: 0.8rem 0.95rem;
+  outline: none;
+}
+
+.app-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.app-muted {
+  color: var(--text-muted);
+}
+
+.app-subtle {
+  color: var(--text-subtle);
 }

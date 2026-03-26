@@ -3,78 +3,91 @@
 .react-calendar {
   width: 100% !important;
   border: none !important;
-  font-family: sans-serif;
+  background: transparent !important;
+  font-family: var(--font-geist-sans), sans-serif;
 }
 
-/* 네비게이션(상단) 스타일 */
 .react-calendar__navigation {
   height: 60px !important;
   margin-bottom: 20px !important;
 }
+
 .react-calendar__navigation button {
-  min-width: 50px !important;
+  min-width: 44px !important;
   background: none !important;
-  font-size: 24px !important;
-  color: #2563eb !important;
-  border-radius: 10px !important;
+  font-size: 22px !important;
+  color: #1f2937 !important;
+  border-radius: 12px !important;
 }
+
 .react-calendar__navigation button:enabled:hover,
 .react-calendar__navigation button:enabled:focus {
-  background-color: #eff6ff !important;
+  background-color: #eef2f7 !important;
 }
+
 .react-calendar__navigation__label {
   font-weight: 800 !important;
   font-size: 20px !important;
   pointer-events: none;
 }
 
-/* ★ 날짜 칸(Tile) 스타일 수정: 스크롤 가능하게 변경 */
 .react-calendar__tile {
-  height: 140px !important; /* 높이를 조금 더 확보 */
+  height: 138px !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: flex-start !important;
   align-items: flex-start !important;
-  padding: 5px !important; /* 여백 줄임 */
-  border: 1px solid #f0f0f0 !important;
-  font-size: 14px;
-  font-weight: bold;
-  overflow: hidden; /* 전체 칸은 넘치지 않게 */
+  padding: 8px !important;
+  border: 1px solid #edf1f6 !important;
+  background: #ffffff !important;
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
 }
 
-/* ★ 스케줄들이 들어가는 내부 컨테이너 (스크롤 영역) */
 .tile-content-container {
   width: 100%;
   height: 100%;
-  overflow-y: auto; /* 내용이 많으면 세로 스크롤 생성 */
-  margin-top: 4px;
-  padding-right: 2px; /* 스크롤바 공간 확보 */
-  
-  /* 스크롤바 숨기기 (선택사항 - 깔끔하게 보이려면 주석 해제) */
-  /* -ms-overflow-style: none; */ /* IE and Edge */
-  /* scrollbar-width: none; */  /* Firefox */
+  overflow-y: auto;
+  margin-top: 6px;
+  padding-right: 2px;
 }
-/* .tile-content-container::-webkit-scrollbar { display: none; } */ /* Chrome */
+
+.tile-content-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tile-content-container::-webkit-scrollbar-thumb {
+  background: #dbe3ef;
+  border-radius: 999px;
+}
 
 .react-calendar__tile--active {
-  background: #2563eb !important;
-  color: white !important;
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
 }
+
 .react-calendar__tile--now {
-  background: #fffbeb !important;
-  color: #b45309 !important;
+  background: #f8fafc !important;
+  color: #111827 !important;
+  box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 
 .react-calendar__month-view__weekdays {
   text-align: center;
-  font-weight: bold;
-  font-size: 1rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #64748b;
+  letter-spacing: 0.04em;
   margin-bottom: 10px;
+  text-transform: uppercase;
 }
+
 .react-calendar__month-view__weekdays__weekday {
   padding: 10px 0;
   text-decoration: none !important;
 }
+
 abbr[title] { text-decoration: none !important; }
 
 @media (max-width: 640px) {
@@ -85,17 +98,17 @@ abbr[title] { text-decoration: none !important; }
 
   .react-calendar__navigation button {
     min-width: 40px !important;
-    font-size: 18px !important;
+    font-size: 19px !important;
   }
 
   .react-calendar__navigation__label {
-    font-size: 16px !important;
+    font-size: 17px !important;
   }
 
   .react-calendar__tile {
-    height: 96px !important;
-    font-size: 12px;
-    padding: 4px !important;
+    height: 104px !important;
+    font-size: 13px;
+    padding: 6px !important;
   }
 
   .tile-content-container {
@@ -103,7 +116,7 @@ abbr[title] { text-decoration: none !important; }
   }
 
   .schedule-bar {
-    font-size: 10px;
-    padding: 2px 4px;
+    font-size: 11px;
+    padding: 4px 6px;
   }
 }
