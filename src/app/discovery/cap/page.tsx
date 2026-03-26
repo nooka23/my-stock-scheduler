@@ -29,6 +29,9 @@ type FavItem = {
   group: string;
 };
 
+type SortField = 'rsRating' | 'marcap' | 'volume';
+type SortDirection = 'desc' | 'asc';
+
 type CompanyRow = {
   code: string;
   name: string | null;
@@ -91,6 +94,8 @@ export default function CapDiscoveryPage() {
   const [isChartLoading, setIsChartLoading] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>('marcap');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [referenceDate, setReferenceDate] = useState('');
@@ -426,17 +431,47 @@ export default function CapDiscoveryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [stocks.length]);
+  }, [stocks.length, sortField, sortDirection]);
 
   useEffect(() => {
+    const sortedStocks = [...stocks].sort((a, b) => {
+      const aValue = a[sortField] ?? -1;
+      const bValue = b[sortField] ?? -1;
+
+      if (aValue === bValue) {
+        return a.code.localeCompare(b.code);
+      }
+
+      if (sortDirection === 'desc') {
+        return Number(bValue) - Number(aValue);
+      }
+
+      return Number(aValue) - Number(bValue);
+    });
+
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    setDisplayedStocks(stocks.slice(startIndex, endIndex));
-  }, [stocks, currentPage]);
+    setDisplayedStocks(sortedStocks.slice(startIndex, endIndex));
+  }, [stocks, currentPage, sortField, sortDirection]);
 
   const totalPages = Math.ceil(stocks.length / ITEMS_PER_PAGE);
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= totalPages) setCurrentPage(page);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+      return;
+    }
+
+    setSortField(field);
+    setSortDirection('desc');
+  };
+
+  const getSortLabel = (field: SortField, label: string) => {
+    if (sortField !== field) return label;
+    return `${label} ${sortDirection === 'desc' ? '↓' : '↑'}`;
   };
 
   const isFavorite = selectedStock
@@ -478,9 +513,33 @@ export default function CapDiscoveryPage() {
                 <tr>
                   <th className="px-2 py-2 font-medium w-10 text-center">#</th>
                   <th className="px-2 py-2 font-medium">종목명</th>
-                  <th className="px-2 py-2 font-medium text-right">RS</th>
-                  <th className="px-2 py-2 font-medium text-right">시총</th>
-                  <th className="px-2 py-2 font-medium text-right">거래량</th>
+                  <th className="px-2 py-2 font-medium text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleSort('rsRating')}
+                      className="w-full text-right hover:text-gray-700"
+                    >
+                      {getSortLabel('rsRating', 'RS')}
+                    </button>
+                  </th>
+                  <th className="px-2 py-2 font-medium text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleSort('marcap')}
+                      className="w-full text-right hover:text-gray-700"
+                    >
+                      {getSortLabel('marcap', '시총')}
+                    </button>
+                  </th>
+                  <th className="px-2 py-2 font-medium text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleSort('volume')}
+                      className="w-full text-right hover:text-gray-700"
+                    >
+                      {getSortLabel('volume', '거래량')}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
