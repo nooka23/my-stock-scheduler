@@ -1,0 +1,27 @@
+{
+  "updated_at": "2026-03-31T14:48:41",
+  "configured_start_period": {
+    "year": 2022,
+    "quarter": 4
+  },
+  "configured_end_period": {
+    "year": 2000,
+    "quarter": 1
+  },
+  "batch_size": 11,
+  "next_period": {
+    "year": 2021,
+    "quarter": 3
+  },
+  "last_completed_period": {
+    "year": 2021,
+    "quarter": 4
+  },
+  "completed_periods": [
+    "2022Q4",
+    "2022Q3",
+    "2022Q2",
+    "2022Q1",
+    "2021Q4"
+  ]
+}

@@ -36,6 +36,45 @@ python3 scripts/export_dart_financials_by_account_id.py --year 2025 --quarter 3
 python3 scripts/export_dart_financials_by_account_id.py --year 2025 --quarter 3 --codes 005930 000660
 ```
 
+### 4. 과거 데이터 일별 백필
+
+2023년까지 저장이 끝났고 2022Q4부터 2000Q1까지 하루 11개 분기씩 채우려면 아래 래퍼를 사용한다.
+
+```bash
+python3 scripts/export_dart_financials_backfill_daily.py --dry-run
+python3 scripts/export_dart_financials_backfill_daily.py
+```
+
+기본값:
+
+- 시작 분기: `2022Q4`
+- 종료 분기: `2000Q1`
+- 일일 처리량: `11`개 분기
+- 진행 상태 파일: `scripts/output/dart_financials_backfill_state.json`
+
+매 실행마다 상태 파일의 `next_period`부터 이어서 처리한다.
+중간에 실패하면 실패한 분기부터 다음 실행 때 다시 시도한다.
+
+처음부터 다시 시작하려면:
+
+```bash
+python3 scripts/export_dart_financials_backfill_daily.py --reset-state
+```
+
+매일 오전 8시에 자동 실행하려면 `cron`에 아래처럼 등록하면 된다.
+
+```cron
+0 8 * * * /Users/myunghoon/my-stock-scheduler/scripts/run_dart_financials_backfill_daily.sh
+```
+
+등록 예시:
+
+```bash
+crontab -e
+```
+
+로그는 `scripts/output/dart_backfill_logs/` 아래에 날짜별로 저장된다.
+
 ## 테이블 구조
 
 주요 컬럼:

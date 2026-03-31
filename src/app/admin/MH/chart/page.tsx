@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import StockChart from '@/components/StockChart';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import StockChart, { type StockChartHandle } from '@/components/StockChart';
 import FullscreenPanel from '@/components/FullscreenPanel';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
@@ -29,6 +29,26 @@ type ChartData = {
   keltner?: { upper: number; lower: number; middle: number };
   macd?: { macd: number; signal: number; histogram: number };
 };
+
+function formatChartLegend(item: ChartData | undefined) {
+  if (!item) {
+    return '지표 로딩중...';
+  }
+
+  const fmtPrice = (value: number | undefined) =>
+    typeof value === 'number' && !Number.isNaN(value) ? value.toLocaleString() : '-';
+  const fmtVol = (value: number | undefined) =>
+    typeof value === 'number' && !Number.isNaN(value) ? value.toLocaleString() : '-';
+  const fmtRS = (value: number | undefined) =>
+    typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(2) : '-';
+
+  return {
+    ema20: fmtPrice(item.ema20),
+    wma150: fmtPrice(item.wma150),
+    volume: fmtVol(item.volume),
+    rs: fmtRS(item.rs),
+  };
+}
 
 type TableStock = {
   code: string;
@@ -67,6 +87,7 @@ const REVIEW_LIMIT = 420;
 
 export default function ChartPage() {
   const supabase = createClientComponentClient();
+  const chartRef = useRef<StockChartHandle | null>(null);
 
   const [data, setData] = useState<ChartData[]>([]);
   const [rawDailyData, setRawDailyData] = useState<ChartData[]>([]);
@@ -101,6 +122,8 @@ export default function ChartPage() {
   const [industries, setIndustries] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
   const [showAllThemes, setShowAllThemes] = useState(false);
+  const [legendData, setLegendData] = useState<ChartData | undefined>(undefined);
+  const legendDisplay = formatChartLegend(legendData);
 
   const convertToWeekly = (dailyData: ChartData[]): ChartData[] => {
     if (dailyData.length === 0) return [];
@@ -536,6 +559,7 @@ export default function ChartPage() {
   useEffect(() => {
     if (rawDailyData.length === 0) {
       setData([]);
+      setLegendData(undefined);
       return;
     }
 
@@ -551,13 +575,16 @@ export default function ChartPage() {
     const keltner = calculateKeltner(targetData, 20, 2.25);
     const macd = calculateMACD(targetData, 3, 10, 16);
 
-    setData(targetData.map((point, index) => ({
+    const nextData = targetData.map((point, index) => ({
       ...point,
       ema20: ema[index],
       wma150: wma[index],
       keltner: keltner[index],
       macd: macd[index],
-    })));
+    }));
+
+    setData(nextData);
+    setLegendData(nextData[nextData.length - 1]);
   }, [rawDailyData, timeframe]);
 
   const handleStockClick = (stock: TableStock) => {
@@ -979,6 +1006,81 @@ export default function ChartPage() {
                     <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
                       {latestDate || '-'}
                     </span>
+                    <div className="ml-1 flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-1 py-1">
+                      <button
+                        type="button"
+                        onClick={() => chartRef.current?.startDrawing('segment')}
+                        className="flex h-7 w-7 items-center justify-center rounded-[5px] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                        title="추세선"
+                        aria-label="추세선"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square">
+                          <circle cx="6" cy="16" r="1.6" fill="currentColor" stroke="none" />
+                          <circle cx="18" cy="8" r="1.6" fill="currentColor" stroke="none" />
+                          <path d="M7.5 14.5L16.5 9.5" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => chartRef.current?.startDrawing('straightLine')}
+                        className="flex h-7 w-7 items-center justify-center rounded-[5px] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                        title="좌우 연장선"
+                        aria-label="좌우 연장선"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square">
+                          <path d="M3 16L21 8" />
+                          <path d="M3 16H5" />
+                          <path d="M19 8H21" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => chartRef.current?.startDrawing('horizontalStraightLine')}
+                        className="flex h-7 w-7 items-center justify-center rounded-[5px] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                        title="수평선"
+                        aria-label="수평선"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square">
+                          <path d="M4 12H20" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => chartRef.current?.startDrawing('parallelStraightLine')}
+                        className="flex h-7 w-7 items-center justify-center rounded-[5px] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                        title="평행선"
+                        aria-label="평행선"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square">
+                          <path d="M5 16L11 10" />
+                          <path d="M10 19L19 10" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => chartRef.current?.startDrawing('verticalStraightLine')}
+                        className="flex h-7 w-7 items-center justify-center rounded-[5px] border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+                        title="수직선"
+                        aria-label="수직선"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square">
+                          <path d="M12 4V20" />
+                        </svg>
+                      </button>
+                      <div className="mx-0.5 h-4 w-px bg-slate-200" />
+                      <button
+                        type="button"
+                        onClick={() => chartRef.current?.clearDrawings()}
+                        className="flex h-7 w-7 items-center justify-center rounded-[5px] border border-slate-200 bg-white text-rose-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                        title="그린 선 모두 지우기"
+                        aria-label="그린 선 모두 지우기"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square">
+                          <path d="M6 6L18 18" />
+                          <path d="M18 6L6 18" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                     <div className="flex rounded-xl border border-[var(--border)] bg-white p-[2px]">
@@ -1069,12 +1171,36 @@ export default function ChartPage() {
                       )}
                     </div>
                   )}
+                  <div className="mt-3 border-t border-[var(--border)] pt-3">
+                    {typeof legendDisplay === 'string' ? (
+                      <span className="text-xs text-gray-400">{legendDisplay}</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-4 text-xs font-medium text-gray-700">
+                        <div className="flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                          <span>EMA(20): {legendDisplay.ema20}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="h-2 w-2 rounded-full bg-black" />
+                          <span>WMA(150): {legendDisplay.wma150}</span>
+                        </div>
+                        <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
+                          <span className="font-bold text-teal-600">Vol:</span>
+                          <span>{legendDisplay.volume}</span>
+                        </div>
+                        <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
+                          <span className="font-bold text-purple-600">RS:</span>
+                          <span>{legendDisplay.rs}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               {chartLoading ? (
                 <div className="flex h-full items-center justify-center text-gray-400">차트 로딩 중...</div>
               ) : data.length > 0 ? (
-                <StockChart data={data} />
+                <StockChart ref={chartRef} data={data} showLegend={false} onLegendChange={setLegendData} />
               ) : (
                 <div className="flex h-full items-center justify-center text-gray-400">데이터가 없습니다</div>
               )}
