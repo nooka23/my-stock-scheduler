@@ -716,6 +716,13 @@ export default function ChartPage() {
     moveReview(1);
   }, [currentReviewStock, getStockStatus, moveReview, updateReviewStatus]);
 
+  const handleTimeframeShortcut = useCallback((key: string) => {
+    if (key !== '0') return false;
+
+    setTimeframe((prev) => (prev === 'daily' ? 'weekly' : 'daily'));
+    return true;
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -725,6 +732,11 @@ export default function ChartPage() {
         if (isTypingTarget) return;
       }
 
+      if (handleTimeframeShortcut(event.key)) {
+        event.preventDefault();
+        return;
+      }
+
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault();
       handleArrowAction(event.key as 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown');
@@ -732,7 +744,7 @@ export default function ChartPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleArrowAction]);
+  }, [handleArrowAction, handleTimeframeShortcut]);
 
   const saveReviewCandidates = async () => {
     const candidateStocks = reviewStocks.filter((stock) => reviewStatusMap[stock.code] === 'candidate');
@@ -1086,12 +1098,14 @@ export default function ChartPage() {
                     <div className="flex rounded-xl border border-[var(--border)] bg-white p-[2px]">
                       <button
                         onClick={() => setTimeframe('daily')}
+                        title="0"
                         className={`rounded-lg px-2 py-0.5 font-semibold ${timeframe === 'daily' ? 'bg-slate-950 text-white' : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)]'}`}
                       >
                         일
                       </button>
                       <button
                         onClick={() => setTimeframe('weekly')}
+                        title="0"
                         className={`rounded-lg px-2 py-0.5 font-semibold ${timeframe === 'weekly' ? 'bg-slate-950 text-white' : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)]'}`}
                       >
                         주
