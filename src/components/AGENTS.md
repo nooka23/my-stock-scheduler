@@ -41,6 +41,7 @@ When updating or creating other chart components in `src/components/`, follow th
 - Do not let indicator legends cover candles or chart controls.
 - Prefer page-level legends placed near the title/metadata area rather than absolute overlays inside the chart.
 - `StockChart.tsx` exposes `onLegendChange` so pages can render legends outside the chart surface.
+- If an absolute overlay is unavoidable, its outer wrapper must use `pointer-events-none` and only the actual interactive controls may use `pointer-events-auto`.
 
 ### Drawing Tool Rules
 
@@ -48,6 +49,7 @@ When updating or creating other chart components in `src/components/`, follow th
 - For the MH chart page, tools are rendered in the page header next to the stock name, not inside the chart body.
 - Keep the tool UI compact, rectangular, and low-noise.
 - Use `KLineChart` built-in overlays for drawing features.
+- If a floating control block remains inside the chart container for layout reasons, keep its transparent area non-interactive so crosshair tracking still works outside the visible card.
 
 Current drawing tools in use:
 - `segment`: trend line
@@ -79,6 +81,8 @@ If another chart in `src/components/` needs to adopt today's behavior:
 3. If a page already has a title/header area, place chart tools there instead of overlaying them on the canvas.
 4. Keep toolbar actions page-owned when placement near title text is desired.
    `StockChart.tsx` should expose imperative methods through a ref rather than rendering heavy chart-local toolbars.
+5. If a page uses absolute chart overlays, treat pointer-event scope as part of the chart behavior.
+   Large overlay wrappers should not intercept mousemove events needed for crosshair tracking.
 
 ## Known Technical Notes
 

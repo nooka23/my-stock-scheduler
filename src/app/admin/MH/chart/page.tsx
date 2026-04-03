@@ -1006,8 +1006,8 @@ export default function ChartPage() {
         <div className="app-card-strong relative flex flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 p-2">
             <FullscreenPanel>
-              <div className="absolute left-3 top-3 right-24 z-10 flex flex-wrap items-start gap-2">
-                <div className="rounded-2xl bg-white/92 px-3 py-2 shadow-[var(--shadow-sm)] backdrop-blur">
+              <div className="pointer-events-none absolute left-3 top-3 right-24 z-10 flex flex-wrap items-start gap-2">
+                <div className="pointer-events-auto rounded-2xl bg-white/92 px-3 py-2 shadow-[var(--shadow-sm)] backdrop-blur">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-semibold text-slate-950">{currentCompany.name}</span>
                     <span className="text-xs font-medium text-[var(--text-muted)]">{currentCompany.code}</span>
