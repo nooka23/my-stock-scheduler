@@ -342,24 +342,6 @@ function detectVCP(data: OHLCV[]): { detected: boolean; meta?: Record<string, nu
   // 일봉 노이즈를 걸러내기 위해 주봉(SW=3)보다 넓게 잡는다.
   const SW = 5;
 
-  // ── 구간 평균 ATR% ────────────────────────────────────────────────────────
-  // True Range = max(고-저, |고-전종|, |저-전종|)
-  // 각 봉의 TR을 종가로 나눠 가격 수준에 무관하게 정규화한다.
-  //   → T1 구간이 T2 구간보다 주가가 낮더라도 공정하게 비교 가능.
-  // fromIdx ~ toIdx 범위의 봉들을 평균내어 해당 T의 변동성 대표값으로 쓴다.
-  function segmentAtrPct(fromIdx: number, toIdx: number): number {
-    let sum = 0, count = 0;
-    // j=0은 이전봉이 없어 TR 계산 불가이므로 Math.max(1, fromIdx)로 시작
-    for (let j = Math.max(1, fromIdx); j <= toIdx; j++) {
-      const tr = Math.max(
-        daily[j].high - daily[j].low,                    // 당일 고저폭
-        Math.abs(daily[j].high - daily[j - 1].close),   // 갭업 포함 고점 변동
-        Math.abs(daily[j].low  - daily[j - 1].close),   // 갭다운 포함 저점 변동
-      );
-      if (daily[j].close > 0) { sum += tr / daily[j].close; count++; }
-    }
-    return count > 0 ? sum / count : 0;
-  }
 
   // ── 50일 평균 거래량 ──────────────────────────────────────────────────────
   // 현재 거래량이 이 값보다 낮으면 "거래량 수축" 상태로 판단한다.
@@ -404,105 +386,234 @@ function detectVCP(data: OHLCV[]): { detected: boolean; meta?: Record<string, nu
 
   const current = daily[n - 1].close;
 
-  // ── 수축 시리즈 탐색 ─────────────────────────────────────────────────────
-  // alt 배열의 각 고점을 VCP 시작 후보로 삼아 H→L 쌍(T)을 수집한다.
-  // s가 고점이어야 하므로 !alt[s].isHigh면 건너뛴다.
-  // alt.length - 3: T가 최소 2개(H L H L = 4개 포인트)여야 하므로 끝에서 3개 전까지만.
-  for (let s = 0; s < alt.length - 3; s++) {
-    if (!alt[s].isHigh) continue;
+  // ── VCP 시작점: 52주 최고가에 해당하는 스윙 고점을 앵커로 고정 ─────────────
+  // 컵핸들의 left rim 방식과 동일: 패턴 시작은 해당 기간 최고가여야 한다.
+  // 낮은 스윙 고점에서 시작하면 피벗도 낮게 잡히는 문제를 방지한다.
+  const yearHigh = Math.max(...daily.slice(-250).map((d) => d.high));
 
-    const depths: number[]     = []; // 각 T의 조정폭 (고점 대비 하락률)
-    const highPrices: number[] = []; // 각 T의 고점 가격
-    const lowPrices: number[]  = []; // 각 T의 저점 가격
-    const highIdxs: number[]   = []; // 각 T의 고점 인덱스 (ATR 구간 계산용)
-    const lowIdxs: number[]    = []; // 각 T의 저점 인덱스
-    let i = s;
-
-    // alt[i]=고점, alt[i+1]=저점 쌍을 순서대로 수집.
-    // 쌍이 깨지면(고점 다음이 고점이면) 중단.
-    while (i + 1 < alt.length && depths.length < 6) {
-      if (!alt[i].isHigh || alt[i + 1].isHigh) break;
-      const h = alt[i].price;
-      const l = alt[i + 1].price;
-      depths.push((h - l) / h);  // 조정폭 = (고점 - 저점) / 고점
-      highPrices.push(h);
-      lowPrices.push(l);
-      highIdxs.push(alt[i].idx);
-      lowIdxs.push(alt[i + 1].idx);
-      i += 2; // 다음 H→L 쌍으로 이동
+  // alt에서 52주 최고가의 97% 이상인 스윙 고점 중 가장 오래된 것을 시작점으로 선택
+  // (더블탑처럼 비슷한 고점이 여럿 있을 때 첫 번째가 패턴의 실질적 시작)
+  let anchorIdx = -1;
+  for (let s = 0; s < alt.length; s++) {
+    if (alt[s].isHigh && alt[s].price >= yearHigh * 0.97) {
+      anchorIdx = s;
+      break;
     }
+  }
+  if (anchorIdx === -1) return { detected: false };
 
-    const t = depths.length;
-    if (t < 2 || t > 6) continue;
+  // ── 앵커부터 H→L 쌍(T) 수집 ─────────────────────────────────────────────
+  // 컵핸들과 달리 루프 없이 단일 시작점에서만 탐색한다.
+  const depths: number[]     = []; // 각 T의 조정폭 (고점 대비 하락률)
+  const highPrices: number[] = []; // 각 T의 고점 가격
+  const lowPrices: number[]  = []; // 각 T의 저점 가격
+  const highIdxs: number[]   = []; // 각 T의 고점 인덱스
+  const lowIdxs: number[]    = []; // 각 T의 저점 인덱스
+  let i = anchorIdx;
 
-    // [1] 첫 번째 T 조정폭: 20~50%
-    // 20% 미만이면 의미 있는 조정이 아닌 노이즈,
-    // 50% 초과면 VCP가 아닌 대형 붕괴로 본다.
-    if (depths[0] < 0.20 || depths[0] > 0.50) continue;
+  // alt[i]=고점, alt[i+1]=저점 쌍을 순서대로 수집.
+  // 쌍이 깨지면(고점 다음이 고점이면) 중단.
+  while (i + 1 < alt.length && depths.length < 6) {
+    if (!alt[i].isHigh || alt[i + 1].isHigh) break;
+    const h = alt[i].price;
+    const l = alt[i + 1].price;
+    depths.push((h - l) / h);  // 조정폭 = (고점 - 저점) / 고점
+    highPrices.push(h);
+    lowPrices.push(l);
+    highIdxs.push(alt[i].idx);
+    lowIdxs.push(alt[i + 1].idx);
+    i += 2; // 다음 H→L 쌍으로 이동
+  }
 
-    // [2] 조정폭 수축: depths[0] > depths[1] > depths[2] > ...
-    // 하나라도 커지는 T가 있으면 수축이 깨진 것으로 기각.
-    let depthContracting = true;
-    for (let k = 1; k < t; k++) {
-      if (depths[k] >= depths[k - 1]) { depthContracting = false; break; }
+  const t = depths.length;
+  if (t < 2 || t > 6) return { detected: false };
+
+  // [1] 첫 번째 T 조정폭: 20~50%
+  // 20% 미만이면 의미 있는 조정이 아닌 노이즈,
+  // 50% 초과면 VCP가 아닌 대형 붕괴로 본다.
+  if (depths[0] < 0.20 || depths[0] > 0.50) return { detected: false };
+
+  // [2] 조정폭 수축: depths[0] > depths[1] > depths[2] > ...
+  // 하나라도 커지는 T가 있으면 수축이 깨진 것으로 기각.
+  for (let k = 1; k < t; k++) {
+    if (depths[k] >= depths[k - 1]) return { detected: false };
+  }
+
+  // [3] Higher lows: 각 T 저점 >= 직전 T 저점 × 95%
+  // 저점이 직전 저점보다 5% 넘게 낮아지면 기각.
+  // 상승 추세 내 조정임을 확인하는 조건이다.
+  for (let k = 1; k < t; k++) {
+    if (lowPrices[k] < lowPrices[k - 1] * 0.95) return { detected: false };
+  }
+
+  // [4] 현재가가 VCP 시작 고점(첫 T 고점 = 52주 고점)의 85%~105%
+  // 85% 미만: 주가가 너무 많이 빠져 VCP 범위를 벗어남.
+  // 105% 초과: 이미 돌파해버린 상태라 감지 시점이 지남.
+  const startPrice = highPrices[0];
+  if (current < startPrice * 0.85 || current > startPrice * 1.05) return { detected: false };
+
+  // [5] 일평균 변동성 수축: depth / 기간(일수) 가 단조감소해야 한다.
+  // depth만으로는 T가 짧아지면서 폭도 좁아지는 경우 항상 통과해버리므로,
+  // 기간으로 나눠 "하루에 얼마나 움직였는가"를 비교한다.
+  // 예) T1: depth 30% / 40일 = 0.0075/일
+  //     T2: depth 20% / 10일 = 0.0200/일 → T2가 더 격렬하므로 기각
+  const tDailyVol = depths.map((d, k) => d / Math.max(1, lowIdxs[k] - highIdxs[k]));
+  for (let k = 1; k < t; k++) {
+    if (tDailyVol[k] >= tDailyVol[k - 1]) return { detected: false };
+  }
+
+  // [6] 거래량 수축: 현재 거래량 < 50일 평균 거래량
+  // 수축 국면에서 거래가 줄어드는 것을 확인. 50일 이동평균 거래량 기준.
+  if (currentVol >= vol50) return { detected: false };
+
+  // [7] 시의성: 마지막 저점이 최근 40일 이내
+  // SW=5 특성상 감지 가능한 최신 저점은 n-6봉. 여기서 40일 이내면 진행 중으로 판단.
+  const lastLowIdx = lowIdxs[t - 1];
+  if (n - 1 - lastLowIdx > 40) return { detected: false };
+
+  // [8] 회복 중: 현재가 > 마지막 저점
+  // 아직 바닥을 벗어나지 못했다면 감지하지 않는다.
+  if (current <= lowPrices[t - 1]) return { detected: false };
+
+  // 마지막 T의 고점 = 돌파 피벗 (이 가격을 넘으면 breakout)
+  const pivotHigh = highPrices[t - 1];
+
+  // [9] 피벗 고점 대비 5% 이상 상승한 경우 이미 돌파한 것으로 보고 제외
+  if (current > pivotHigh * 1.05) return { detected: false };
+
+  // 패턴 기간: 첫 T 고점 인덱스 ~ 마지막 T 저점 인덱스 (거래일 수)
+  const patternDays = lowIdxs[t - 1] - highIdxs[0];
+
+  return {
+    detected: true,
+    meta: {
+      tCount:        t,
+      t1Depth:       depths[0],
+      lastDepth:     depths[t - 1],
+      pivotHigh,
+      distFromPivot: (pivotHigh - current) / pivotHigh, // 피벗까지 남은 거리
+      volRatio:      currentVol / vol50,                 // 1 미만이면 거래량 수축 중
+      patternDays,
+    },
+  };
+}
+
+// ─── 스퀘어 박스 (William O'Neil) ────────────────────────────────────────────
+// 기준 (주봉 기준):
+//  1. 선행 상승: 박스 직전 10주 저점 대비 박스 고점이 20% 이상 상승
+//  2. 박스 기간: 3~6주
+//  3. 박스 깊이: (고점 - 저점) / 저점 < 15%
+//  4. 현재가가 박스 고점의 95% 이상 (돌파 직전)
+//  5. 거래량 수축: 박스 평균 거래량 <= 직전 5주 평균
+function detectSquareBox(data: OHLCV[]): { detected: boolean; meta?: Record<string, number> } {
+  const weekly = toWeekly(data);
+  const n = weekly.length;
+
+  // 최소: 선행 구간 5주 + 박스 최소 3주 = 8주
+  if (n < 8) return { detected: false };
+
+  const current = weekly[n - 1].close;
+
+  for (let boxLen = 3; boxLen <= Math.min(6, n - 5); boxLen++) {
+    const boxData = weekly.slice(-boxLen);
+    const boxHigh = Math.max(...boxData.map((d) => d.high));
+    const boxLow  = Math.min(...boxData.map((d) => d.low));
+
+    // 박스 깊이: < 15%
+    const depth = (boxHigh - boxLow) / boxLow;
+    if (depth >= 0.15) continue;
+
+    // 현재가가 박스 고점 95% 이상 (돌파 직전)
+    if (current < boxHigh * 0.95) continue;
+
+    // 선행 상승: 박스 직전 10주 저점 대비 박스 고점 20% 이상
+    const priorWindow = weekly.slice(Math.max(0, n - boxLen - 10), n - boxLen);
+    if (priorWindow.length < 3) continue;
+    const priorLow = Math.min(...priorWindow.map((d) => d.low));
+    if (priorLow <= 0 || (boxHigh - priorLow) / priorLow < 0.20) continue;
+
+    // 거래량 수축: 박스 평균 <= 직전 5주 평균
+    const preBoxData = weekly.slice(-(boxLen + 5), -boxLen);
+    if (preBoxData.length >= 3) {
+      const boxAvgVol = boxData.reduce((s, d) => s + d.volume, 0) / boxData.length;
+      const preAvgVol = preBoxData.reduce((s, d) => s + d.volume, 0) / preBoxData.length;
+      if (boxAvgVol > preAvgVol) continue;
     }
-    if (!depthContracting) continue;
-
-    // [3] Higher lows: 각 T 저점 >= 직전 T 저점 × 95%
-    // 저점이 직전 저점보다 5% 넘게 낮아지면 기각.
-    // 상승 추세 내 조정임을 확인하는 조건이다.
-    let higherLows = true;
-    for (let k = 1; k < t; k++) {
-      if (lowPrices[k] < lowPrices[k - 1] * 0.95) { higherLows = false; break; }
-    }
-    if (!higherLows) continue;
-
-    // [4] 현재가가 VCP 시작 고점(첫 T 고점)의 85%~105%
-    // 85% 미만: 주가가 너무 많이 빠져 VCP 범위를 벗어남.
-    // 105% 초과: 이미 돌파해버린 상태라 감지 시점이 지남.
-    const startPrice = highPrices[0];
-    if (current < startPrice * 0.85 || current > startPrice * 1.05) continue;
-
-    // [5] ATR% 수축: 각 T 구간의 평균 변동성(ATR%)이 단조감소
-    // segmentAtrPct(highIdx, lowIdx)로 각 T의 고점~저점 구간 변동성을 계산.
-    // T1_atr > T2_atr > T3_atr ... 이어야 한다.
-    const tAtrs = depths.map((_, k) => segmentAtrPct(highIdxs[k], lowIdxs[k]));
-    let atrContracting = true;
-    for (let k = 1; k < t; k++) {
-      if (tAtrs[k] >= tAtrs[k - 1]) { atrContracting = false; break; }
-    }
-    if (!atrContracting) continue;
-
-    // [6] 거래량 수축: 현재 거래량 < 50일 평균 거래량
-    // 수축 국면에서 거래가 줄어드는 것을 확인. 50일 이동평균 거래량 기준.
-    if (currentVol >= vol50) continue;
-
-    // [7] 시의성: 마지막 저점이 최근 40일 이내
-    // SW=5 특성상 감지 가능한 최신 저점은 n-6봉. 여기서 40일 이내면 진행 중으로 판단.
-    const lastLowIdx = lowIdxs[t - 1];
-    if (n - 1 - lastLowIdx > 40) continue;
-
-    // [8] 회복 중: 현재가 > 마지막 저점
-    // 아직 바닥을 벗어나지 못했다면 감지하지 않는다.
-    if (current <= lowPrices[t - 1]) continue;
-
-    // 마지막 T의 고점 = 돌파 피벗 (이 가격을 넘으면 breakout)
-    const pivotHigh = highPrices[t - 1];
-    // 패턴 기간: 첫 T 고점 인덱스 ~ 마지막 T 저점 인덱스 (거래일 수)
-    const patternDays = lowIdxs[t - 1] - highIdxs[0];
 
     return {
       detected: true,
       meta: {
-        tCount:        t,
-        t1Depth:       depths[0],
-        lastDepth:     depths[t - 1],
-        pivotHigh,
-        distFromPivot: (pivotHigh - current) / pivotHigh, // 피벗까지 남은 거리
-        volRatio:      currentVol / vol50,                 // 1 미만이면 거래량 수축 중
-        patternDays,
+        boxWeeks:        boxLen,
+        boxDepth:        depth,
+        priorGain:       (boxHigh - priorLow) / priorLow,
+        distFromBoxHigh: (boxHigh - current) / boxHigh,
       },
     };
+  }
+
+  return { detected: false };
+}
+
+// ─── 하이 타이트 플래그 (William O'Neil) ─────────────────────────────────────
+// 기준 (주봉 기준):
+//  1. 폴(Pole): 4~8주 내 100% 이상 급등
+//  2. 플래그: 3~5주 동안 폴 고점 대비 10~25% 조정 (하락 방향)
+//  3. 플래그 평균 거래량 < 폴 평균 거래량
+//  4. 현재가가 플래그 고점의 90% 이상 (돌파 직전)
+function detectHighTightFlag(data: OHLCV[]): { detected: boolean; meta?: Record<string, number> } {
+  const weekly = toWeekly(data);
+  const n = weekly.length;
+
+  // 최소: 폴 최소 4주 + 플래그 최소 3주 = 7주
+  if (n < 7) return { detected: false };
+
+  const current = weekly[n - 1].close;
+
+  for (let flagLen = 3; flagLen <= Math.min(5, n - 4); flagLen++) {
+    const flagData = weekly.slice(-flagLen);
+    const flagHigh = Math.max(...flagData.map((d) => d.high));
+    const flagLow  = Math.min(...flagData.map((d) => d.low));
+
+    // 플래그는 하락 방향이어야 함: 마지막 종가 < 첫 시가
+    if (flagData[flagLen - 1].close >= flagData[0].open) continue;
+
+    // 현재가가 플래그 고점 90% 이상
+    if (current < flagHigh * 0.90) continue;
+
+    for (let poleLen = 4; poleLen <= Math.min(8, n - flagLen); poleLen++) {
+      const poleData = weekly.slice(n - flagLen - poleLen, n - flagLen);
+      if (poleData.length < 4) continue;
+
+      const poleStartPrice = poleData[0].open;
+      const poleHigh = Math.max(...poleData.map((d) => d.high));
+
+      if (poleStartPrice <= 0) continue;
+
+      // 폴 상승: 100% 이상
+      const poleGain = (poleHigh - poleStartPrice) / poleStartPrice;
+      if (poleGain < 1.0) continue;
+
+      // 플래그 조정폭: 10~25% (폴 고점 대비)
+      const flagDrop = (poleHigh - flagLow) / poleHigh;
+      if (flagDrop < 0.10 || flagDrop > 0.25) continue;
+
+      // 거래량 수축: 플래그 평균 < 폴 평균
+      const flagAvgVol = flagData.reduce((s, d) => s + d.volume, 0) / flagData.length;
+      const poleAvgVol = poleData.reduce((s, d) => s + d.volume, 0) / poleData.length;
+      if (flagAvgVol >= poleAvgVol) continue;
+
+      return {
+        detected: true,
+        meta: {
+          poleWeeks:        poleLen,
+          poleGain,
+          flagWeeks:        flagLen,
+          flagDrop,
+          volRatio:         flagAvgVol / poleAvgVol,   // 1 미만이면 거래량 수축 중
+          distFromFlagHigh: (flagHigh - current) / flagHigh,
+        },
+      };
+    }
   }
 
   return { detected: false };
@@ -535,10 +646,28 @@ export const VCP_DETECTOR: PatternDetector = {
   detect: detectVCP,
 };
 
+export const SQUARE_BOX_DETECTOR: PatternDetector = {
+  id: 'square_box',
+  label: '스퀘어 박스',
+  short: 'SB',
+  minBars: 40,   // 8주 × 5거래일
+  detect: detectSquareBox,
+};
+
+export const HIGH_TIGHT_FLAG_DETECTOR: PatternDetector = {
+  id: 'high_tight_flag',
+  label: '하이 타이트 플래그',
+  short: 'HTF',
+  minBars: 35,   // 7주 × 5거래일
+  detect: detectHighTightFlag,
+};
+
 export const ALL_DETECTORS: PatternDetector[] = [
   CUP_HANDLE_DETECTOR,
   TREND_TEMPLATE_DETECTOR,
   VCP_DETECTOR,
+  SQUARE_BOX_DETECTOR,
+  HIGH_TIGHT_FLAG_DETECTOR,
 ];
 
 // ─── 공개 API ────────────────────────────────────────────────────────────────

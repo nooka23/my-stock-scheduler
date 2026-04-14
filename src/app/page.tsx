@@ -41,6 +41,8 @@ type Company = {
 
 const hours = Array.from({ length: 12 }, (_, i) => i + 1);
 const minutes = ['00', '10', '20', '30', '40', '50'];
+const timeSelectClass =
+  'app-input min-w-0 border-[var(--border-strong)] bg-white px-3 text-base font-semibold text-slate-950 shadow-sm';
 
 const formatDateToKey = (date: Date) => {
   const year = date.getFullYear();
@@ -505,32 +507,86 @@ export default function Home() {
                 </section>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-800">시작 날짜</label>
-                  <input
-                    type="date"
-                    className="app-input"
-                    value={formatDateInput(rangeStart)}
-                    onChange={(e) => setRangeStart(parseDateInput(e.target.value))}
-                  />
+              <section className="app-card rounded-2xl p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-950">일정 시간</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-800">종료 날짜</label>
-                  <input
-                    type="date"
-                    className="app-input"
-                    value={formatDateInput(rangeEnd)}
-                    onChange={(e) => setRangeEnd(parseDateInput(e.target.value))}
-                  />
-                </div>
-              </div>
 
-              {!editingId && (
-                <p className="text-xs text-[var(--text-muted)]">
-                  하루 일정은 시작 날짜와 종료 날짜를 동일하게 두면 됩니다.
-                </p>
-              )}
+                <div className="mt-4 grid gap-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-800">시작 날짜</label>
+                      <input
+                        type="date"
+                        className="app-input"
+                        value={formatDateInput(rangeStart)}
+                        onChange={(e) => setRangeStart(parseDateInput(e.target.value))}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-800">종료 날짜</label>
+                      <input
+                        type="date"
+                        className="app-input"
+                        value={formatDateInput(rangeEnd)}
+                        onChange={(e) => setRangeEnd(parseDateInput(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-800">시작 시간</label>
+                      <div className="grid grid-cols-[1.25fr_1fr_1fr] gap-2">
+                        <select className={timeSelectClass} value={startAmPm} onChange={handleStartAmPmChange}>
+                          <option value="오전">오전</option>
+                          <option value="오후">오후</option>
+                        </select>
+                        <select className={timeSelectClass} value={startHour} onChange={handleStartHourChange}>
+                          {hours.map((h) => (
+                            <option key={h} value={String(h)}>
+                              {h}시
+                            </option>
+                          ))}
+                        </select>
+                        <select className={timeSelectClass} value={startMin} onChange={(e) => setStartMin(e.target.value)}>
+                          {minutes.map((m) => (
+                            <option key={m} value={m}>
+                              {m}분
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-800">종료 시간</label>
+                      <div className="grid grid-cols-[1.25fr_1fr_1fr] gap-2">
+                        <select className={timeSelectClass} value={endAmPm} onChange={(e) => setEndAmPm(e.target.value)}>
+                          <option value="오전">오전</option>
+                          <option value="오후">오후</option>
+                        </select>
+                        <select className={timeSelectClass} value={endHour} onChange={(e) => setEndHour(e.target.value)}>
+                          {hours.map((h) => (
+                            <option key={h} value={String(h)}>
+                              {h}시
+                            </option>
+                          ))}
+                        </select>
+                        <select className={timeSelectClass} value={endMin} onChange={(e) => setEndMin(e.target.value)}>
+                          {minutes.map((m) => (
+                            <option key={m} value={m}>
+                              {m}분
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <div className="relative">
                 <label className="mb-2 block text-sm font-medium text-slate-800">기업명</label>
@@ -567,48 +623,6 @@ export default function Home() {
                     ))}
                   </ul>
                 )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-800">시작 시간</label>
-                  <div className="flex gap-2">
-                    <select className="app-input" value={startAmPm} onChange={handleStartAmPmChange}>
-                      <option>오전</option>
-                      <option>오후</option>
-                    </select>
-                    <select className="app-input" value={startHour} onChange={handleStartHourChange}>
-                      {hours.map((h) => (
-                        <option key={h}>{h}</option>
-                      ))}
-                    </select>
-                    <select className="app-input" value={startMin} onChange={(e) => setStartMin(e.target.value)}>
-                      {minutes.map((m) => (
-                        <option key={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-800">종료 시간</label>
-                  <div className="flex gap-2">
-                    <select className="app-input" value={endAmPm} onChange={(e) => setEndAmPm(e.target.value)}>
-                      <option>오전</option>
-                      <option>오후</option>
-                    </select>
-                    <select className="app-input" value={endHour} onChange={(e) => setEndHour(e.target.value)}>
-                      {hours.map((h) => (
-                        <option key={h}>{h}</option>
-                      ))}
-                    </select>
-                    <select className="app-input" value={endMin} onChange={(e) => setEndMin(e.target.value)}>
-                      {minutes.map((m) => (
-                        <option key={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
               </div>
 
               <div>

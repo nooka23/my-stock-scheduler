@@ -93,7 +93,7 @@ type ThemeRelationRow = {
 };
 
 const ITEMS_PER_PAGE = 20;
-const REVIEW_LIMIT = 420;
+const REVIEW_LIMIT = 700;
 
 export default function ChartPage() {
   const supabase = createClientComponentClient();
@@ -130,7 +130,7 @@ export default function ChartPage() {
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('daily');
   const [currentPatterns, setCurrentPatterns] = useState<PatternResult[]>([]);
 
-  const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp' | 'sqb_htf'>('list');
   const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
   const [patternScanProgress, setPatternScanProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -967,13 +967,13 @@ export default function ChartPage() {
                     </span>
                   )}
                   <div className="flex rounded-lg border border-[var(--border)] bg-white p-[2px] text-[10px]">
-                    {(['list', 'cup_handle', 'vcp'] as const).map((v) => (
+                    {(['list', 'cup_handle', 'vcp', 'sqb_htf'] as const).map((v) => (
                       <button
                         key={v}
                         onClick={() => setActiveView(v)}
                         className={`rounded-md px-2 py-0.5 font-bold transition-colors ${activeView === v ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
                       >
-                        {v === 'list' ? '목록' : v === 'cup_handle' ? 'C&H' : 'VCP'}
+                        {v === 'list' ? '목록' : v === 'cup_handle' ? 'C&H' : v === 'vcp' ? 'VCP' : 'SB·HTF'}
                       </button>
                     ))}
                   </div>
@@ -1129,7 +1129,7 @@ export default function ChartPage() {
                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                     <span className="text-sm text-gray-500">
                       {reviewStocks.length}개 종목에서<br />
-                      <strong>{activeView === 'cup_handle' ? '컵앤핸들' : 'VCP'}</strong> 패턴을 검색합니다
+                      <strong>{activeView === 'cup_handle' ? '컵앤핸들' : activeView === 'vcp' ? 'VCP' : '스퀘어박스 · 하이타이트플래그'}</strong> 패턴을 검색합니다
                     </span>
                     <button
                       onClick={scanAllPatterns}
@@ -1141,7 +1141,9 @@ export default function ChartPage() {
                 ) : (() => {
                   const patternId = activeView;
                   const matched = patternScanEntries.filter((e) =>
-                    e.patterns.some((p) => p.id === patternId && p.detected)
+                    activeView === 'sqb_htf'
+                      ? e.patterns.some((p) => (p.id === 'square_box' || p.id === 'high_tight_flag') && p.detected)
+                      : e.patterns.some((p) => p.id === patternId && p.detected)
                   );
                   return (
                     <div className="flex flex-col h-full">
@@ -1162,7 +1164,7 @@ export default function ChartPage() {
                         <table className="w-full border-collapse text-left">
                           <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
                             <tr>
-                              {(activeView === 'cup_handle' || activeView === 'vcp') ? (
+                              {(activeView === 'cup_handle' || activeView === 'vcp' || activeView === 'sqb_htf') ? (
                                 <th className="px-2 py-2" colSpan={4}>종목 / 조건</th>
                               ) : (
                                 <>
@@ -1186,7 +1188,7 @@ export default function ChartPage() {
                                   onClick={() => handleStockClick({ code: entry.code, name: entry.name, rank: entry.rs_score, rs_score: entry.rs_score, close: 0, marcap: 0 })}
                                   className={`cursor-pointer transition-colors hover:bg-[var(--surface-muted)] ${isActive ? 'bg-blue-100' : ''}`}
                                 >
-                                  <td className="px-2 py-2" colSpan={(activeView === 'cup_handle' || activeView === 'vcp') ? 4 : 1}>
+                                  <td className="px-2 py-2" colSpan={(activeView === 'cup_handle' || activeView === 'vcp' || activeView === 'sqb_htf') ? 4 : 1}>
                                     <div className="flex items-center justify-between gap-2">
                                       <div>
                                         <div className="font-semibold text-slate-900">{entry.name}</div>
@@ -1254,8 +1256,62 @@ export default function ChartPage() {
                                         </span>
                                       </div>
                                     )}
+                                    {activeView === 'sqb_htf' && (() => {
+                                      const sbMeta  = entry.patterns.find((p) => p.id === 'square_box')?.meta;
+                                      const htfMeta = entry.patterns.find((p) => p.id === 'high_tight_flag')?.meta;
+                                      return (
+                                        <div className="mt-1.5 flex flex-col gap-1">
+                                          {sbMeta && (
+                                            <div className="flex flex-wrap items-center gap-1">
+                                              <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">SB</span>
+                                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700"
+                                                title="박스 직전 선행 상승률">
+                                                선행 +{pct(sbMeta.priorGain)}
+                                              </span>
+                                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
+                                                title="박스 기간 (주)">
+                                                {sbMeta.boxWeeks}주
+                                              </span>
+                                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
+                                                title="박스 깊이 (고점 - 저점) / 저점">
+                                                깊이 {pct(sbMeta.boxDepth)}
+                                              </span>
+                                              <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${sbMeta.distFromBoxHigh <= 0.02 ? 'bg-emerald-50 text-emerald-700' : sbMeta.distFromBoxHigh <= 0.04 ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-50 text-gray-600'}`}
+                                                title="박스 고점까지 남은 거리">
+                                                박스 -{pct(sbMeta.distFromBoxHigh)}
+                                              </span>
+                                            </div>
+                                          )}
+                                          {htfMeta && (
+                                            <div className="flex flex-wrap items-center gap-1">
+                                              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">HTF</span>
+                                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700"
+                                                title="폴 상승률 (100%+)">
+                                                폴 +{pct(htfMeta.poleGain)}
+                                              </span>
+                                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
+                                                title="폴 기간 (주)">
+                                                폴 {htfMeta.poleWeeks}주
+                                              </span>
+                                              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700"
+                                                title="플래그 조정폭 (10~25%)">
+                                                플래그 -{pct(htfMeta.flagDrop)}
+                                              </span>
+                                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
+                                                title="플래그 기간 (주)">
+                                                {htfMeta.flagWeeks}주
+                                              </span>
+                                              <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${htfMeta.volRatio <= 0.5 ? 'bg-emerald-50 text-emerald-700' : htfMeta.volRatio <= 0.8 ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-50 text-gray-600'}`}
+                                                title="플래그/폴 거래량 비율 (낮을수록 수축)">
+                                                거래량 {(htfMeta.volRatio * 100).toFixed(0)}%
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
-                                  {activeView !== 'cup_handle' && activeView !== 'vcp' && (
+                                  {activeView !== 'cup_handle' && activeView !== 'vcp' && activeView !== 'sqb_htf' && (
                                     <>
                                       <td className="px-2 py-2 text-right font-bold text-blue-600">{entry.rs_score}</td>
                                       <td className="px-2 py-2 text-center font-medium text-gray-600">{entry.rank_amount ?? '-'}</td>

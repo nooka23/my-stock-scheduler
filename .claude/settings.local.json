@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(mkdir:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git stash:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
     ]
   }
 }
