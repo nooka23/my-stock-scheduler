@@ -10,6 +10,7 @@ import {
   calculateKeltner,
   calculateMACD,
 } from '@/utils/indicators';
+import { runDetectors, type PatternResult } from '@/utils/patternDetectors';
 
 type Company = {
   code: string;
@@ -58,7 +59,8 @@ type TableStock = {
   close: number;
   marcap: number;
   is_template?: boolean | null;
-  rank_amount?: number;
+  rank_amount?: number | null;
+  patterns?: PatternResult[] | null;  // null = 로딩 중
 };
 
 type FavItem = {
@@ -72,6 +74,14 @@ type RankingRow = {
   code: string;
   rank_weighted: number;
   rank_amount?: number | null;
+};
+
+type PatternScanEntry = {
+  code: string;
+  name: string;
+  rs_score: number;
+  rank_amount?: number | null;
+  patterns: PatternResult[];
 };
 
 type IndustryRelationRow = {
@@ -118,6 +128,11 @@ export default function ChartPage() {
   const [minRS, setMinRS] = useState(0);
   const [indicesRS, setIndicesRS] = useState<{ kospi: number | null; kosdaq: number | null }>({ kospi: null, kosdaq: null });
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('daily');
+  const [currentPatterns, setCurrentPatterns] = useState<PatternResult[]>([]);
+
+  const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp'>('list');
+  const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
+  const [patternScanProgress, setPatternScanProgress] = useState<{ done: number; total: number } | null>(null);
 
   const [industries, setIndustries] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
@@ -157,6 +172,61 @@ export default function ChartPage() {
 
     return Array.from(weeklyMap.values());
   };
+
+  // reviewStocks(날짜·minRS)가 바뀌면 이전 스캔 결과 초기화
+  useEffect(() => {
+    setPatternScanEntries([]);
+    setPatternScanProgress(null);
+  }, [latestDate, minRS]);
+
+  const scanAllPatterns = useCallback(async () => {
+    if (reviewStocks.length === 0 || patternScanProgress !== null) return;
+    setPatternScanEntries([]);
+    setPatternScanProgress({ done: 0, total: reviewStocks.length });
+
+    const CHUNK = 10;
+    const all: PatternScanEntry[] = [];
+
+    for (let i = 0; i < reviewStocks.length; i += CHUNK) {
+      const chunk = reviewStocks.slice(i, i + CHUNK);
+      const results = await Promise.all(
+        chunk.map(async (stock) => {
+          try {
+            const { data: prices } = await supabase
+              .from('daily_prices_v2')
+              .select('open, high, low, close, volume')
+              .eq('code', stock.code)
+              .order('date', { ascending: false })
+              .limit(500);
+
+            if (!prices || prices.length < 75) {
+              return { code: stock.code, name: stock.name, rs_score: stock.rs_score, rank_amount: stock.rank_amount, patterns: [] as PatternResult[] };
+            }
+
+            const ohlcv = [...prices].reverse().map((p) => ({
+              open: Number(p.open) || Number(p.close),
+              high: Number(p.high) || Number(p.close),
+              low: Number(p.low) || Number(p.close),
+              close: Number(p.close),
+              volume: Number(p.volume) || 0,
+            }));
+
+            return { code: stock.code, name: stock.name, rs_score: stock.rs_score, rank_amount: stock.rank_amount, patterns: runDetectors(ohlcv) };
+          } catch {
+            return { code: stock.code, name: stock.name, rs_score: stock.rs_score, rank_amount: stock.rank_amount, patterns: [] as PatternResult[] };
+          }
+        })
+      );
+
+      all.push(...results);
+      setPatternScanProgress({ done: Math.min(i + CHUNK, reviewStocks.length), total: reviewStocks.length });
+      // 다음 청크 전 짧은 대기로 UI 업데이트 허용
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    setPatternScanEntries(all);
+    setPatternScanProgress(null);
+  }, [reviewStocks, supabase, patternScanProgress]);
 
   const getReviewStorageKey = useCallback(
     () => (latestDate ? `mh-chart-review:${latestDate}:minRS:${minRS}` : ''),
@@ -272,39 +342,33 @@ export default function ChartPage() {
         try {
           const { data: prices } = await supabase
             .from('daily_prices_v2')
-            .select('close')
+            .select('open, high, low, close, volume')
             .eq('code', stock.code)
             .order('date', { ascending: false })
-            .limit(265);
+            .limit(500); // 65주 컵 + 선행 구간 커버 (≈100주)
 
-          if (!prices || prices.length < 200) return { code: stock.code, result: false };
-
-          const closes = prices.map((price) => price.close);
-          const current = closes[0];
-
-          const sma = (arr: number[], period: number) => {
-            if (arr.length < period) return null;
-            const slice = arr.slice(0, period);
-            return slice.reduce((acc, value) => acc + value, 0) / period;
-          };
-
-          const ma50 = sma(closes, 50);
-          const ma150 = sma(closes, 150);
-          const ma200 = sma(closes, 200);
-          const ma200PrevSlice = closes.slice(20, 220);
-          const ma200Prev = ma200PrevSlice.length === 200
-            ? ma200PrevSlice.reduce((acc, value) => acc + value, 0) / 200
-            : null;
-
-          if (!ma50 || !ma150 || !ma200 || !ma200Prev) {
-            return { code: stock.code, result: false };
+          if (!prices || prices.length < 200) {
+            return { code: stock.code, result: false, patterns: [] as PatternResult[] };
           }
 
-          const yearSlice = closes.slice(0, 260);
-          const high52 = Math.max(...yearSlice);
-          const low52 = Math.min(...yearSlice);
+          // 내림차순(최신→과거) 데이터로 트렌드템플릿 계산
+          const closes = prices.map((price) => Number(price.close));
+          const current = closes[0];
 
-          const isMet = (
+          const headSMA = (arr: number[], period: number) => {
+            if (arr.length < period) return null;
+            return arr.slice(0, period).reduce((acc, v) => acc + v, 0) / period;
+          };
+
+          const ma50 = headSMA(closes, 50);
+          const ma150 = headSMA(closes, 150);
+          const ma200 = headSMA(closes, 200);
+          const ma200PrevSlice = closes.slice(20, 220);
+          const ma200Prev = ma200PrevSlice.length === 200
+            ? ma200PrevSlice.reduce((acc, v) => acc + v, 0) / 200
+            : null;
+
+          const isMet = !!(ma50 && ma150 && ma200 && ma200Prev &&
             current > ma150 &&
             current > ma200 &&
             ma150 > ma200 &&
@@ -312,21 +376,32 @@ export default function ChartPage() {
             ma50 > ma150 &&
             ma50 > ma200 &&
             current > ma50 &&
-            current >= low52 * 1.3 &&
-            current >= high52 * 0.75 &&
+            current >= Math.min(...closes.slice(0, 260)) * 1.3 &&
+            current >= Math.max(...closes.slice(0, 260)) * 0.75 &&
             stock.rs_score >= 70
           );
 
-          return { code: stock.code, result: isMet };
+          // 패턴 감지: 시간순(오래된→최신)으로 뒤집어서 전달
+          const chronological = [...prices].reverse();
+          const ohlcv = chronological.map((p) => ({
+            open: Number(p.open) || Number(p.close),
+            high: Number(p.high) || Number(p.close),
+            low: Number(p.low) || Number(p.close),
+            close: Number(p.close),
+            volume: Number(p.volume) || 0,
+          }));
+          const patterns = runDetectors(ohlcv);
+
+          return { code: stock.code, result: isMet, patterns };
         } catch {
-          return { code: stock.code, result: false };
+          return { code: stock.code, result: false, patterns: [] as PatternResult[] };
         }
       })
     );
 
     setTableData((prev) => prev.map((item) => {
-      const result = results.find((entry) => entry.code === item.code);
-      return result ? { ...item, is_template: result.result } : item;
+      const entry = results.find((r) => r.code === item.code);
+      return entry ? { ...item, is_template: entry.result, patterns: entry.patterns } : item;
     }));
   }, [supabase]);
 
@@ -418,6 +493,7 @@ export default function ChartPage() {
         marcap: compMap.get(row.code)?.marcap || 0,
         is_template: null,
         rank_amount: row.rank_amount,
+        patterns: null,
       }));
 
       const formattedTable = formatStocks(pagedRankRes.data || []);
@@ -429,7 +505,6 @@ export default function ChartPage() {
 
       setTableData(formattedTable);
       setReviewStocks(formattedReview);
-      checkTrendTemplates(formattedTable);
 
       if (formattedReview.length > 0) {
         setCurrentCompany((prev) => {
@@ -560,8 +635,19 @@ export default function ChartPage() {
     if (rawDailyData.length === 0) {
       setData([]);
       setLegendData(undefined);
+      setCurrentPatterns([]);
       return;
     }
+
+    // 패턴 감지 — rawDailyData는 이미 시간순(오래된→최신)
+    const ohlcv = rawDailyData.map((d) => ({
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      volume: d.volume,
+    }));
+    setCurrentPatterns(runDetectors(ohlcv));
 
     let targetData = [...rawDailyData];
     if (timeframe === 'weekly') {
@@ -843,6 +929,27 @@ export default function ChartPage() {
     return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-400">미분류</span>;
   };
 
+  const renderPatternBadges = (patterns: PatternResult[] | null | undefined) => {
+    if (patterns === null || patterns === undefined) {
+      return <span className="animate-pulse text-gray-300">●</span>;
+    }
+    const detected = patterns.filter((p) => p.detected);
+    if (detected.length === 0) return <span className="text-gray-200">‐</span>;
+    return (
+      <div className="flex flex-wrap gap-0.5">
+        {detected.map((p) => (
+          <span
+            key={p.id}
+            title={p.label}
+            className="rounded bg-amber-100 px-1 py-0.5 text-[8px] font-bold text-amber-700"
+          >
+            {p.short}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   const isFavorite = favorites.some((fav) => fav.code === currentCompany.code && fav.group === targetGroup);
 
   return (
@@ -859,6 +966,17 @@ export default function ChartPage() {
                       KOSPI {indicesRS.kospi} / KOSDAQ {indicesRS.kosdaq}
                     </span>
                   )}
+                  <div className="flex rounded-lg border border-[var(--border)] bg-white p-[2px] text-[10px]">
+                    {(['list', 'cup_handle', 'vcp'] as const).map((v) => (
+                      <button
+                        key={v}
+                        onClick={() => setActiveView(v)}
+                        className={`rounded-md px-2 py-0.5 font-bold transition-colors ${activeView === v ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                      >
+                        {v === 'list' ? '목록' : v === 'cup_handle' ? 'C&H' : 'VCP'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
                   <span>{reviewStocks.length}개</span>
@@ -916,90 +1034,247 @@ export default function ChartPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1 text-xs">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((page) => page - 1)}
-                  className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
-                >
-                  ◀
-                </button>
-                <input
-                  type="text"
-                  value={inputPage}
-                  onChange={handlePageInput}
-                  onKeyDown={handlePageSubmit}
-                  className="w-10 rounded-xl border border-[var(--border)] p-1 text-center outline-none focus:border-[var(--primary)]"
-                />
-                <span className="text-gray-500">/ {totalPages}</span>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((page) => page + 1)}
-                  className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
-                >
-                  ▶
-                </button>
-              </div>
+              {activeView === 'list' && (
+                <div className="flex items-center gap-1 text-xs">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((page) => page - 1)}
+                    className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
+                  >
+                    ◀
+                  </button>
+                  <input
+                    type="text"
+                    value={inputPage}
+                    onChange={handlePageInput}
+                    onKeyDown={handlePageSubmit}
+                    className="w-10 rounded-xl border border-[var(--border)] p-1 text-center outline-none focus:border-[var(--primary)]"
+                  />
+                  <span className="text-gray-500">/ {totalPages}</span>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((page) => page + 1)}
+                    className="rounded-xl border border-[var(--border)] bg-white px-2 py-1 hover:bg-[var(--surface-muted)] disabled:opacity-50"
+                  >
+                    ▶
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <table className="w-full border-collapse text-left">
-              <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
-                <tr>
-                  <th className="px-3 py-2">순위</th>
-                  <th className="px-2 py-2">종목</th>
-                  <th className="px-2 py-2 text-right">RS</th>
-                  <th className="px-2 py-2 text-center">거래대금</th>
-                  <th className="px-2 py-2 text-center">Templ.</th>
-                  <th className="px-2 py-2 text-center">관심</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-xs">
-                {tableLoading ? (
+            {activeView === 'list' ? (
+              <table className="w-full border-collapse text-left">
+                <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
                   <tr>
-                    <td colSpan={6} className="p-10 text-center text-[var(--text-subtle)]">로딩 중...</td>
+                    <th className="px-3 py-2">순위</th>
+                    <th className="px-2 py-2">종목</th>
+                    <th className="px-2 py-2 text-right">RS</th>
+                    <th className="px-2 py-2 text-center">거래대금</th>
+                    <th className="px-2 py-2 text-center">관심</th>
                   </tr>
-                ) : tableData.map((stock, index) => {
-                  const isIncluded = favorites.some((fav) => fav.code === stock.code && fav.group === checkGroup);
-
-                  return (
-                    <tr
-                      key={stock.code}
-                      onClick={() => handleStockClick(stock)}
-                      className={`cursor-pointer transition-colors hover:bg-[var(--surface-muted)] ${getRowClassName(stock)}`}
-                    >
-                      <td className="px-3 py-2 text-gray-500">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
-                      <td className="px-2 py-2">
-                        <div className="flex items-center gap-2">
-                          <div>
-                          <div className="font-semibold text-slate-900">{stock.name}</div>
-                          <div className="text-[9px] text-[var(--text-subtle)]">{stock.code}</div>
-                          </div>
-                          {renderReviewBadge(stock.code)}
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_score}</td>
-                      <td className="px-2 py-2 text-center font-medium text-gray-600">
-                        {stock.rank_amount ? <span title="50일 평균 거래대금 순위 (0~99)">{stock.rank_amount}</span> : '-'}
-                      </td>
-                      <td className="px-2 py-2 text-center text-base">
-                        {stock.is_template === null ? (
-                          <span className="animate-pulse text-gray-300">●</span>
-                        ) : stock.is_template ? (
-                          <span className="text-green-500">✅</span>
-                        ) : (
-                          <span className="text-gray-200">‐</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-2 text-center text-base">
-                        {isIncluded ? <span className="text-yellow-400">⭐</span> : <span className="text-gray-200">☆</span>}
-                      </td>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-xs">
+                  {tableLoading ? (
+                    <tr>
+                      <td colSpan={5} className="p-10 text-center text-[var(--text-subtle)]">로딩 중...</td>
                     </tr>
+                  ) : tableData.map((stock, index) => {
+                    const isIncluded = favorites.some((fav) => fav.code === stock.code && fav.group === checkGroup);
+                    return (
+                      <tr
+                        key={stock.code}
+                        onClick={() => handleStockClick(stock)}
+                        className={`cursor-pointer transition-colors hover:bg-[var(--surface-muted)] ${getRowClassName(stock)}`}
+                      >
+                        <td className="px-3 py-2 text-gray-500">{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</td>
+                        <td className="px-2 py-2">
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <div className="font-semibold text-slate-900">{stock.name}</div>
+                              <div className="text-[9px] text-[var(--text-subtle)]">{stock.code}</div>
+                            </div>
+                            {renderReviewBadge(stock.code)}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_score}</td>
+                        <td className="px-2 py-2 text-center font-medium text-gray-600">
+                          {stock.rank_amount ? <span title="50일 평균 거래대금 순위 (0~99)">{stock.rank_amount}</span> : '-'}
+                        </td>
+                        <td className="px-2 py-2 text-center text-base">
+                          {isIncluded ? <span className="text-yellow-400">⭐</span> : <span className="text-gray-200">☆</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              /* 패턴 리스트 뷰 */
+              <div className="flex flex-col h-full">
+                {patternScanProgress !== null ? (
+                  <div className="flex flex-col items-center justify-center gap-3 p-6">
+                    <span className="text-sm font-medium text-slate-700">
+                      스캔 중... {patternScanProgress.done} / {patternScanProgress.total}
+                    </span>
+                    <div className="h-2 w-full rounded-full bg-gray-100">
+                      <div
+                        className="h-2 rounded-full bg-amber-400 transition-all"
+                        style={{ width: `${(patternScanProgress.done / patternScanProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ) : patternScanEntries.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+                    <span className="text-sm text-gray-500">
+                      {reviewStocks.length}개 종목에서<br />
+                      <strong>{activeView === 'cup_handle' ? '컵앤핸들' : 'VCP'}</strong> 패턴을 검색합니다
+                    </span>
+                    <button
+                      onClick={scanAllPatterns}
+                      className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-600"
+                    >
+                      스캔 시작
+                    </button>
+                  </div>
+                ) : (() => {
+                  const patternId = activeView;
+                  const matched = patternScanEntries.filter((e) =>
+                    e.patterns.some((p) => p.id === patternId && p.detected)
                   );
-                })}
-              </tbody>
-            </table>
+                  return (
+                    <div className="flex flex-col h-full">
+                      <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2 text-xs text-gray-500">
+                        <span>{matched.length}개 감지</span>
+                        <button
+                          onClick={scanAllPatterns}
+                          className="text-[10px] text-amber-600 underline hover:text-amber-800"
+                        >
+                          재스캔
+                        </button>
+                      </div>
+                      {matched.length === 0 ? (
+                        <div className="flex flex-1 items-center justify-center text-sm text-gray-400">
+                          감지된 종목 없음
+                        </div>
+                      ) : (
+                        <table className="w-full border-collapse text-left">
+                          <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
+                            <tr>
+                              {(activeView === 'cup_handle' || activeView === 'vcp') ? (
+                                <th className="px-2 py-2" colSpan={4}>종목 / 조건</th>
+                              ) : (
+                                <>
+                                  <th className="px-2 py-2">종목</th>
+                                  <th className="px-2 py-2 text-right">RS</th>
+                                  <th className="px-2 py-2 text-center">거래대금</th>
+                                  <th className="px-2 py-2 text-center">관심</th>
+                                </>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 text-xs">
+                            {matched.map((entry) => {
+                              const isIncluded = favorites.some((fav) => fav.code === entry.code && fav.group === checkGroup);
+                              const isActive = currentCompany.code === entry.code;
+                              const meta = entry.patterns.find((p) => p.id === patternId)?.meta;
+                              const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+                              return (
+                                <tr
+                                  key={entry.code}
+                                  onClick={() => handleStockClick({ code: entry.code, name: entry.name, rank: entry.rs_score, rs_score: entry.rs_score, close: 0, marcap: 0 })}
+                                  className={`cursor-pointer transition-colors hover:bg-[var(--surface-muted)] ${isActive ? 'bg-blue-100' : ''}`}
+                                >
+                                  <td className="px-2 py-2" colSpan={(activeView === 'cup_handle' || activeView === 'vcp') ? 4 : 1}>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div>
+                                        <div className="font-semibold text-slate-900">{entry.name}</div>
+                                        <div className="text-[9px] text-[var(--text-subtle)]">{entry.code}</div>
+                                      </div>
+                                      <div className="flex shrink-0 items-center gap-2 text-[10px]">
+                                        <span className="font-bold text-blue-600">{entry.rs_score}</span>
+                                        <span className="text-gray-400">{entry.rank_amount ?? '-'}</span>
+                                        {isIncluded ? <span className="text-yellow-400">⭐</span> : <span className="text-gray-200">☆</span>}
+                                      </div>
+                                    </div>
+                                    {activeView === 'cup_handle' && meta && (
+                                      <div className="mt-1.5 flex flex-wrap gap-1">
+                                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700"
+                                          title="컵 왼쪽 이전 선행 상승률">
+                                          선행 +{pct(meta.priorGain)}
+                                        </span>
+                                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
+                                          title="컵 기간 (주)">
+                                          컵 {meta.cupWeeks}주
+                                        </span>
+                                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
+                                          title="컵 깊이 (좌림 대비 저점 하락률)">
+                                          깊이 {pct(meta.cupDepth)}
+                                        </span>
+                                        <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[9px] font-medium text-violet-700"
+                                          title="우측 림 / 좌측 림 비율 (80~110%)">
+                                          우림 {pct(meta.rightRimRatio)}
+                                        </span>
+                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${meta.vPenalty <= 1 ? 'bg-emerald-50 text-emerald-700' : meta.vPenalty <= 3 ? 'bg-yellow-50 text-yellow-700' : 'bg-rose-50 text-rose-700'}`}
+                                          title="V자 페널티 (낮을수록 U자에 가까움)">
+                                          V패널티 {meta.vPenalty.toFixed(1)}
+                                        </span>
+                                        <span className="rounded bg-gray-50 px-1.5 py-0.5 text-[9px] font-medium text-gray-600"
+                                          title="핸들 기간 (주)">
+                                          핸들 {meta.handleWeeks}주
+                                        </span>
+                                        <span className="rounded bg-gray-50 px-1.5 py-0.5 text-[9px] font-medium text-gray-600"
+                                          title="우측 림 대비 핸들 하락률">
+                                          핸들 하락 {pct(meta.handleDrop)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {activeView === 'vcp' && meta && (
+                                      <div className="mt-1.5 flex flex-wrap gap-1">
+                                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
+                                          title="수축 사이클 수 (2~6T)">
+                                          {meta.tCount}T
+                                        </span>
+                                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
+                                          title="VCP 기간 (첫 고점 ~ 마지막 저점, 거래일 기준)">
+                                          {meta.patternDays}일
+                                        </span>
+                                        <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700"
+                                          title="첫 번째 조정폭 (20~50%)">
+                                          T1 -{pct(meta.t1Depth)}
+                                        </span>
+                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${meta.lastDepth <= 0.08 ? 'bg-emerald-50 text-emerald-700' : meta.lastDepth <= 0.15 ? 'bg-yellow-50 text-yellow-700' : 'bg-rose-50 text-rose-700'}`}
+                                          title="마지막 조정폭 (작을수록 tight)">
+                                          T{meta.tCount} -{pct(meta.lastDepth)}
+                                        </span>
+                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${meta.distFromPivot <= 0.05 ? 'bg-emerald-50 text-emerald-700' : meta.distFromPivot <= 0.10 ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-50 text-gray-600'}`}
+                                          title="피벗 고점까지 남은 거리 (작을수록 돌파 근접)">
+                                          피벗 -{pct(meta.distFromPivot)}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </td>
+                                  {activeView !== 'cup_handle' && activeView !== 'vcp' && (
+                                    <>
+                                      <td className="px-2 py-2 text-right font-bold text-blue-600">{entry.rs_score}</td>
+                                      <td className="px-2 py-2 text-center font-medium text-gray-600">{entry.rank_amount ?? '-'}</td>
+                                      <td className="px-2 py-2 text-center text-base">
+                                        {isIncluded ? <span className="text-yellow-400">⭐</span> : <span className="text-gray-200">☆</span>}
+                                      </td>
+                                    </>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         </div>
 
@@ -1012,6 +1287,15 @@ export default function ChartPage() {
                     <span className="text-base font-semibold text-slate-950">{currentCompany.name}</span>
                     <span className="text-xs font-medium text-[var(--text-muted)]">{currentCompany.code}</span>
                     {currentReviewStock && renderReviewBadge(currentReviewStock.code)}
+                    {currentPatterns.filter((p) => p.detected).map((p) => (
+                      <span
+                        key={p.id}
+                        title={p.label}
+                        className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700"
+                      >
+                        {p.label}
+                      </span>
+                    ))}
                     <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
                       {currentReviewIndex >= 0 ? `${currentReviewIndex + 1}/${reviewStocks.length}` : `${reviewStocks.length}개`}
                     </span>
