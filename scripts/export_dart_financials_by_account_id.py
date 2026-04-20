@@ -37,6 +37,15 @@ REPORT_CODE_BY_QUARTER = {
 DEFAULT_MARKETS = ("KOSPI", "KOSDAQ")
 PREFERRED_SUFFIXES = ("우", "우B", "우C", "우(전환)", "우선주")
 TARGET_TABLE = "company_financials_v2"
+REQUIRED_FIELDS = (
+    "자산총계",
+    "부채총계",
+    "자본총계",
+    "매출액",
+    "영업이익",
+    "당기순이익",
+)
+VALIDATION_TOLERANCE_EOK = 1
 
 FIELD_COLUMN_MAP: dict[str, str] = {
     "자산총계": "assets_total",
@@ -73,7 +82,7 @@ FIELD_COLUMN_MAP: dict[str, str] = {
 ACCOUNT_ID_PRIORITY_MAP: dict[str, list[str]] = {
     "자산총계": ["ifrs-full_Assets"],
     "유동자산": ["ifrs-full_CurrentAssets"],
-    "현금 및 현금성자산": ["ifrs-full_CurrentAssets", "ifrs-full_CashEquivalents", "dart_CashAndCashEquivalentsGross"],
+    "현금 및 현금성자산": ["ifrs-full_CashAndCashEquivalents", "ifrs-full_CashEquivalents", "dart_CashAndCashEquivalentsGross"],
     "단기금융자산": ["ifrs-full_ShorttermDepositsNotClassifiedAsCashEquivalents", "ifrs-full_CurrentFinancialAssetsAtFairValueThroughProfitOrLoss", "ifrs-full_CurrentFinancialAssetsAtFairValueThroughProfitOrLossDesignatedUponInitialRecognition", "ifrs-full_CurrentFinancialAssets"],
     "매출채권": ["dart_ShortTermTradeReceivable", "ifrs-full_CurrentTradeReceivables", "ifrs-full_TradeReceivables", "ifrs-full_TradeAndOtherCurrentReceivables"],
     "재고자산": ["ifrs-full_Inventories", "ifrs-full_InventoriesTotal"],
@@ -85,7 +94,7 @@ ACCOUNT_ID_PRIORITY_MAP: dict[str, list[str]] = {
     "유동부채": ["ifrs-full_CurrentLiabilities"],
     "비유동부채": ["ifrs-full_NoncurrentLiabilities"],
     "자본총계": ["ifrs-full_Equity"],
-    "매출액": ["ifrs-full_Equity"],
+    "매출액": ["ifrs-full_Revenue"],
     "매출원가": ["ifrs-full_CostOfSales"],
     "영업이익": ["dart_OperatingIncomeLoss", "ifrs-full_ProfitLossFromOperatingActivities"],
     "판매비와관리비": ["dart_TotalSellingGeneralAdministrativeExpenses", "ifrs-full_SellingGeneralAndAdministrativeExpense"],
@@ -95,8 +104,8 @@ ACCOUNT_ID_PRIORITY_MAP: dict[str, list[str]] = {
     "영업활동현금흐름": ["ifrs-full_CashFlowsFromUsedInOperatingActivities"],
     "투자활동현금흐름": ["ifrs-full_CashFlowsFromUsedInInvestingActivities"],
     "재무활동현금흐름": ["ifrs-full_CashFlowsFromUsedInFinancingActivities"],
-    "기초현금": ["ifrs-full_CashFlowsFromUsedInFinancingActivities"],
-    "기말현금": ["ifrs-full_CashFlowsFromUsedInFinancingActivities"],
+    "기초현금": ["dart_CashAndCashEquivalentsAtBeginningOfPeriodCf"],
+    "기말현금": ["dart_CashAndCashEquivalentsAtEndOfPeriodCf"],
 }
 
 
@@ -266,6 +275,53 @@ def validate_account_map() -> None:
         )
 
 
+def get_field_value(record: dict[str, Any], field: str) -> int | None:
+    column_name = FIELD_COLUMN_MAP[field]
+    value = record.get(column_name)
+    return value if isinstance(value, int) else None
+
+
+def validate_record(record: dict[str, Any], missing_fields: list[str]) -> list[str]:
+    reasons: list[str] = []
+
+    missing_required = [field for field in REQUIRED_FIELDS if field in missing_fields]
+    if missing_required:
+        reasons.append(f"missing required fields: {', '.join(missing_required)}")
+
+    assets_total = get_field_value(record, "자산총계")
+    liabilities_total = get_field_value(record, "부채총계")
+    equity_total = get_field_value(record, "자본총계")
+    if None not in (assets_total, liabilities_total, equity_total):
+        diff = abs(assets_total - (liabilities_total + equity_total))
+        if diff > VALIDATION_TOLERANCE_EOK:
+            reasons.append(
+                "assets != liabilities + equity "
+                f"({assets_total} != {liabilities_total} + {equity_total})"
+            )
+
+    revenue = get_field_value(record, "매출액")
+    operating_income = get_field_value(record, "영업이익")
+    net_income = get_field_value(record, "당기순이익")
+    if revenue is not None and equity_total is not None and revenue == equity_total:
+        reasons.append("revenue equals equity_total exactly; likely wrong account mapping")
+    if revenue is not None and assets_total is not None and revenue == assets_total:
+        reasons.append("revenue equals assets_total exactly; likely wrong account mapping")
+    if operating_income is not None and assets_total is not None and operating_income == assets_total:
+        reasons.append("operating_income equals assets_total exactly; likely wrong account mapping")
+    if net_income is not None and assets_total is not None and net_income == assets_total:
+        reasons.append("net_income equals assets_total exactly; likely wrong account mapping")
+
+    cash_beginning = get_field_value(record, "기초현금")
+    cash_ending = get_field_value(record, "기말현금")
+    financing_cash_flow = get_field_value(record, "재무활동현금흐름")
+    if cash_beginning is not None and financing_cash_flow is not None and cash_beginning == financing_cash_flow:
+        reasons.append("cash_beginning equals financing_cash_flow exactly; likely wrong account mapping")
+    if cash_ending is not None and financing_cash_flow is not None and cash_ending == financing_cash_flow:
+        reasons.append("cash_ending equals financing_cash_flow exactly; likely wrong account mapping")
+
+    return reasons
+
+
 def build_record(
     code: str,
     corp_code: str,
@@ -412,6 +468,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-companies", type=int, default=None, help="optional cap for quick run")
     parser.add_argument("--codes", nargs="*", default=None, help="optional explicit stock codes")
     parser.add_argument(
+        "--allow-partial",
+        action="store_true",
+        help="allow upsert even when required fields or sanity checks fail (not recommended)",
+    )
+    parser.add_argument(
         "--markets",
         nargs="*",
         default=list(DEFAULT_MARKETS),
@@ -448,6 +509,7 @@ def main() -> int:
         companies = companies[: args.max_companies]
 
     success_count = 0
+    rejected_count = 0
     error_rows: list[dict[str, str]] = []
     missing_by_company: list[dict[str, str]] = []
     api_call_count = 0
@@ -504,8 +566,7 @@ def main() -> int:
                 fs_div=fs_div,
                 rows=rows,
             )
-            upsert_record(supabase, record)
-            success_count += 1
+            validation_errors = validate_record(record, missing_fields)
             if missing_fields:
                 missing_by_company.append(
                     {
@@ -520,9 +581,35 @@ def main() -> int:
                         "missing_fields": ", ".join(missing_fields),
                     }
                 )
-                print(f"- 저장 완료, 누락 {len(missing_fields)}개")
+
+            if validation_errors and not args.allow_partial:
+                rejected_count += 1
+                print(f"- 저장 보류, 검증 실패 {len(validation_errors)}개")
+                error_rows.append(
+                    {
+                        "code": code,
+                        "name": name,
+                        "stage": "validation",
+                        "message": " | ".join(validation_errors),
+                    }
+                )
             else:
-                print("- 저장 완료")
+                upsert_record(supabase, record)
+                success_count += 1
+                if validation_errors and args.allow_partial:
+                    print(f"- 저장 완료(allow_partial), 검증 실패 {len(validation_errors)}개")
+                    error_rows.append(
+                        {
+                            "code": code,
+                            "name": name,
+                            "stage": "validation_allowed",
+                            "message": " | ".join(validation_errors),
+                        }
+                    )
+                elif missing_fields:
+                    print(f"- 저장 완료, 누락 {len(missing_fields)}개")
+                else:
+                    print("- 저장 완료")
         except Exception as exc:
             print(f"- 저장 실패: {exc}")
             error_rows.append(
@@ -546,6 +633,7 @@ def main() -> int:
     print("")
     print(f"table: {TARGET_TABLE}")
     print(f"saved: {success_count}")
+    print(f"rejected: {rejected_count}")
     print(f"missing field companies: {len(missing_by_company)}")
     print(f"errors: {len(error_rows)}")
     print(f"api calls: {api_call_count}")

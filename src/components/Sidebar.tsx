@@ -64,7 +64,7 @@ const iconMap = {
 
 const navItems: NavItem[] = [
   { name: '스케줄러', href: '/', icon: 'calendar' },
-  { name: '밴드 차트', href: '/chart', icon: 'chart' },
+  { name: '기업 분석', href: '/chart', icon: 'chart' },
   {
     name: '종목 발굴',
     href: '/discovery',

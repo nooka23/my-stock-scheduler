@@ -1,0 +1,22 @@
+2026-04-20 15:20:12 [dart-backfill] Job started
+Planned periods: 2025Q3, 2025Q2, 2025Q1, 2024Q4, 2024Q3, 2024Q2, 2024Q1, 2023Q4, 2023Q3, 2023Q2
+State file: /Users/myunghoon/my-stock-scheduler/scripts/output/dart_financials_backfill_state.json
+
+=== Running 2025Q3 ===
+Command: /Users/myunghoon/my-stock-scheduler/.venv/bin/python3 /Users/myunghoon/my-stock-scheduler/scripts/export_dart_financials_by_account_id.py --api-limit 9500 --sleep 0.2 --fs-div-mode all --markets KOSPI KOSDAQ --year 2025 --quarter 3
+Traceback (most recent call last):
+  File "/Users/myunghoon/my-stock-scheduler/scripts/export_dart_financials_by_account_id.py", line 656, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/Users/myunghoon/my-stock-scheduler/scripts/export_dart_financials_by_account_id.py", line 499, in main
+    corp_map = get_corp_map(api_key)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/myunghoon/my-stock-scheduler/scripts/export_dart_financials_by_account_id.py", line 160, in get_corp_map
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/zipfile/__init__.py", line 1370, in __init__
+    self._RealGetContents()
+  File "/opt/homebrew/Cellar/python@3.12/3.12.12_2/Frameworks/Python.framework/Versions/3.12/lib/python3.12/zipfile/__init__.py", line 1437, in _RealGetContents
+    raise BadZipFile("File is not a zip file")
+zipfile.BadZipFile: File is not a zip file
+Stopped on failure at 2025Q3

@@ -32,7 +32,7 @@ fi
 LOG_FILE="$LOG_DIR/$(date '+%Y%m%d')_backfill.log"
 
 log "Job started" | tee -a "$LOG_FILE"
-"$PYTHON_BIN" scripts/export_dart_financials_backfill_daily.py "$@" 2>&1 | tee -a "$LOG_FILE"
+"$PYTHON_BIN" scripts/export_dart_financials_backfill_daily.py --batch-size 10 "$@" 2>&1 | tee -a "$LOG_FILE"
 EXIT_CODE=${pipestatus[1]}
 
 if [[ $EXIT_CODE -eq 0 ]]; then
