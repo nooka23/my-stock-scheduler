@@ -13,11 +13,13 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import os
 import time
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -37,6 +39,7 @@ REPORT_CODE_BY_QUARTER = {
 DEFAULT_MARKETS = ("KOSPI", "KOSDAQ")
 PREFERRED_SUFFIXES = ("우", "우B", "우C", "우(전환)", "우선주")
 TARGET_TABLE = "company_financials_v2"
+CORP_MAP_CACHE_PATH = Path(__file__).resolve().parent / "output" / "dart_corp_code_cache.json"
 REQUIRED_FIELDS = (
     "자산총계",
     "부채총계",
@@ -149,17 +152,7 @@ def ensure_excel_engine() -> None:
         ) from exc
 
 
-def get_corp_map(api_key: str) -> dict[str, dict[str, str]]:
-    response = requests.get(
-        f"{DART_API_BASE}/corpCode.xml",
-        params={"crtfc_key": api_key},
-        timeout=60,
-    )
-    response.raise_for_status()
-
-    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        xml_content = archive.read("CORPCODE.xml")
-
+def parse_corp_map_xml(xml_content: bytes) -> dict[str, dict[str, str]]:
     root = ET.fromstring(xml_content)
     mapping: dict[str, dict[str, str]] = {}
     for item in root.findall("list"):
@@ -171,6 +164,54 @@ def get_corp_map(api_key: str) -> dict[str, dict[str, str]]:
             "corp_name": (item.findtext("corp_name") or "").strip(),
         }
     return mapping
+
+
+def load_cached_corp_map() -> dict[str, dict[str, str]] | None:
+    if not CORP_MAP_CACHE_PATH.exists():
+        return None
+    try:
+        payload = json.loads(CORP_MAP_CACHE_PATH.read_text(encoding="utf-8"))
+        mapping = payload.get("mapping")
+        return mapping if isinstance(mapping, dict) else None
+    except Exception:
+        return None
+
+
+def save_cached_corp_map(mapping: dict[str, dict[str, str]]) -> None:
+    CORP_MAP_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "mapping": mapping,
+    }
+    CORP_MAP_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def get_corp_map(api_key: str) -> dict[str, dict[str, str]]:
+    last_error: str | None = None
+    for attempt in range(1, 4):
+        try:
+            response = requests.get(
+                f"{DART_API_BASE}/corpCode.xml",
+                params={"crtfc_key": api_key},
+                timeout=60,
+            )
+            response.raise_for_status()
+            with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                xml_content = archive.read("CORPCODE.xml")
+            mapping = parse_corp_map_xml(xml_content)
+            save_cached_corp_map(mapping)
+            return mapping
+        except Exception as exc:
+            last_error = str(exc)
+            if attempt < 3:
+                time.sleep(attempt * 2)
+
+    cached = load_cached_corp_map()
+    if cached:
+        print(f"warning: using cached corp map due to download failure: {last_error}")
+        return cached
+
+    raise RuntimeError(f"failed to download corpCode.xml and no cache is available: {last_error}")
 
 
 def is_preferred_name(name: str) -> bool:

@@ -76,12 +76,22 @@ type RankingRow = {
   rank_amount?: number | null;
 };
 
+type RsMomentumData = {
+  currentRs: number;       // 최신 RS 지수
+  rs5dAgo: number;         // 5일 전 RS
+  rs20dAgo: number;        // 20일 전 RS
+  change5d: number;        // 5일 변화량
+  change20d: number;       // 20일 변화량
+  streak: number;          // 연속 상승일 수
+};
+
 type PatternScanEntry = {
   code: string;
   name: string;
   rs_score: number;
   rank_amount?: number | null;
   patterns: PatternResult[];
+  rsMomentum?: RsMomentumData | null;
 };
 
 type IndustryRelationRow = {
@@ -130,7 +140,7 @@ export default function ChartPage() {
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('daily');
   const [currentPatterns, setCurrentPatterns] = useState<PatternResult[]>([]);
 
-  const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp' | 'sqb_htf'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp' | 'rs_momentum'>('list');
   const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
   const [patternScanProgress, setPatternScanProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -184,6 +194,7 @@ export default function ChartPage() {
     setPatternScanEntries([]);
     setPatternScanProgress({ done: 0, total: reviewStocks.length });
 
+    const isRsMomentumMode = activeView === 'rs_momentum';
     const CHUNK = 10;
     const all: PatternScanEntry[] = [];
 
@@ -192,6 +203,47 @@ export default function ChartPage() {
       const results = await Promise.all(
         chunk.map(async (stock) => {
           try {
+            // RS 상승세 모드: RS 시계열 데이터만 조회
+            if (isRsMomentumMode) {
+              const { data: rsData } = await supabase
+                .from('rs_rankings_v2')
+                .select('date, score_weighted')
+                .eq('code', stock.code)
+                .order('date', { ascending: false })
+                .limit(30);
+
+              let rsMomentum: RsMomentumData | null = null;
+              if (rsData && rsData.length >= 5) {
+                const scores = rsData.map((r) => Number(r.score_weighted));
+                const currentRs = scores[0];
+                const rs5dAgo = scores.length >= 6 ? scores[5] : scores[scores.length - 1];
+                const rs20dAgo = scores.length >= 21 ? scores[20] : scores[scores.length - 1];
+
+                // 연속 상승일 계산: 최근부터 이전 일자 대비 RS가 상승한 연속 일수
+                let streak = 0;
+                for (let s = 0; s < scores.length - 1; s++) {
+                  if (scores[s] > scores[s + 1]) streak++;
+                  else break;
+                }
+
+                rsMomentum = {
+                  currentRs,
+                  rs5dAgo,
+                  rs20dAgo,
+                  change5d: currentRs - rs5dAgo,
+                  change20d: currentRs - rs20dAgo,
+                  streak,
+                };
+              }
+
+              return {
+                code: stock.code, name: stock.name, rs_score: stock.rs_score,
+                rank_amount: stock.rank_amount, patterns: [] as PatternResult[],
+                rsMomentum,
+              };
+            }
+
+            // 일반 패턴 스캔 모드
             const { data: prices } = await supabase
               .from('daily_prices_v2')
               .select('open, high, low, close, volume')
@@ -226,7 +278,7 @@ export default function ChartPage() {
 
     setPatternScanEntries(all);
     setPatternScanProgress(null);
-  }, [reviewStocks, supabase, patternScanProgress]);
+  }, [reviewStocks, supabase, patternScanProgress, activeView]);
 
   const getReviewStorageKey = useCallback(
     () => (latestDate ? `mh-chart-review:${latestDate}:minRS:${minRS}` : ''),
@@ -967,13 +1019,13 @@ export default function ChartPage() {
                     </span>
                   )}
                   <div className="flex rounded-lg border border-[var(--border)] bg-white p-[2px] text-[10px]">
-                    {(['list', 'cup_handle', 'vcp', 'sqb_htf'] as const).map((v) => (
+                    {(['list', 'cup_handle', 'vcp', 'rs_momentum'] as const).map((v) => (
                       <button
                         key={v}
                         onClick={() => setActiveView(v)}
                         className={`rounded-md px-2 py-0.5 font-bold transition-colors ${activeView === v ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
                       >
-                        {v === 'list' ? '목록' : v === 'cup_handle' ? 'C&H' : v === 'vcp' ? 'VCP' : 'SB·HTF'}
+                        {v === 'list' ? '목록' : v === 'cup_handle' ? 'C&H' : v === 'vcp' ? 'VCP' : 'RS↑'}
                       </button>
                     ))}
                   </div>
@@ -1129,7 +1181,7 @@ export default function ChartPage() {
                   <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
                     <span className="text-sm text-gray-500">
                       {reviewStocks.length}개 종목에서<br />
-                      <strong>{activeView === 'cup_handle' ? '컵앤핸들' : activeView === 'vcp' ? 'VCP' : '스퀘어박스 · 하이타이트플래그'}</strong> 패턴을 검색합니다
+                      <strong>{activeView === 'cup_handle' ? '컵앤핸들' : activeView === 'vcp' ? 'VCP' : 'RS 상승세'}</strong> {activeView === 'rs_momentum' ? '종목을 필터링합니다' : '패턴을 검색합니다'}
                     </span>
                     <button
                       onClick={scanAllPatterns}
@@ -1141,10 +1193,18 @@ export default function ChartPage() {
                 ) : (() => {
                   const patternId = activeView;
                   const matched = patternScanEntries.filter((e) =>
-                    activeView === 'sqb_htf'
-                      ? e.patterns.some((p) => (p.id === 'square_box' || p.id === 'high_tight_flag') && p.detected)
+                    activeView === 'rs_momentum'
+                      ? (e.rsMomentum != null && e.rsMomentum.currentRs >= 0 && (e.rsMomentum.change5d > 0 || e.rsMomentum.change20d > 0))
                       : e.patterns.some((p) => p.id === patternId && p.detected)
-                  );
+                  ).sort((a, b) => {
+                    if (activeView === 'rs_momentum') {
+                      // RS 지수가 높은 순서로 정렬
+                      const aRs = a.rsMomentum?.currentRs ?? 0;
+                      const bRs = b.rsMomentum?.currentRs ?? 0;
+                      return bRs - aRs;
+                    }
+                    return 0;
+                  });
                   return (
                     <div className="flex flex-col h-full">
                       <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2 text-xs text-gray-500">
@@ -1164,7 +1224,7 @@ export default function ChartPage() {
                         <table className="w-full border-collapse text-left">
                           <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
                             <tr>
-                              {(activeView === 'cup_handle' || activeView === 'vcp' || activeView === 'sqb_htf') ? (
+                              {(activeView === 'cup_handle' || activeView === 'vcp' || activeView === 'rs_momentum') ? (
                                 <th className="px-2 py-2" colSpan={4}>종목 / 조건</th>
                               ) : (
                                 <>
@@ -1188,7 +1248,7 @@ export default function ChartPage() {
                                   onClick={() => handleStockClick({ code: entry.code, name: entry.name, rank: entry.rs_score, rs_score: entry.rs_score, close: 0, marcap: 0 })}
                                   className={`cursor-pointer transition-colors hover:bg-[var(--surface-muted)] ${isActive ? 'bg-blue-100' : ''}`}
                                 >
-                                  <td className="px-2 py-2" colSpan={(activeView === 'cup_handle' || activeView === 'vcp' || activeView === 'sqb_htf') ? 4 : 1}>
+                                  <td className="px-2 py-2" colSpan={(activeView === 'cup_handle' || activeView === 'vcp' || activeView === 'rs_momentum') ? 4 : 1}>
                                     <div className="flex items-center justify-between gap-2">
                                       <div>
                                         <div className="font-semibold text-slate-900">{entry.name}</div>
@@ -1256,62 +1316,34 @@ export default function ChartPage() {
                                         </span>
                                       </div>
                                     )}
-                                    {activeView === 'sqb_htf' && (() => {
-                                      const sbMeta  = entry.patterns.find((p) => p.id === 'square_box')?.meta;
-                                      const htfMeta = entry.patterns.find((p) => p.id === 'high_tight_flag')?.meta;
+                                    {activeView === 'rs_momentum' && entry.rsMomentum && (() => {
+                                      const m = entry.rsMomentum;
+                                      const fmtChange = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
                                       return (
-                                        <div className="mt-1.5 flex flex-col gap-1">
-                                          {sbMeta && (
-                                            <div className="flex flex-wrap items-center gap-1">
-                                              <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">SB</span>
-                                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700"
-                                                title="박스 직전 선행 상승률">
-                                                선행 +{pct(sbMeta.priorGain)}
-                                              </span>
-                                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
-                                                title="박스 기간 (주)">
-                                                {sbMeta.boxWeeks}주
-                                              </span>
-                                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
-                                                title="박스 깊이 (고점 - 저점) / 저점">
-                                                깊이 {pct(sbMeta.boxDepth)}
-                                              </span>
-                                              <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${sbMeta.distFromBoxHigh <= 0.02 ? 'bg-emerald-50 text-emerald-700' : sbMeta.distFromBoxHigh <= 0.04 ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-50 text-gray-600'}`}
-                                                title="박스 고점까지 남은 거리">
-                                                박스 -{pct(sbMeta.distFromBoxHigh)}
-                                              </span>
-                                            </div>
-                                          )}
-                                          {htfMeta && (
-                                            <div className="flex flex-wrap items-center gap-1">
-                                              <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold text-rose-700">HTF</span>
-                                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700"
-                                                title="폴 상승률 (100%+)">
-                                                폴 +{pct(htfMeta.poleGain)}
-                                              </span>
-                                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700"
-                                                title="폴 기간 (주)">
-                                                폴 {htfMeta.poleWeeks}주
-                                              </span>
-                                              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-700"
-                                                title="플래그 조정폭 (10~25%)">
-                                                플래그 -{pct(htfMeta.flagDrop)}
-                                              </span>
-                                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-600"
-                                                title="플래그 기간 (주)">
-                                                {htfMeta.flagWeeks}주
-                                              </span>
-                                              <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${htfMeta.volRatio <= 0.5 ? 'bg-emerald-50 text-emerald-700' : htfMeta.volRatio <= 0.8 ? 'bg-yellow-50 text-yellow-700' : 'bg-gray-50 text-gray-600'}`}
-                                                title="플래그/폴 거래량 비율 (낮을수록 수축)">
-                                                거래량 {(htfMeta.volRatio * 100).toFixed(0)}%
-                                              </span>
-                                            </div>
+                                        <div className="mt-1.5 flex flex-wrap gap-1">
+                                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${m.currentRs >= 0.3 ? 'bg-emerald-100 text-emerald-700' : m.currentRs >= 0.1 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}
+                                            title="현재 RS 지수">
+                                            RS {m.currentRs.toFixed(2)}
+                                          </span>
+                                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${m.change5d > 0 ? 'bg-emerald-50 text-emerald-700' : m.change5d === 0 ? 'bg-gray-50 text-gray-600' : 'bg-rose-50 text-rose-700'}`}
+                                            title="5일 전 대비 RS 변화">
+                                            5일 {fmtChange(m.change5d)}
+                                          </span>
+                                          <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${m.change20d > 0 ? 'bg-emerald-50 text-emerald-700' : m.change20d === 0 ? 'bg-gray-50 text-gray-600' : 'bg-rose-50 text-rose-700'}`}
+                                            title="20일 전 대비 RS 변화">
+                                            20일 {fmtChange(m.change20d)}
+                                          </span>
+                                          {m.streak > 0 && (
+                                            <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${m.streak >= 5 ? 'bg-amber-100 text-amber-700' : m.streak >= 3 ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-600'}`}
+                                              title="RS 연속 상승일">
+                                              🔥 {m.streak}일 연속↑
+                                            </span>
                                           )}
                                         </div>
                                       );
                                     })()}
                                   </td>
-                                  {activeView !== 'cup_handle' && activeView !== 'vcp' && activeView !== 'sqb_htf' && (
+                                  {activeView !== 'cup_handle' && activeView !== 'vcp' && activeView !== 'rs_momentum' && (
                                     <>
                                       <td className="px-2 py-2 text-right font-bold text-blue-600">{entry.rs_score}</td>
                                       <td className="px-2 py-2 text-center font-medium text-gray-600">{entry.rank_amount ?? '-'}</td>

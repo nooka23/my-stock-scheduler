@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useRouter } from 'next/navigation';
 import BandChart, { BandSettings } from '@/components/BandChart';
+import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ComposedChart, Line } from 'recharts';
 
 type Company = { code: string; name: string; };
 
@@ -61,6 +62,8 @@ const fmt = (val: number | null, unit = 1): string => {
   return n.toLocaleString();
 };
 
+const FINANCIAL_V2_DISPLAY_UNIT = 1000000; // DB stores amounts in 100-won units; divide by 1,000,000 to show 억원.
+
 const pct = (current: number | null, prev: number | null): number | null => {
   if (current === null || prev === null || prev === 0) return null;
   return ((current - prev) / Math.abs(prev)) * 100;
@@ -79,46 +82,43 @@ function GrowthBadge({ val }: { val: number | null }) {
 function FinTable({
   title,
   rows,
-  years,
+  labels,
   data,
 }: {
   title: string;
   rows: { label: string; key: keyof FinancialsV2Row }[];
-  years: number[];
+  labels: string[];
   data: FinancialsV2Row[];
 }) {
-  const UNIT = 100_000_000;
-  const getRow = (year: number) => data.find(d => d.year === year) ?? null;
-
   return (
     <div className="mb-6">
       <h3 className="text-sm font-bold text-slate-700 mb-2 px-1">{title}</h3>
-      <div className="border border-[var(--border)] rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="border border-[var(--border)] rounded-2xl overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm" style={{ minWidth: Math.max(400, labels.length * 90 + 160) }}>
           <thead>
             <tr className="bg-[var(--surface-accent)] text-[var(--primary-strong)]">
-              <th className="p-2.5 text-left font-semibold w-44 border-r border-blue-100 text-xs">
+              <th className="p-2.5 text-left font-semibold w-44 border-r border-blue-100 text-xs sticky left-0 bg-[var(--surface-accent)] z-10">
                 항목 <span className="font-normal text-[var(--text-subtle)]">(억원)</span>
               </th>
-              {years.map((y) => (
-                <th key={y} className="p-2.5 text-right font-semibold text-xs">{y}</th>
+              {labels.map((lbl, i) => (
+                <th key={i} className="p-2.5 text-right font-semibold text-xs whitespace-nowrap">{lbl}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, ri) => (
               <tr key={row.key} className={`border-t border-[var(--border)] ${ri % 2 === 0 ? 'bg-white' : 'bg-[var(--surface-muted)]'}`}>
-                <td className="p-2.5 text-xs font-semibold text-slate-600 border-r border-[var(--border)]">{row.label}</td>
-                {years.map((y, yi) => {
-                  const cur = getRow(y)?.[row.key] as number | null ?? null;
-                  const prev = yi > 0 ? (getRow(years[yi - 1])?.[row.key] as number | null ?? null) : null;
+                <td className="p-2.5 text-xs font-semibold text-slate-600 border-r border-[var(--border)] sticky left-0 bg-inherit z-10">{row.label}</td>
+                {data.map((d, di) => {
+                  const cur = d[row.key] as number | null ?? null;
+                  const prev = di > 0 ? (data[di - 1][row.key] as number | null ?? null) : null;
                   const growth = pct(cur, prev);
                   return (
-                    <td key={y} className="p-2.5 text-right font-mono text-xs">
+                    <td key={di} className="p-2.5 text-right font-mono text-xs whitespace-nowrap">
                       <span className={cur !== null && cur < 0 ? 'text-blue-600' : 'text-slate-800'}>
-                        {fmt(cur, UNIT)}
+                        {fmt(cur, FINANCIAL_V2_DISPLAY_UNIT)}
                       </span>
-                      {yi > 0 && <GrowthBadge val={growth} />}
+                      {di > 0 && <GrowthBadge val={growth} />}
                     </td>
                   );
                 })}
@@ -152,7 +152,11 @@ export default function CompanyAnalysisPage() {
 
   // ─── 종목정보 탭 ─────────────────────────────────────────────────────────
   const [financialsV2, setFinancialsV2] = useState<FinancialsV2Row[]>([]);
+  const [financialsV2All, setFinancialsV2All] = useState<FinancialsV2Row[]>([]);
   const [isConsolidated, setIsConsolidated] = useState(true);
+  const [viewPeriod, setViewPeriod] = useState<'annual' | 'quarterly'>('annual');
+  const [periodStart, setPeriodStart] = useState('');
+  const [periodEnd, setPeriodEnd] = useState('');
   const [loadingV2, setLoadingV2] = useState(false);
 
   // ─── 밴드차트 탭 ─────────────────────────────────────────────────────────
@@ -270,8 +274,11 @@ export default function CompanyAnalysisPage() {
 
       if (error) throw error;
 
+      // 전체 데이터 저장 (분기별 보기용)
+      const raw = (data as unknown as FinancialsV2Row[]) ?? [];
+      setFinancialsV2All(raw);
+
       // 연간(사업보고서) 데이터만 추출: reprt_code='11011' 우선, 없으면 quarter=4
-      const raw = (data as FinancialsV2Row[]) ?? [];
       const hasAnnual = raw.some(d => d.reprt_code === '11011');
       const annual = hasAnnual
         ? raw.filter(d => d.reprt_code === '11011')
@@ -524,18 +531,61 @@ export default function CompanyAnalysisPage() {
   }, [favorites, activeGroup]);
 
   // ─── 종목정보 탭 데이터 계산 ─────────────────────────────────────────────
+  const baseFilteredV2 = useMemo(() => {
+    const targetFsDiv = isConsolidated ? 'CFS' : 'OFS';
+    if (viewPeriod === 'quarterly') {
+      // 분기별: 전체 데이터에서 fs_div 맞는 것만, 1~3분기만(사업보고서 제외)
+      return financialsV2All
+        .filter(d => d.fs_div === targetFsDiv && d.reprt_code !== '11011')
+        .sort((a, b) => a.year !== b.year ? a.year - b.year : a.quarter - b.quarter);
+    }
+    return financialsV2.filter(d => d.fs_div === targetFsDiv);
+  }, [financialsV2, financialsV2All, isConsolidated, viewPeriod]);
+
+  // 분기별이면 "2024 Q1" 형태 라벨, 연간이면 연도
+  const allV2Labels = useMemo(() => {
+    if (viewPeriod === 'quarterly') {
+      return baseFilteredV2.map(d => `${d.year} Q${d.quarter}`);
+    }
+    return baseFilteredV2.map(d => `${d.year}`);
+  }, [baseFilteredV2, viewPeriod]);
+
+  useEffect(() => {
+    if (allV2Labels.length === 0) {
+      setPeriodStart('');
+      setPeriodEnd('');
+      return;
+    }
+    setPeriodStart(prev => allV2Labels.includes(prev) ? prev : allV2Labels[0]);
+    setPeriodEnd(prev => allV2Labels.includes(prev) ? prev : allV2Labels[allV2Labels.length - 1]);
+  }, [allV2Labels]);
+
+  const selectedRange = useMemo(() => {
+    const startIndex = allV2Labels.indexOf(periodStart);
+    const endIndex = allV2Labels.indexOf(periodEnd);
+    if (startIndex === -1 || endIndex === -1) {
+      return { startIndex: 0, endIndex: Math.max(0, allV2Labels.length - 1) };
+    }
+    return startIndex <= endIndex
+      ? { startIndex, endIndex }
+      : { startIndex: endIndex, endIndex: startIndex };
+  }, [allV2Labels, periodStart, periodEnd]);
+
   const filteredV2 = useMemo(() => {
+    return baseFilteredV2.slice(selectedRange.startIndex, selectedRange.endIndex + 1);
+  }, [baseFilteredV2, selectedRange]);
+
+  const v2Labels = useMemo(() => {
+    return allV2Labels.slice(selectedRange.startIndex, selectedRange.endIndex + 1);
+  }, [allV2Labels, selectedRange]);
+
+  // 핵심 지표 카드용 (최신 연도 - 항상 연간 기준)
+  const annualFiltered = useMemo(() => {
     const targetFsDiv = isConsolidated ? 'CFS' : 'OFS';
     return financialsV2.filter(d => d.fs_div === targetFsDiv);
   }, [financialsV2, isConsolidated]);
-
-  const v2Years = useMemo(() => filteredV2.map(d => d.year), [filteredV2]);
-
-  // 핵심 지표 카드용 (최신 연도)
-  const latestV2 = filteredV2.length > 0 ? filteredV2[filteredV2.length - 1] : null;
-  const prevV2 = filteredV2.length > 1 ? filteredV2[filteredV2.length - 2] : null;
-
-  const UNIT = 100_000_000;
+  const latestV2 = annualFiltered.length > 0 ? annualFiltered[annualFiltered.length - 1] : null;
+  const prevV2 = annualFiltered.length > 1 ? annualFiltered[annualFiltered.length - 2] : null;
 
   const keyMetrics = useMemo(() => {
     if (!latestV2) return [];
@@ -544,14 +594,32 @@ export default function CompanyAnalysisPage() {
     const netMargin = (latestV2.net_income != null && latestV2.revenue != null && latestV2.revenue > 0)
       ? (latestV2.net_income / latestV2.revenue * 100).toFixed(1) : '-';
     return [
-      { label: '매출액', value: fmt(latestV2.revenue, UNIT), unit: '억원', growth: pct(latestV2.revenue, prevV2?.revenue ?? null) },
-      { label: '영업이익', value: fmt(latestV2.operating_income, UNIT), unit: '억원', growth: pct(latestV2.operating_income, prevV2?.operating_income ?? null) },
-      { label: '순이익', value: fmt(latestV2.net_income, UNIT), unit: '억원', growth: pct(latestV2.net_income, prevV2?.net_income ?? null) },
+      { label: '매출액', value: fmt(latestV2.revenue, FINANCIAL_V2_DISPLAY_UNIT), unit: '억원', growth: pct(latestV2.revenue, prevV2?.revenue ?? null) },
+      { label: '영업이익', value: fmt(latestV2.operating_income, FINANCIAL_V2_DISPLAY_UNIT), unit: '억원', growth: pct(latestV2.operating_income, prevV2?.operating_income ?? null) },
+      { label: '순이익', value: fmt(latestV2.net_income, FINANCIAL_V2_DISPLAY_UNIT), unit: '억원', growth: pct(latestV2.net_income, prevV2?.net_income ?? null) },
       { label: '영업이익률', value: margin, unit: '%', growth: null },
       { label: '순이익률', value: netMargin, unit: '%', growth: null },
-      { label: '총자산', value: fmt(latestV2.assets_total, UNIT), unit: '억원', growth: pct(latestV2.assets_total, prevV2?.assets_total ?? null) },
+      { label: '총자산', value: fmt(latestV2.assets_total, FINANCIAL_V2_DISPLAY_UNIT), unit: '억원', growth: pct(latestV2.assets_total, prevV2?.assets_total ?? null) },
     ];
   }, [latestV2, prevV2]);
+
+  // ─── 매출/영업이익 막대그래프 데이터 ──────────────────────────────────────
+  const barChartData = useMemo(() => {
+    const getPreviousForYoY = (row: FinancialsV2Row, indexInBase: number) => {
+      if (viewPeriod === 'quarterly') {
+        return baseFilteredV2.find(d => d.year === row.year - 1 && d.quarter === row.quarter) ?? null;
+      }
+      return indexInBase > 0 ? baseFilteredV2[indexInBase - 1] : null;
+    };
+
+    return filteredV2.map((d, i) => ({
+      label: v2Labels[i],
+      매출액: (d.revenue ?? 0) / FINANCIAL_V2_DISPLAY_UNIT,
+      영업이익: (d.operating_income ?? 0) / FINANCIAL_V2_DISPLAY_UNIT,
+      매출성장률: pct(d.revenue, getPreviousForYoY(d, selectedRange.startIndex + i)?.revenue ?? null),
+      영업이익성장률: pct(d.operating_income, getPreviousForYoY(d, selectedRange.startIndex + i)?.operating_income ?? null),
+    }));
+  }, [baseFilteredV2, filteredV2, selectedRange.startIndex, v2Labels, viewPeriod]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
@@ -580,18 +648,56 @@ export default function CompanyAnalysisPage() {
             )}
           </div>
 
-          {/* 종목정보 탭: 연결/별도 토글 */}
+          {/* 종목정보 탭: 연결/별도 토글 + 연간/분기 토글 */}
           {activeTab === 'stockInfo' && (
-            <div className="flex mb-4 border border-[var(--border)] bg-[var(--surface-muted)] p-1 rounded-2xl">
-              <button onClick={() => setIsConsolidated(true)}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${isConsolidated ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}>
-                연결재무제표
-              </button>
-              <button onClick={() => setIsConsolidated(false)}
-                className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${!isConsolidated ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}>
-                별도재무제표
-              </button>
-            </div>
+            <>
+              <div className="flex mb-2 border border-[var(--border)] bg-[var(--surface-muted)] p-1 rounded-2xl">
+                <button onClick={() => setIsConsolidated(true)}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${isConsolidated ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}>
+                  연결재무제표
+                </button>
+                <button onClick={() => setIsConsolidated(false)}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${!isConsolidated ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}>
+                  별도재무제표
+                </button>
+              </div>
+              <div className="flex mb-4 border border-[var(--border)] bg-[var(--surface-muted)] p-1 rounded-2xl">
+                <button onClick={() => setViewPeriod('annual')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${viewPeriod === 'annual' ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}>
+                  📅 연간
+                </button>
+                <button onClick={() => setViewPeriod('quarterly')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${viewPeriod === 'quarterly' ? 'bg-white text-[var(--primary)] shadow-[var(--shadow-sm)]' : 'text-[var(--text-muted)] hover:text-gray-700'}`}>
+                  📊 분기별
+                </button>
+              </div>
+              <div className="mb-4 rounded-2xl border border-[var(--border)] bg-white p-3">
+                <div className="mb-2 text-xs font-semibold text-slate-700">조회 기간</div>
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                  <select
+                    className="app-input px-2 py-2 text-xs font-semibold"
+                    value={periodStart}
+                    onChange={(e) => setPeriodStart(e.target.value)}
+                    disabled={allV2Labels.length === 0}
+                  >
+                    {allV2Labels.map(label => (
+                      <option key={label} value={label}>{label}</option>
+                    ))}
+                  </select>
+                  <span className="text-xs font-bold text-[var(--text-subtle)]">~</span>
+                  <select
+                    className="app-input px-2 py-2 text-xs font-semibold"
+                    value={periodEnd}
+                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    disabled={allV2Labels.length === 0}
+                  >
+                    {allV2Labels.map(label => (
+                      <option key={label} value={label}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
           )}
 
           {/* 밴드차트 탭: 서버/편집 토글 */}
@@ -784,16 +890,76 @@ export default function CompanyAnalysisPage() {
                       ))}
                     </div>
 
-                    {/* 연도 범위 표시 */}
+                    {/* 매출/영업이익 차트 */}
+                    {barChartData.length > 0 && (
+                      <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-700 mb-2 px-1">매출 차트</h3>
+                          <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white p-4" style={{ height: 320 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={barChartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+                                <YAxis yAxisId="amount" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(0)}조` : v >= 1 ? `${v.toLocaleString()}` : `${v}`} />
+                                <YAxis yAxisId="growth" orientation="right" tick={{ fontSize: 11, fill: '#0f766e' }} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
+                                <Tooltip
+                                  formatter={(value: unknown, name: unknown) => {
+                                    const numeric = Number(value);
+                                    const label = String(name);
+                                    return [label.includes('성장률') ? `${numeric.toFixed(1)}%` : `${numeric.toLocaleString()} 억원`, label];
+                                  }}
+                                  contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600 }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
+                                <Bar yAxisId="amount" dataKey="매출액" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                                <Line yAxisId="amount" type="monotone" dataKey="영업이익" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                                <Line yAxisId="growth" type="monotone" dataKey="매출성장률" stroke="#0f766e" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-700 mb-2 px-1">영업이익 차트</h3>
+                          <div className="border border-[var(--border)] rounded-2xl overflow-hidden bg-white p-4" style={{ height: 320 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={barChartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#64748b' }} />
+                                <YAxis yAxisId="amount" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v: number) => v >= 10000 ? `${(v / 10000).toFixed(0)}조` : v >= 1 ? `${v.toLocaleString()}` : `${v}`} />
+                                <YAxis yAxisId="growth" orientation="right" tick={{ fontSize: 11, fill: '#f59e0b' }} tickFormatter={(v: number) => `${v.toFixed(0)}%`} />
+                                <Tooltip
+                                  formatter={(value: unknown, name: unknown) => {
+                                    const numeric = Number(value);
+                                    const label = String(name);
+                                    return [label.includes('성장률') ? `${numeric.toFixed(1)}%` : `${numeric.toLocaleString()} 억원`, label];
+                                  }}
+                                  contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600 }}
+                                />
+                                <Legend wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
+                                <Bar yAxisId="amount" dataKey="영업이익" radius={[4, 4, 0, 0]}>
+                                  {barChartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.영업이익 >= 0 ? '#10b981' : '#ef4444'} />
+                                  ))}
+                                </Bar>
+                                <Line yAxisId="growth" type="monotone" dataKey="영업이익성장률" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 기간 범위 표시 */}
                     <div className="text-xs text-[var(--text-subtle)] mb-4 font-medium">
-                      {isConsolidated ? '연결' : '별도'} 재무제표 · 연간 기준 · {v2Years[0]}~{v2Years[v2Years.length - 1]}년
+                      {isConsolidated ? '연결' : '별도'} 재무제표 · {viewPeriod === 'annual' ? '연간' : '분기별'} 기준 · {v2Labels[0]}~{v2Labels[v2Labels.length - 1]}
                       <span className="ml-2 text-[var(--text-subtle)]">(단위: 억원)</span>
                     </div>
 
                     {/* 손익계산서 */}
                     <FinTable
                       title="손익계산서"
-                      years={v2Years}
+                      labels={v2Labels}
                       data={filteredV2}
                       rows={[
                         { label: '매출액', key: 'revenue' },
@@ -807,7 +973,7 @@ export default function CompanyAnalysisPage() {
                     {/* 재무상태표 */}
                     <FinTable
                       title="재무상태표"
-                      years={v2Years}
+                      labels={v2Labels}
                       data={filteredV2}
                       rows={[
                         { label: '자산총계', key: 'assets_total' },
@@ -826,7 +992,7 @@ export default function CompanyAnalysisPage() {
                     {/* 현금흐름표 */}
                     <FinTable
                       title="현금흐름표"
-                      years={v2Years}
+                      labels={v2Labels}
                       data={filteredV2}
                       rows={[
                         { label: '영업활동현금흐름', key: 'operating_cash_flow' },
