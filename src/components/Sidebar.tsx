@@ -233,6 +233,12 @@ export default function Sidebar() {
               <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>
             </div>
             <button
+              onClick={() => router.push('/update-password')}
+              className="rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-muted)] transition-colors hover:border-[var(--primary-soft)] hover:bg-[var(--surface-accent)] hover:text-[var(--primary-strong)]"
+            >
+              비밀번호 변경
+            </button>
+            <button
               onClick={handleLogout}
               className="rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-muted)] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
             >
