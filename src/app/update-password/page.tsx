@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const supabase = createClientComponentClient();
   const router = useRouter();
@@ -13,6 +14,12 @@ export default function UpdatePasswordPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    if (password !== confirmPassword) {
+      alert('비밀번호가 일치하지 않습니다. 다시 확인해주세요.');
+      setLoading(false);
+      return;
+    }
 
     // ★ 현재 로그인된 유저의 비밀번호를 업데이트함
     const { error } = await supabase.auth.updateUser({
@@ -30,27 +37,41 @@ export default function UpdatePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-xl shadow-md w-96">
-        <h1 className="text-2xl font-bold text-center text-blue-800 mb-6">새 비밀번호 설정</h1>
-        <p className="text-sm text-gray-600 mb-4 text-center">
-          새로 사용할 비밀번호를 입력해주세요.
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="app-card-strong w-full max-w-md p-8">
+        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">
+          Security Settings
+        </p>
+        <h1 className="mb-6 mt-2 text-center text-3xl font-semibold text-slate-950">
+          새 비밀번호 설정
+        </h1>
+        <p className="text-sm text-gray-600 mb-6 text-center">
+          안전을 위해 새로 사용할 비밀번호를 두 번 입력해주세요.
         </p>
         
         <form onSubmit={handleUpdate} className="flex flex-col gap-4">
           <input
             type="password"
             placeholder="새 비밀번호 (6자리 이상)"
-            className="border p-3 rounded-lg"
+            className="app-input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+          />
+          <input
+            type="password"
+            placeholder="새 비밀번호 확인"
+            className="app-input"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             required
             minLength={6}
           />
           <button 
             type="submit" 
             disabled={loading}
-            className="bg-green-600 text-white p-3 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-400"
+            className="rounded-2xl p-3 font-semibold text-white transition-colors hover:opacity-90 disabled:bg-gray-400 bg-slate-950 mt-2"
           >
             {loading ? '변경 중...' : '비밀번호 변경하기'}
           </button>
