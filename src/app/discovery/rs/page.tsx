@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import StockChartDiscovery from '@/components/StockChartDiscovery';
 
 type DailyPrice = {
@@ -127,14 +127,16 @@ export default function RsDiscoveryPage() {
   const mapCompanyNames = async (stocks: any[]) => {
     const codes = stocks.map((s: any) => s.code);
     let companyInfoMap = new Map();
-    const chunkSize = 1000;
+    const chunkSize = 500;
     
     for (let i = 0; i < codes.length; i += chunkSize) {
         const chunk = codes.slice(i, i + chunkSize);
-        const { data: companiesData } = await supabase
+        const { data: companiesData, error: companiesError } = await supabase
         .from('companies')
         .select('code, name, marcap')
         .in('code', chunk);
+
+        if (companiesError) throw companiesError;
 
         if (companiesData) {
             companiesData.forEach((c: any) => {
@@ -152,6 +154,25 @@ export default function RsDiscoveryPage() {
         };
     });
   };
+
+  const fetchLatestPricesForCodes = useCallback(async (date: string, codes: string[]) => {
+    const priceMap = new Map<string, number>();
+    const chunkSize = 500;
+
+    for (let i = 0; i < codes.length; i += chunkSize) {
+      const chunk = codes.slice(i, i + chunkSize);
+      const { data, error } = await supabase
+        .from('daily_prices_v2')
+        .select('code, close')
+        .eq('date', date)
+        .in('code', chunk);
+
+      if (error) throw error;
+      data?.forEach((p: any) => priceMap.set(p.code, p.close));
+    }
+
+    return priceMap;
+  }, [supabase]);
 
   const fetchRankedStocks = useCallback(async () => {
     setLoading(true);
@@ -179,14 +200,7 @@ export default function RsDiscoveryPage() {
 
       if (rankData && rankData.length > 0) {
         const codes = rankData.map((r: any) => r.code);
-        const { data: priceData } = await supabase
-            .from('daily_prices_v2')
-            .select('code, close')
-            .eq('date', latestDate)
-            .in('code', codes);
-            
-        const priceMap = new Map();
-        priceData?.forEach((p: any) => priceMap.set(p.code, p.close));
+        const priceMap = await fetchLatestPricesForCodes(latestDate, codes);
 
         const mergedData = rankData.map((r: any) => ({
             date_str: r.date,
@@ -210,7 +224,7 @@ export default function RsDiscoveryPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, fetchLatestPricesForCodes]);
 
   const fetchRisingStocks = useCallback(async () => {
     setLoading(true);

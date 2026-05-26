@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
 import BandChart, { BandSettings } from '@/components/BandChart';
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ComposedChart, Line } from 'recharts';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import StockChartDiscovery from '@/components/StockChartDiscovery';
 
 type CapStock = {

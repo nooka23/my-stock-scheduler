@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import { User } from '@supabase/supabase-js';
 
 type MyProfile = {

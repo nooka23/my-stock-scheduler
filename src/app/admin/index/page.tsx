@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import StockChart from '@/components/StockChart';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import { 
   calculateEMA, 
   calculateWMA, 

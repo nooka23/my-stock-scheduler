@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -76,6 +76,8 @@ export default function LoginPage() {
       // ----------------------------------------------------
       
       // 1. 로그인 시도 (쿠키 생성)
+      await supabase.auth.signOut({ scope: 'local' });
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,

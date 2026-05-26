@@ -7,6 +7,18 @@ export async function middleware(req: NextRequest) {
   // 미들웨어가 쿠키를 관리하도록 설정
   const supabase = createMiddlewareClient({ req, res });
 
+  const clearSupabaseCookies = () => {
+    for (const cookie of req.cookies.getAll()) {
+      if (
+        cookie.name.startsWith('sb-') ||
+        cookie.name.includes('supabase') ||
+        cookie.name.includes('auth-token')
+      ) {
+        res.cookies.delete(cookie.name);
+      }
+    }
+  };
+
   const {
     data: { session },
     error,
@@ -14,7 +26,15 @@ export async function middleware(req: NextRequest) {
 
   // Clear bad auth cookies if refresh token is missing/invalid.
   if (error?.code === 'refresh_token_not_found' || error?.message?.includes('Refresh Token Not Found')) {
-    await supabase.auth.signOut();
+    clearSupabaseCookies();
+
+    if (req.nextUrl.pathname === '/') {
+      return NextResponse.redirect(new URL('/login', req.url), {
+        headers: res.headers,
+      });
+    }
+
+    return res;
   }
 
   // 로그인 안 한 사람이 메인('/') 접근 시 -> 로그인 페이지로

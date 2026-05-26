@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import StockChart, { type StockChartHandle } from '@/components/StockChart';
 import FullscreenPanel from '@/components/FullscreenPanel';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import {
   calculateEMA,
   calculateWMA,

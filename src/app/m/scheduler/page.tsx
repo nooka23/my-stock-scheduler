@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Calendar from 'react-calendar';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClientComponentClient } from '@/lib/supabase-browser';
 import { User } from '@supabase/supabase-js';
 import '../../calendar-style.css';
 
