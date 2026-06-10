@@ -69,6 +69,54 @@ const pct = (current: number | null, prev: number | null): number | null => {
   return ((current - prev) / Math.abs(prev)) * 100;
 };
 
+const QUARTERLY_FLOW_KEYS: (keyof FinancialsV2Row)[] = [
+  'revenue',
+  'cost_of_sales',
+  'operating_income',
+  'selling_general_administrative_expenses',
+  'net_income',
+  'operating_cash_flow',
+  'investing_cash_flow',
+  'financing_cash_flow',
+];
+
+const normalizeQuarterlyFinancials = (rows: FinancialsV2Row[]): FinancialsV2Row[] => {
+  const rowByPeriod = new Map<string, FinancialsV2Row>();
+  rows.forEach(row => {
+    rowByPeriod.set(`${row.year}-${row.quarter}`, row);
+  });
+
+  return rows.map(row => {
+    if (row.quarter !== 4) return { ...row };
+
+    const normalized = { ...row };
+
+    // DART annual reports hold full-year flow values, so derive Q4 from annual minus Q1~Q3.
+    QUARTERLY_FLOW_KEYS.forEach(key => {
+      const currentValue = row[key] as number | null;
+      if (currentValue === null) {
+        (normalized[key] as number | null) = null;
+        return;
+      }
+
+      let previousQuarterTotal = 0;
+      for (const quarter of [1, 2, 3]) {
+        const previous = rowByPeriod.get(`${row.year}-${quarter}`);
+        const previousValue = previous ? previous[key] as number | null : null;
+        if (previousValue === null) {
+          (normalized[key] as number | null) = null;
+          return;
+        }
+        previousQuarterTotal += previousValue;
+      }
+
+      (normalized[key] as number | null) = currentValue - previousQuarterTotal;
+    });
+
+    return normalized;
+  });
+};
+
 function GrowthBadge({ val }: { val: number | null }) {
   if (val === null) return null;
   const isPos = val >= 0;
@@ -534,10 +582,10 @@ export default function CompanyAnalysisPage() {
   const baseFilteredV2 = useMemo(() => {
     const targetFsDiv = isConsolidated ? 'CFS' : 'OFS';
     if (viewPeriod === 'quarterly') {
-      // 분기별: 전체 데이터에서 fs_div 맞는 것만, 1~3분기만(사업보고서 제외)
-      return financialsV2All
-        .filter(d => d.fs_div === targetFsDiv && d.reprt_code !== '11011')
+      const rows = financialsV2All
+        .filter(d => d.fs_div === targetFsDiv)
         .sort((a, b) => a.year !== b.year ? a.year - b.year : a.quarter - b.quarter);
+      return normalizeQuarterlyFinancials(rows);
     }
     return financialsV2.filter(d => d.fs_div === targetFsDiv);
   }, [financialsV2, financialsV2All, isConsolidated, viewPeriod]);
