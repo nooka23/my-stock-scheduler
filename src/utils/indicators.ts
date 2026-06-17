@@ -1,7 +1,13 @@
 // src/utils/indicators.ts
 
+type IndicatorPricePoint = {
+  close: number;
+  high: number;
+  low: number;
+};
+
 // SMA 계산
-export const calculateSMA = (data: any[], count: number) => {
+export const calculateSMA = (data: IndicatorPricePoint[], count: number) => {
   const result: number[] = [];
   for (let i = 0; i < data.length; i++) {
     if (i < count - 1) {
@@ -18,7 +24,7 @@ export const calculateSMA = (data: any[], count: number) => {
 };
 
 // EMA 계산
-export const calculateEMA = (data: any[], period: number): number[] => {
+export const calculateEMA = (data: IndicatorPricePoint[], period: number): number[] => {
   const result: number[] = [];
   const k = 2 / (period + 1);
   
@@ -44,7 +50,7 @@ export const calculateEMA = (data: any[], period: number): number[] => {
 };
 
 // WMA 계산
-export const calculateWMA = (data: any[], count: number) => {
+export const calculateWMA = (data: IndicatorPricePoint[], count: number) => {
   const result: number[] = [];
   const denominator = (count * (count + 1)) / 2;
 
@@ -63,8 +69,8 @@ export const calculateWMA = (data: any[], count: number) => {
   return result;
 };
 
-// ATR 계산 (내부용)
-const calculateATR = (data: any[], period: number) => {
+// ATR 계산
+export const calculateATR = (data: IndicatorPricePoint[], period: number) => {
   const trs = [0];
   for(let i=1; i<data.length; i++) {
     const high = data[i].high;
@@ -88,7 +94,7 @@ const calculateATR = (data: any[], period: number) => {
 };
 
 // 켈트너 채널
-export const calculateKeltner = (data: any[], period = 20, multiplier = 2.25) => {
+export const calculateKeltner = (data: IndicatorPricePoint[], period = 20, multiplier = 2.25) => {
   const ema = calculateEMA(data, period);
   const atr = calculateATR(data, 10); 
 
@@ -104,7 +110,7 @@ export const calculateKeltner = (data: any[], period = 20, multiplier = 2.25) =>
 };
 
 // MACD 계산 (빨간 줄 해결)
-export const calculateMACD = (data: any[], fast = 3, slow = 10, signal = 16) => {
+export const calculateMACD = (data: IndicatorPricePoint[], fast = 3, slow = 10, signal = 16) => {
   const fastEMA = calculateEMA(data, fast);
   const slowEMA = calculateEMA(data, slow);
   

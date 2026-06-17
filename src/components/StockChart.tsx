@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import type { Chart, DeepPartial, IndicatorDrawParams, KLineData, Styles } from 'klinecharts';
 
 type ChartData = {
@@ -9,12 +9,24 @@ type ChartData = {
   high: number;
   low: number;
   close: number;
-  volume?: number;
+  volume: number;
   rs?: number;
   ema20?: number;
+  ma30?: number;
+  ma50?: number;
   wma150?: number;
   keltner?: { upper: number; lower: number; middle: number };
   macd?: { macd: number; signal: number; histogram: number };
+};
+
+export type StockChartIndicatorVisibility = {
+  ema20?: boolean;
+  ma30?: boolean;
+  ma50?: boolean;
+  wma150?: boolean;
+  keltner?: boolean;
+  volume?: boolean;
+  rs?: boolean;
 };
 
 interface Props {
@@ -27,6 +39,7 @@ interface Props {
   showOHLC?: boolean;
   showIndicatorsValues?: boolean;
   showMacd?: boolean;
+  visibleIndicators?: StockChartIndicatorVisibility;
   onLegendChange?: (item: ChartData | undefined) => void;
 }
 
@@ -37,9 +50,21 @@ export type StockChartHandle = {
 
 type PriceOverlayResult = {
   ema20: number | null;
+  ma30: number | null;
+  ma50: number | null;
   wma150: number | null;
   keltnerUpper: number | null;
   keltnerLower: number | null;
+};
+
+const DEFAULT_VISIBLE_INDICATORS: Required<StockChartIndicatorVisibility> = {
+  ema20: true,
+  ma30: true,
+  ma50: true,
+  wma150: true,
+  keltner: true,
+  volume: true,
+  rs: true,
 };
 
 type VolumeResult = {
@@ -143,6 +168,8 @@ function registerCustomIndicators(klinecharts: Awaited<typeof import('klinechart
     calc: (dataList: KLineData[]) =>
       dataList.map(item => ({
         ema20: toNullableNumber(item.ema20),
+        ma30: toNullableNumber(item.ma30),
+        ma50: toNullableNumber(item.ma50),
         wma150: toNullableNumber(item.wma150),
         keltnerUpper: toNullableNumber(item.keltner?.upper),
         keltnerLower: toNullableNumber(item.keltner?.lower),
@@ -159,6 +186,8 @@ function registerCustomIndicators(klinecharts: Awaited<typeof import('klinechart
       const upperPoints: Array<{ x: number; y: number }> = [];
       const lowerPoints: Array<{ x: number; y: number }> = [];
       const emaPoints: Array<{ x: number; y: number | null }> = [];
+      const ma30Points: Array<{ x: number; y: number | null }> = [];
+      const ma50Points: Array<{ x: number; y: number | null }> = [];
       const wmaPoints: Array<{ x: number; y: number | null }> = [];
 
       for (let index = start; index <= end; index += 1) {
@@ -177,6 +206,14 @@ function registerCustomIndicators(klinecharts: Awaited<typeof import('klinechart
         emaPoints.push({
           x,
           y: entry.ema20 === null ? null : yAxis.convertToPixel(entry.ema20),
+        });
+        ma30Points.push({
+          x,
+          y: entry.ma30 === null ? null : yAxis.convertToPixel(entry.ma30),
+        });
+        ma50Points.push({
+          x,
+          y: entry.ma50 === null ? null : yAxis.convertToPixel(entry.ma50),
         });
         wmaPoints.push({
           x,
@@ -203,6 +240,8 @@ function registerCustomIndicators(klinecharts: Awaited<typeof import('klinechart
       }
 
       drawPolyline(ctx, emaPoints, '#eab308', 2);
+      drawPolyline(ctx, ma30Points, '#22c55e', 1.5);
+      drawPolyline(ctx, ma50Points, '#f97316', 1.5);
       drawPolyline(ctx, wmaPoints, '#000000', 1);
       return true;
     },
@@ -296,6 +335,7 @@ function formatLegendHtml(
   options: {
     showOHLC: boolean;
     showIndicatorsValues: boolean;
+    visibleIndicators: Required<StockChartIndicatorVisibility>;
   },
 ) {
   if (!item) {
@@ -319,22 +359,38 @@ function formatLegendHtml(
         </div>
       ` : ''}
       ${options.showIndicatorsValues ? `
-        <div class="flex items-center gap-1">
-          <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
-          <span>EMA(20): ${fmtPrice(item.ema20)}</span>
-        </div>
-        <div class="flex items-center gap-1">
-          <span class="w-2 h-2 rounded-full bg-black"></span>
-          <span>WMA(150): ${fmtPrice(item.wma150)}</span>
-        </div>
-        <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
+        ${options.visibleIndicators.ema20 ? `
+          <div class="flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+            <span>EMA(20): ${fmtPrice(item.ema20)}</span>
+          </div>
+        ` : ''}
+        ${options.visibleIndicators.ma30 ? `
+          <div class="flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            <span>MA(30): ${fmtPrice(item.ma30)}</span>
+          </div>
+        ` : ''}
+        ${options.visibleIndicators.ma50 ? `
+          <div class="flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+            <span>MA(50): ${fmtPrice(item.ma50)}</span>
+          </div>
+        ` : ''}
+        ${options.visibleIndicators.wma150 ? `
+          <div class="flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-black"></span>
+            <span>WMA(150): ${fmtPrice(item.wma150)}</span>
+          </div>
+        ` : ''}
+        ${options.visibleIndicators.volume ? `<div class="flex items-center gap-1 pl-2 border-l border-gray-300">
           <span class="text-teal-600 font-bold">Vol:</span>
           <span>${fmtVol(item.volume)}</span>
-        </div>
-        <div class="flex items-center gap-1 pl-2 border-l border-gray-300">
+        </div>` : ''}
+        ${options.visibleIndicators.rs ? `<div class="flex items-center gap-1 pl-2 border-l border-gray-300">
           <span class="text-purple-600 font-bold">RS:</span>
           <span>${fmtRS(item.rs)}</span>
-        </div>
+        </div>` : ''}
       ` : ''}
     </div>
   `;
@@ -410,12 +466,17 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
   showOHLC = false,
   showIndicatorsValues = true,
   showMacd = true,
+  visibleIndicators,
   onLegendChange,
 }: Props, ref) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const legendRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
   const activeToolRef = useRef<DrawingTool | null>(null);
+  const indicatorVisibility = useMemo(() => ({
+    ...DEFAULT_VISIBLE_INDICATORS,
+    ...visibleIndicators,
+  }), [visibleIndicators]);
 
   const startDrawing = (tool: DrawingTool) => {
     const chart = chartRef.current;
@@ -498,10 +559,12 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
         low: item.low,
         close: item.close,
         volume: item.volume ?? 0,
-        ema20: item.ema20,
-        wma150: item.wma150,
+        ema20: indicatorVisibility.ema20 ? item.ema20 : undefined,
+        ma30: indicatorVisibility.ma30 ? item.ma30 : undefined,
+        ma50: indicatorVisibility.ma50 ? item.ma50 : undefined,
+        wma150: indicatorVisibility.wma150 ? item.wma150 : undefined,
         rs: item.rs,
-        keltner: item.keltner,
+        keltner: indicatorVisibility.keltner ? item.keltner : undefined,
         macd: item.macd,
       }));
 
@@ -509,19 +572,25 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
       const volumeHeight = Math.max(70, Math.round(containerHeight * 0.15));
       const rsHeight = Math.max(90, Math.round(containerHeight * 0.18));
 
-      chart = init(container, {
-        timezone: 'Asia/Seoul',
-        styles: createChartStyles(textColor),
-        layout: [
-          { type: 'candle' as never },
-          { type: 'indicator' as never, content: [VOLUME_NAME], options: { id: 'volume_pane', height: volumeHeight } },
-          {
+      const layout = [
+        { type: 'candle' as never },
+        ...(indicatorVisibility.volume
+          ? [{ type: 'indicator' as never, content: [VOLUME_NAME], options: { id: 'volume_pane', height: volumeHeight } }]
+          : []),
+        ...(indicatorVisibility.rs
+          ? [{
             type: 'indicator' as never,
             content: [RS_NAME],
             options: { id: 'rs_pane', height: rsHeight },
-          },
-          { type: 'xAxis' as never },
-        ],
+          }]
+          : []),
+        { type: 'xAxis' as never },
+      ];
+
+      chart = init(container, {
+        timezone: 'Asia/Seoul',
+        styles: createChartStyles(textColor),
+        layout,
       });
 
       if (!chart) {
@@ -549,6 +618,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
         legendRef.current.innerHTML = formatLegendHtml(data[data.length - 1], {
           showOHLC,
           showIndicatorsValues,
+          visibleIndicators: indicatorVisibility,
         });
 
         crosshairHandler = payload => {
@@ -567,6 +637,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
           legendRef.current.innerHTML = formatLegendHtml(data[dataIndex], {
             showOHLC,
             showIndicatorsValues,
+            visibleIndicators: indicatorVisibility,
           });
         };
 
@@ -597,8 +668,12 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
         chart.resize();
 
         const nextHeight = chartContainerRef.current.clientHeight || 600;
-        chart.setPaneOptions({ id: 'volume_pane', height: Math.max(70, Math.round(nextHeight * 0.15)) });
-        chart.setPaneOptions({ id: 'rs_pane', height: Math.max(90, Math.round(nextHeight * 0.18)) });
+        if (indicatorVisibility.volume) {
+          chart.setPaneOptions({ id: 'volume_pane', height: Math.max(70, Math.round(nextHeight * 0.15)) });
+        }
+        if (indicatorVisibility.rs) {
+          chart.setPaneOptions({ id: 'rs_pane', height: Math.max(90, Math.round(nextHeight * 0.18)) });
+        }
       };
 
       window.addEventListener('resize', resizeHandler);
@@ -626,7 +701,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
       mounted = false;
       cleanup?.();
     };
-  }, [data, backgroundColor, textColor, showLegend, showOHLC, showIndicatorsValues, showMacd, onLegendChange]);
+  }, [data, backgroundColor, textColor, showLegend, showOHLC, showIndicatorsValues, showMacd, indicatorVisibility, onLegendChange]);
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col">

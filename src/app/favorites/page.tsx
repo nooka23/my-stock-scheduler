@@ -14,14 +14,41 @@ type FavoriteStock = {
   created_at: string;
 };
 
+const DEFAULT_GROUP = '기본 그룹';
+const BUY_CANDIDATE_GROUP_PATTERN = /^(\d{6})\s+매수후보$/;
+
+function getBuyCandidateDateKey(group: string) {
+  return group.match(BUY_CANDIDATE_GROUP_PATTERN)?.[1] ?? null;
+}
+
+function sortGroups(groups: string[], preferredOrder: string[] = []) {
+  const source = [
+    DEFAULT_GROUP,
+    ...preferredOrder,
+    ...groups,
+  ];
+  const uniqueGroups = Array.from(new Set(source.filter(Boolean)));
+  const datedBuyCandidateGroups = uniqueGroups
+    .filter((group) => getBuyCandidateDateKey(group) !== null)
+    .sort((a, b) => getBuyCandidateDateKey(b)!.localeCompare(getBuyCandidateDateKey(a)!));
+  const otherGroups = uniqueGroups
+    .filter((group) => group !== DEFAULT_GROUP && getBuyCandidateDateKey(group) === null);
+
+  if (preferredOrder.length === 0) {
+    otherGroups.sort((a, b) => a.localeCompare(b, 'ko-KR'));
+  }
+
+  return [DEFAULT_GROUP, ...datedBuyCandidateGroups, ...otherGroups];
+}
+
 export default function FavoritesPage() {
   const supabase = createClientComponentClient();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState<FavoriteStock[]>([]);
-  const [groups, setGroups] = useState<string[]>(['기본 그룹']);
-  const [selectedGroup, setSelectedGroup] = useState<string>('기본 그룹');
+  const [groups, setGroups] = useState<string[]>([DEFAULT_GROUP]);
+  const [selectedGroup, setSelectedGroup] = useState<string>(DEFAULT_GROUP);
 
   // 드래그 앤 드롭 상태 (그룹)
   const [dragItem, setDragItem] = useState<number | null>(null);
@@ -66,29 +93,19 @@ export default function FavoritesPage() {
         setFavorites(favData);
         
         // 그룹 목록 추출
-        const uniqueGroups = Array.from(new Set(favData.map(f => f.group_name || '기본 그룹')));
-        if (!uniqueGroups.includes('기본 그룹')) uniqueGroups.unshift('기본 그룹');
+        const uniqueGroups = Array.from(new Set(favData.map(f => f.group_name || DEFAULT_GROUP)));
+        if (!uniqueGroups.includes(DEFAULT_GROUP)) uniqueGroups.unshift(DEFAULT_GROUP);
         
         // LocalStorage에서 순서 불러오기
         const savedOrder = localStorage.getItem('groupOrder');
         if (savedOrder) {
-            const order = JSON.parse(savedOrder);
-            // 저장된 순서대로 정렬. DB에 없더라도 로컬 스토리지에 있으면 포함 (빈 그룹 지원)
-            const orderedGroups = ['기본 그룹'];
-            order.forEach((g: string) => {
-                if (g !== '기본 그룹' && !orderedGroups.includes(g)) {
-                    orderedGroups.push(g);
-                }
-            });
-            // DB에는 있는데 순서 목록에 없는 경우 뒤에 추가
-            uniqueGroups.forEach(g => {
-                if (!orderedGroups.includes(g)) {
-                    orderedGroups.push(g);
-                }
-            });
-            setGroups(orderedGroups);
+            const parsedOrder = JSON.parse(savedOrder);
+            const order = Array.isArray(parsedOrder)
+              ? parsedOrder.filter((group): group is string => typeof group === 'string')
+              : [];
+            setGroups(sortGroups(uniqueGroups, order));
         } else {
-            setGroups(uniqueGroups.sort());
+            setGroups(sortGroups(uniqueGroups));
         }
       }
 
@@ -147,7 +164,7 @@ export default function FavoritesPage() {
           return;
       }
 
-      // '기본 그룹'(인덱스 0)은 이동 불가 및 그 자리로 이동 불가
+      // 기본 그룹(인덱스 0)은 이동 불가 및 그 자리로 이동 불가
       if (_dragItem === 0 || _dragOverItem === 0) {
           setDragItem(null);
           setDragOverItem(null);
@@ -159,13 +176,14 @@ export default function FavoritesPage() {
 
       newGroups.splice(_dragItem, 1);
       newGroups.splice(_dragOverItem, 0, draggedGroupContent);
+      const sortedGroups = sortGroups(newGroups, newGroups);
 
       setDragItem(null);
       setDragOverItem(null);
-      setGroups(newGroups);
+      setGroups(sortedGroups);
       
       // 순서 저장
-      localStorage.setItem('groupOrder', JSON.stringify(newGroups));
+      localStorage.setItem('groupOrder', JSON.stringify(sortedGroups));
   };
 
   const handleStockDragStart = (e: React.DragEvent, index: number) => {
@@ -217,7 +235,7 @@ export default function FavoritesPage() {
       alert('이미 존재하는 그룹입니다.');
       return;
     }
-    const newGroups = [...groups, newGroupName.trim()];
+    const newGroups = sortGroups([...groups, newGroupName.trim()], groups);
     setGroups(newGroups);
     localStorage.setItem('groupOrder', JSON.stringify(newGroups));
     
@@ -228,7 +246,7 @@ export default function FavoritesPage() {
 
   // 2. 그룹 삭제
   const handleDeleteGroup = async (groupName: string) => {
-    if (groupName === '기본 그룹') {
+    if (groupName === DEFAULT_GROUP) {
       alert('기본 그룹은 삭제할 수 없습니다.');
       return;
     }
@@ -257,12 +275,12 @@ export default function FavoritesPage() {
       .eq('group_name', groupName);
 
     // UI 업데이트
-    const newGroups = groups.filter(g => g !== groupName);
+    const newGroups = sortGroups(groups.filter(g => g !== groupName), groups.filter(g => g !== groupName));
     setGroups(newGroups);
     localStorage.setItem('groupOrder', JSON.stringify(newGroups));
 
     setFavorites(prev => prev.filter(f => f.group_name !== groupName));
-    setSelectedGroup('기본 그룹');
+    setSelectedGroup(DEFAULT_GROUP);
   };
 
   // 3. 종목 추가
@@ -384,7 +402,7 @@ export default function FavoritesPage() {
           {groups.map((group, index) => (
             <div 
               key={group}
-              draggable={group !== '기본 그룹'}
+              draggable={group !== DEFAULT_GROUP}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragEnter={(e) => handleDragEnter(e, index)}
               onDragEnd={handleDragEnd}
@@ -400,8 +418,8 @@ export default function FavoritesPage() {
               `}
             >
               <div className="flex items-center gap-3">
-                <span className={`text-xl ${group !== '기본 그룹' ? 'cursor-grab active:cursor-grabbing' : ''}`}>
-                    {group === '기본 그룹' ? '⭐' : '📁'}
+                <span className={`text-xl ${group !== DEFAULT_GROUP ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+                    {group === DEFAULT_GROUP ? '⭐' : '📁'}
                 </span>
                 <span className={`font-semibold ${selectedGroup === group ? 'text-[var(--primary-strong)]' : 'text-[var(--text-muted)]'}`}>
                   {group}
@@ -411,7 +429,7 @@ export default function FavoritesPage() {
                 </span>
               </div>
 
-              {group !== '기본 그룹' && (
+              {group !== DEFAULT_GROUP && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

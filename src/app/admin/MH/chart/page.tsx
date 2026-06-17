@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import StockChart, { type StockChartHandle } from '@/components/StockChart';
+import StockChart, { type StockChartHandle, type StockChartIndicatorVisibility } from '@/components/StockChart';
 import FullscreenPanel from '@/components/FullscreenPanel';
 import { createClientComponentClient } from '@/lib/supabase-browser';
 import {
+  calculateSMA,
   calculateEMA,
   calculateWMA,
+  calculateATR,
   calculateKeltner,
   calculateMACD,
 } from '@/utils/indicators';
@@ -26,7 +28,10 @@ type ChartData = {
   volume: number;
   rs?: number;
   ema20?: number;
+  ma30?: number;
+  ma50?: number;
   wma150?: number;
+  atr20?: number;
   keltner?: { upper: number; lower: number; middle: number };
   macd?: { macd: number; signal: number; histogram: number };
 };
@@ -42,10 +47,20 @@ function formatChartLegend(item: ChartData | undefined) {
     typeof value === 'number' && !Number.isNaN(value) ? value.toLocaleString() : '-';
   const fmtRS = (value: number | undefined) =>
     typeof value === 'number' && !Number.isNaN(value) ? value.toFixed(2) : '-';
+  const fmtPercent = (value: number | undefined) =>
+    typeof value === 'number' && !Number.isNaN(value) ? `${value.toFixed(1)}%` : '-';
+
+  const atrRatio = typeof item.atr20 === 'number' && item.close > 0
+    ? (item.atr20 / item.close) * 100
+    : undefined;
 
   return {
     ema20: fmtPrice(item.ema20),
+    ma30: fmtPrice(item.ma30),
+    ma50: fmtPrice(item.ma50),
     wma150: fmtPrice(item.wma150),
+    atr20: fmtPrice(item.atr20),
+    atr20Ratio: fmtPercent(atrRatio),
     volume: fmtVol(item.volume),
     rs: fmtRS(item.rs),
   };
@@ -102,6 +117,21 @@ type ThemeRelationRow = {
   themes?: { name?: string | null } | null;
 };
 
+type PageIndicatorVisibility = Required<StockChartIndicatorVisibility> & {
+  atr20: boolean;
+};
+
+const INDICATOR_TOGGLES: Array<{ key: keyof PageIndicatorVisibility; label: string }> = [
+  { key: 'ema20', label: 'EMA20' },
+  { key: 'ma30', label: 'MA30' },
+  { key: 'ma50', label: 'MA50' },
+  { key: 'wma150', label: 'WMA150' },
+  { key: 'keltner', label: 'KC' },
+  { key: 'atr20', label: 'ATR20' },
+  { key: 'volume', label: 'Vol' },
+  { key: 'rs', label: 'RS' },
+];
+
 const ITEMS_PER_PAGE = 20;
 const REVIEW_LIMIT = 700;
 
@@ -138,6 +168,16 @@ export default function ChartPage() {
   const [minRS, setMinRS] = useState(0);
   const [indicesRS, setIndicesRS] = useState<{ kospi: number | null; kosdaq: number | null }>({ kospi: null, kosdaq: null });
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly'>('daily');
+  const [visibleIndicators, setVisibleIndicators] = useState<PageIndicatorVisibility>({
+    ema20: true,
+    ma30: false,
+    ma50: false,
+    wma150: true,
+    keltner: true,
+    atr20: true,
+    volume: true,
+    rs: true,
+  });
   const [currentPatterns, setCurrentPatterns] = useState<PatternResult[]>([]);
 
   const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp' | 'rs_momentum'>('list');
@@ -294,6 +334,13 @@ export default function ChartPage() {
   const currentReviewStock = currentReviewIndex >= 0 ? reviewStocks[currentReviewIndex] : null;
   const candidateCount = Object.values(reviewStatusMap).filter((status) => status === 'candidate').length;
   const excludedCount = Object.values(reviewStatusMap).filter((status) => status === 'excluded').length;
+
+  const toggleIndicator = (key: keyof PageIndicatorVisibility) => {
+    setVisibleIndicators((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   const selectReviewStockByIndex = useCallback((index: number) => {
     setReviewStocks((prev) => {
@@ -707,16 +754,22 @@ export default function ChartPage() {
     }
 
     const ema = calculateEMA(targetData, 20);
+    const ma30 = calculateSMA(targetData, 30);
+    const ma50 = calculateSMA(targetData, 50);
     const wma = timeframe === 'weekly'
       ? calculateWMA(targetData, 30)
       : calculateWMA(targetData, 150);
+    const atr = calculateATR(targetData, 20);
     const keltner = calculateKeltner(targetData, 20, 2.25);
     const macd = calculateMACD(targetData, 3, 10, 16);
 
     const nextData = targetData.map((point, index) => ({
       ...point,
       ema20: ema[index],
+      ma30: ma30[index],
+      ma50: ma50[index],
       wma150: wma[index],
+      atr20: atr[index],
       keltner: keltner[index],
       macd: macd[index],
     }));
@@ -1483,6 +1536,22 @@ export default function ChartPage() {
                         주
                       </button>
                     </div>
+                    <div className="flex flex-wrap items-center gap-1 rounded-xl border border-[var(--border)] bg-white px-1.5 py-1">
+                      {INDICATOR_TOGGLES.map((indicator) => (
+                        <button
+                          key={indicator.key}
+                          type="button"
+                          onClick={() => toggleIndicator(indicator.key)}
+                          className={`rounded-lg px-2 py-0.5 font-semibold transition ${
+                            visibleIndicators[indicator.key]
+                              ? 'bg-slate-950 text-white'
+                              : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)]'
+                          }`}
+                        >
+                          {indicator.label}
+                        </button>
+                      ))}
+                    </div>
                     <select
                       value={targetGroup}
                       onChange={(e) => setTargetGroup(e.target.value)}
@@ -1562,22 +1631,48 @@ export default function ChartPage() {
                       <span className="text-xs text-gray-400">{legendDisplay}</span>
                     ) : (
                       <div className="flex flex-wrap gap-4 text-xs font-medium text-gray-700">
-                        <div className="flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full bg-yellow-500" />
-                          <span>EMA(20): {legendDisplay.ema20}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full bg-black" />
-                          <span>WMA(150): {legendDisplay.wma150}</span>
-                        </div>
-                        <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
-                          <span className="font-bold text-teal-600">Vol:</span>
-                          <span>{legendDisplay.volume}</span>
-                        </div>
-                        <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
-                          <span className="font-bold text-purple-600">RS:</span>
-                          <span>{legendDisplay.rs}</span>
-                        </div>
+                        {visibleIndicators.ema20 && (
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                            <span>EMA(20): {legendDisplay.ema20}</span>
+                          </div>
+                        )}
+                        {visibleIndicators.ma30 && (
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-green-500" />
+                            <span>MA(30): {legendDisplay.ma30}</span>
+                          </div>
+                        )}
+                        {visibleIndicators.ma50 && (
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-orange-500" />
+                            <span>MA(50): {legendDisplay.ma50}</span>
+                          </div>
+                        )}
+                        {visibleIndicators.wma150 && (
+                          <div className="flex items-center gap-1">
+                            <span className="h-2 w-2 rounded-full bg-black" />
+                            <span>WMA(150): {legendDisplay.wma150}</span>
+                          </div>
+                        )}
+                        {visibleIndicators.atr20 && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-orange-600">ATR(20):</span>
+                            <span>{legendDisplay.atr20} ({legendDisplay.atr20Ratio})</span>
+                          </div>
+                        )}
+                        {visibleIndicators.volume && (
+                          <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
+                            <span className="font-bold text-teal-600">Vol:</span>
+                            <span>{legendDisplay.volume}</span>
+                          </div>
+                        )}
+                        {visibleIndicators.rs && (
+                          <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
+                            <span className="font-bold text-purple-600">RS:</span>
+                            <span>{legendDisplay.rs}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1586,7 +1681,13 @@ export default function ChartPage() {
               {chartLoading ? (
                 <div className="flex h-full items-center justify-center text-gray-400">차트 로딩 중...</div>
               ) : data.length > 0 ? (
-                <StockChart ref={chartRef} data={data} showLegend={false} onLegendChange={setLegendData} />
+                <StockChart
+                  ref={chartRef}
+                  data={data}
+                  showLegend={false}
+                  visibleIndicators={visibleIndicators}
+                  onLegendChange={setLegendData}
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-gray-400">데이터가 없습니다</div>
               )}
