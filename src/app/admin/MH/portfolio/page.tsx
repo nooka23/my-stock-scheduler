@@ -32,6 +32,8 @@ type PortfolioPosition = {
   sold_quantity?: number;
   remaining_position_size?: number;
   is_transaction_log?: boolean;
+  sell_event_id?: string | null;
+  allocation_count?: number;
 };
 
 type FormData = Omit<PortfolioPosition, 'id' | 'current_price' | 'unrealized_pnl' | 'total_pnl' | 'r_value' | 'pnl_ratio' | 'atr' | 'is_closed' | 'close_date'>;
@@ -51,6 +53,15 @@ type GroupedPosition = PortfolioPosition & {
   costAmount: number;
   evaluationAmount: number;
   returnRate: number;
+};
+
+type TransactionRow = Record<string, unknown>;
+
+type SellAllocationPreview = {
+  id: string;
+  entry_date: string;
+  quantity: number;
+  avg_price: number;
 };
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#38B000'];
@@ -88,6 +99,85 @@ const calculateBreakEvenPrice = (purchasePrice: number, sellTaxRatePercent: numb
   return Math.ceil(purchasePrice / (1 - taxRate));
 };
 
+const isGroupedPosition = (position: PortfolioPosition | GroupedPosition): position is GroupedPosition => {
+  return 'transactions' in position && Array.isArray(position.transactions);
+};
+
+const toNumber = (value: unknown): number => {
+  const numericValue = Number(value || 0);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
+const getTransactionString = (row: TransactionRow, key: string): string => {
+  const value = row[key];
+  return typeof value === 'string' ? value : '';
+};
+
+const getTransactionBoolean = (row: TransactionRow, key: string): boolean => {
+  return row[key] === true;
+};
+
+const buildTransactionPosition = (row: TransactionRow, override?: Partial<PortfolioPosition>): PortfolioPosition => ({
+  id: getTransactionString(row, 'id'),
+  entry_date: getTransactionString(row, 'entry_date') || getTransactionString(row, 'transaction_date'),
+  trade_type: getTransactionString(row, 'trade_type') || '매도',
+  company_code: getTransactionString(row, 'company_code'),
+  company_name: getTransactionString(row, 'company_name'),
+  position_type: getTransactionString(row, 'position_type') || '롱',
+  position_size: toNumber(row['quantity']),
+  avg_price: toNumber(row['avg_price']),
+  stop_loss: toNumber(row['stop_loss']),
+  initial_position_size: toNumber(row['initial_position_size']) || toNumber(row['quantity']),
+  realized_pnl: toNumber(row['realized_pnl']),
+  sector: getTransactionString(row, 'sector'),
+  comment: getTransactionString(row, 'comment'),
+  is_closed: toNumber(row['group_remaining_position_size'] ?? row['remaining_position_size']) === 0,
+  close_date: getTransactionString(row, 'transaction_date'),
+  is_custom_asset: getTransactionBoolean(row, 'is_custom_asset'),
+  manual_current_price: row['manual_current_price'] === null || row['manual_current_price'] === undefined
+    ? null
+    : toNumber(row['manual_current_price']),
+  sold_quantity: toNumber(row['quantity']),
+  remaining_position_size: toNumber(row['group_remaining_position_size'] ?? row['remaining_position_size']),
+  is_transaction_log: true,
+  sell_event_id: getTransactionString(row, 'sell_event_id') || null,
+  ...override,
+});
+
+const buildSellAllocationPreview = (
+  position: PortfolioPosition | GroupedPosition,
+  quantity: number,
+): SellAllocationPreview[] => {
+  if (quantity <= 0) return [];
+
+  const sourcePositions = isGroupedPosition(position)
+    ? [...position.transactions].sort((a, b) => {
+      const dateCompare = a.entry_date.localeCompare(b.entry_date);
+      return dateCompare !== 0 ? dateCompare : a.id.localeCompare(b.id);
+    })
+    : [position];
+
+  let remainingQuantity = quantity;
+  const preview: SellAllocationPreview[] = [];
+
+  for (const sourcePosition of sourcePositions) {
+    if (remainingQuantity <= 0) break;
+
+    const allocationQuantity = Math.min(sourcePosition.position_size, remainingQuantity);
+    if (allocationQuantity > 0) {
+      preview.push({
+        id: sourcePosition.id,
+        entry_date: sourcePosition.entry_date,
+        quantity: allocationQuantity,
+        avg_price: sourcePosition.avg_price,
+      });
+      remainingQuantity -= allocationQuantity;
+    }
+  }
+
+  return preview;
+};
+
 export default function PortfolioManagementPage() {
   const supabase = createClientComponentClient();
 
@@ -99,7 +189,7 @@ export default function PortfolioManagementPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showSellModal, setShowSellModal] = useState(false);
-  const [sellingPosition, setSellingPosition] = useState<PortfolioPosition | null>(null);
+  const [sellingPosition, setSellingPosition] = useState<PortfolioPosition | GroupedPosition | null>(null);
   const [sellAmount, setSellAmount] = useState(0);
   const [sellRealizedPnl, setSellRealizedPnl] = useState(0);
   const [sellDate, setSellDate] = useState(() => getTodayDate());
@@ -503,30 +593,43 @@ export default function PortfolioManagementPage() {
 
         if (legacyClosedError) throw legacyClosedError;
 
-        const loggedPortfolioIds = new Set((transactionData || []).map(t => t.portfolio_id));
+        const transactionRowsRaw = (transactionData || []) as TransactionRow[];
+        const loggedPortfolioIds = new Set(transactionRowsRaw.map(t => getTransactionString(t, 'portfolio_id')));
+        const transactionsByEvent = transactionRowsRaw.reduce((groups, transaction) => {
+          const eventKey = getTransactionString(transaction, 'sell_event_id') || getTransactionString(transaction, 'id');
+          const group = groups.get(eventKey) || [];
+          group.push(transaction);
+          groups.set(eventKey, group);
+          return groups;
+        }, new Map<string, TransactionRow[]>());
 
-        const transactionRows: PortfolioPosition[] = (transactionData || []).map(t => ({
-          id: t.id,
-          entry_date: t.entry_date || t.transaction_date,
-          trade_type: t.trade_type || '매도',
-          company_code: t.company_code,
-          company_name: t.company_name,
-          position_type: t.position_type || '롱',
-          position_size: Number(t.quantity || 0),
-          avg_price: Number(t.avg_price || 0),
-          stop_loss: Number(t.stop_loss || 0),
-          initial_position_size: Number(t.initial_position_size || t.quantity || 0),
-          realized_pnl: Number(t.realized_pnl || 0),
-          sector: t.sector || '',
-          comment: t.comment || '',
-          is_closed: Number(t.remaining_position_size || 0) === 0,
-          close_date: t.transaction_date,
-          is_custom_asset: t.is_custom_asset || false,
-          manual_current_price: t.manual_current_price,
-          sold_quantity: Number(t.quantity || 0),
-          remaining_position_size: Number(t.remaining_position_size || 0),
-          is_transaction_log: true,
-        }));
+        const transactionRows: PortfolioPosition[] = Array.from(transactionsByEvent.entries()).map(([eventKey, eventRows]) => {
+          const representative = eventRows[0];
+          const soldQuantity = eventRows.reduce((sum, row) => sum + toNumber(row['quantity']), 0);
+          const realizedPnl = eventRows.reduce((sum, row) => sum + toNumber(row['realized_pnl']), 0);
+          const weightedAvgPrice = soldQuantity > 0
+            ? eventRows.reduce((sum, row) => sum + toNumber(row['avg_price']) * toNumber(row['quantity']), 0) / soldQuantity
+            : 0;
+          const weightedStopLoss = soldQuantity > 0
+            ? eventRows.reduce((sum, row) => sum + toNumber(row['stop_loss']) * toNumber(row['quantity']), 0) / soldQuantity
+            : 0;
+          const remainingPositionSize = eventRows.reduce((maxRemaining, row) => (
+            Math.max(maxRemaining, toNumber(row['group_remaining_position_size'] ?? row['remaining_position_size']))
+          ), 0);
+
+          return buildTransactionPosition(representative, {
+            id: eventKey,
+            position_size: soldQuantity,
+            avg_price: weightedAvgPrice,
+            stop_loss: weightedStopLoss,
+            realized_pnl: realizedPnl,
+            sold_quantity: soldQuantity,
+            remaining_position_size: remainingPositionSize,
+            is_closed: remainingPositionSize === 0,
+            allocation_count: eventRows.length,
+            sell_event_id: getTransactionString(representative, 'sell_event_id') || null,
+          });
+        });
 
         const legacyRows: PortfolioPosition[] = (legacyClosedData || [])
           .filter(p => !loggedPortfolioIds.has(p.id))
@@ -785,8 +888,13 @@ export default function PortfolioManagementPage() {
     );
   };
 
-  // 일부 매도 모달 열기
-  const openSellModal = (position: PortfolioPosition) => {
+  const sellAllocationPreview = useMemo(() => {
+    if (!sellingPosition) return [];
+    return buildSellAllocationPreview(sellingPosition, sellAmount);
+  }, [sellingPosition, sellAmount]);
+
+  // 종목 단위 매도 모달 열기
+  const openSellModal = (position: PortfolioPosition | GroupedPosition) => {
     setSellingPosition(position);
     setSellAmount(0);
     setSellRealizedPnl(0);
@@ -794,7 +902,7 @@ export default function PortfolioManagementPage() {
     setShowSellModal(true);
   };
 
-  // 일부 매도 실행
+  // 종목 단위 매도 실행
   const handlePartialSell = async () => {
     if (!sellingPosition) return;
 
@@ -804,21 +912,30 @@ export default function PortfolioManagementPage() {
     }
 
     try {
-      const { data, error } = await supabase.rpc('record_portfolio_sell', {
-        p_portfolio_id: sellingPosition.id,
-        p_sell_quantity: sellAmount,
-        p_realized_pnl: sellRealizedPnl,
-        p_sell_date: sellDate,
-      });
+      const { data, error } = isGroupedPosition(sellingPosition)
+        ? await supabase.rpc('record_grouped_portfolio_sell', {
+          p_company_code: sellingPosition.company_code,
+          p_position_type: sellingPosition.position_type,
+          p_sell_quantity: sellAmount,
+          p_realized_pnl: sellRealizedPnl,
+          p_sell_date: sellDate,
+        })
+        : await supabase.rpc('record_portfolio_sell', {
+          p_portfolio_id: sellingPosition.id,
+          p_sell_quantity: sellAmount,
+          p_realized_pnl: sellRealizedPnl,
+          p_sell_date: sellDate,
+        });
 
       if (error) throw error;
 
       const isClosed = Number(data?.remaining_position_size || 0) === 0;
+      const allocationCount = Number(data?.allocation_count || sellAllocationPreview.length || 1);
 
       if (isClosed) {
-        alert(`${sellAmount}주 매도 완료\n실현 손익: ${sellRealizedPnl.toLocaleString()}원\n\n🎉 포지션이 청산되었습니다!`);
+        alert(`${sellAmount}주 매도 완료\n실현 손익: ${sellRealizedPnl.toLocaleString()}원\n차감 편입: ${allocationCount}건\n\n포지션이 청산되었습니다.`);
       } else {
-        alert(`${sellAmount}주 매도 완료\n실현 손익: ${sellRealizedPnl.toLocaleString()}원`);
+        alert(`${sellAmount}주 매도 완료\n실현 손익: ${sellRealizedPnl.toLocaleString()}원\n차감 편입: ${allocationCount}건`);
       }
 
       setShowSellModal(false);
@@ -1107,19 +1224,20 @@ export default function PortfolioManagementPage() {
                   </th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">통합 손절가</th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">R</th>
+                  <th className="border-b border-gray-200 px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-500">관리</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={11} className="py-8 text-center text-gray-400">
+                    <td colSpan={12} className="py-8 text-center text-gray-400">
                       로딩 중...
                     </td>
                   </tr>
                 )}
                 {!loading && positions.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="py-10 text-center text-gray-400">
+                    <td colSpan={12} className="py-10 text-center text-gray-400">
                       포지션이 없습니다. 추가해보세요!
                     </td>
                   </tr>
@@ -1180,10 +1298,20 @@ export default function PortfolioManagementPage() {
                         </td>
                         <td className="px-3 py-3 text-right text-gray-600">{formatAmount(Math.round(position.stop_loss))}</td>
                         <td className="bg-yellow-50/70 px-3 py-3 text-right font-semibold text-gray-800">{position.r_value ? formatAmount(position.r_value) : '-'}</td>
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            onClick={() => openSellModal(position)}
+                            className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-700 disabled:opacity-50"
+                            disabled={position.position_size <= 0}
+                            title="종목 단위 매도"
+                          >
+                            매도
+                          </button>
+                        </td>
                       </tr>
                       {isExpanded && (
                         <tr className="border-b border-slate-200 bg-slate-50/80">
-                          <td colSpan={11} className="px-4 py-4 sm:px-8">
+                          <td colSpan={12} className="px-4 py-4 sm:px-8">
                             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
                               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
                                 <div>
@@ -1231,7 +1359,7 @@ export default function PortfolioManagementPage() {
                                               {isEditing ? (
                                                 <><button onClick={() => handleUpdate(transaction.id)} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 font-semibold text-white hover:bg-emerald-700">저장</button><button onClick={() => { setEditingId(null); fetchPositions(); }} className="rounded-lg border px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">취소</button></>
                                               ) : (
-                                                <><button onClick={() => openSellModal(transaction)} className="rounded-lg bg-orange-50 px-2.5 py-1.5 font-semibold text-orange-700 hover:bg-orange-100">매도</button><button onClick={() => setEditingId(transaction.id)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-100">수정</button><button onClick={() => handleDelete(transaction.id)} className="rounded-lg bg-red-50 px-2.5 py-1.5 font-semibold text-red-700 hover:bg-red-100">삭제</button></>
+                                                <><button onClick={() => setEditingId(transaction.id)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-100">수정</button><button onClick={() => handleDelete(transaction.id)} className="rounded-lg bg-red-50 px-2.5 py-1.5 font-semibold text-red-700 hover:bg-red-100">삭제</button></>
                                               )}
                                             </div>
                                           </td>
@@ -1436,6 +1564,12 @@ export default function PortfolioManagementPage() {
                             <span>{position.company_code}</span>
                             <span>·</span>
                             <span>{position.sector || '업종없음'}</span>
+                            {currentTab === 'closed' && (position.allocation_count || 0) > 1 && (
+                              <>
+                                <span>·</span>
+                                <span>{position.allocation_count}건 자동 차감</span>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2040,11 +2174,11 @@ export default function PortfolioManagementPage() {
         </div>
       )}
 
-      {/* 일부 매도 모달 */}
+      {/* 종목 단위 매도 모달 */}
       {showSellModal && sellingPosition && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-[500px]">
-            <h2 className="text-xl font-bold mb-4">일부 매도</h2>
+          <div className="max-h-[86vh] w-[560px] overflow-y-auto rounded-lg bg-white p-6">
+            <h2 className="mb-4 text-xl font-bold">종목 통합 매도</h2>
 
             <div className="mb-4">
               <p className="text-sm text-gray-600">
@@ -2056,6 +2190,11 @@ export default function PortfolioManagementPage() {
               <p className="text-sm text-gray-600">
                 평균 가격: <span className="font-bold">{sellingPosition.avg_price.toLocaleString()}</span>원
               </p>
+              {isGroupedPosition(sellingPosition) && (
+                <p className="text-sm text-gray-600">
+                  편입 내역: <span className="font-bold">{sellingPosition.transactions.length}</span>건 · 오래된 편입부터 자동 차감
+                </p>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -2085,7 +2224,7 @@ export default function PortfolioManagementPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-1">실현 손익 (원)</label>
+                <label className="block text-sm font-bold mb-1">증권사 실현 손익 (원)</label>
                 <input
                   type="number"
                   value={sellRealizedPnl}
@@ -2094,8 +2233,28 @@ export default function PortfolioManagementPage() {
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  양수는 이익, 음수는 손실
+                  양수는 이익, 음수는 손실입니다. 입력한 총액을 그대로 매도 기록에 반영합니다.
                 </p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-bold text-slate-900">자동 차감 미리보기</p>
+                  <span className="text-xs font-semibold text-slate-500">FIFO</span>
+                </div>
+                {sellAllocationPreview.length > 0 ? (
+                  <div className="mt-2 divide-y divide-slate-200 rounded-lg bg-white ring-1 ring-slate-200">
+                    {sellAllocationPreview.map(allocation => (
+                      <div key={allocation.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 px-3 py-2 text-xs">
+                        <span className="font-semibold text-slate-700">{allocation.entry_date}</span>
+                        <span className="text-slate-500">{formatAmount(allocation.quantity)}주</span>
+                        <span className="text-right font-semibold text-slate-700">{formatAmount(allocation.avg_price)}원</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">매도 물량을 입력하면 차감될 편입 내역이 표시됩니다.</p>
+                )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded">
@@ -2104,8 +2263,8 @@ export default function PortfolioManagementPage() {
                   남은 포지션: <span className="font-bold">{(sellingPosition.position_size - sellAmount).toLocaleString()}</span>주
                 </p>
                 <p className="text-xs text-gray-600">
-                  누적 실현 손익: <span className={`font-bold ${((sellingPosition.realized_pnl || 0) + sellRealizedPnl) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                    {((sellingPosition.realized_pnl || 0) + sellRealizedPnl).toLocaleString()}
+                  이번 매도 실현 손익: <span className={`font-bold ${sellRealizedPnl >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                    {sellRealizedPnl.toLocaleString()}
                   </span>원
                 </p>
               </div>
