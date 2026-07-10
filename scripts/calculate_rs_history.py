@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta
 import gc # 가비지 컬렉터 (메모리 청소부)
+import argparse
+from rs_universe import load_rs_eligible_codes
 
 # 1. 설정 및 연결
 load_dotenv('.env.local')
@@ -19,10 +21,22 @@ if not url or not key:
 supabase: Client = create_client(url, key)
 
 # 목표 기간 설정 (YYYY-MM-DD)
-CALC_START_DATE_STR = '2024-01-01'
-CALC_END_DATE_STR = '2026-1-16'
+parser = argparse.ArgumentParser(description="Calculate V2 RS rankings for a date range.")
+parser.add_argument("--start-date", default="2024-01-01", help="Calculation start date in YYYY-MM-DD format")
+parser.add_argument("--end-date", default="2026-01-16", help="Calculation end date in YYYY-MM-DD format")
+args = parser.parse_args()
+
+CALC_START_DATE_STR = datetime.strptime(args.start_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+CALC_END_DATE_STR = datetime.strptime(args.end_date, "%Y-%m-%d").strftime("%Y-%m-%d")
 
 print(f"🚀 RS 랭킹 계산 시작 (기간: {CALC_START_DATE_STR} ~ {CALC_END_DATE_STR})")
+
+try:
+    rs_eligible_codes = load_rs_eligible_codes(supabase)
+    print(f"✅ RS 유니버스: 보통주 {len(rs_eligible_codes)}개")
+except Exception as e:
+    print(f"❌ RS 유니버스 로드 실패: {e}")
+    exit()
 
 # 1. 데이터 로딩 (계산 시작일 1년 전부터)
 # 예: 2024년 1월 1일 랭킹을 계산하려면 2023년 1월 1일 데이터부터 필요 (1년 수익률 계산용)
@@ -78,6 +92,12 @@ if not all_rows:
     exit()
 
 df = pd.DataFrame(all_rows)
+loaded_count = len(df)
+df = df[df['code'].astype(str).isin(rs_eligible_codes)].copy()
+print(f"   ✅ RS 대상 필터: {loaded_count}건 → 보통주 {len(df)}건")
+if df.empty:
+    print("❌ RS 대상 보통주 주가 데이터가 없습니다.")
+    exit()
 df['date'] = pd.to_datetime(df['date'])
 df['close'] = df['close'].astype(float)
 
@@ -154,6 +174,12 @@ for _, row in df_target.iterrows():
         'score_12m': row['ret_12m'],
         'rank_12m': int(row['rank_12m'])
     })
+
+# 범위 재계산 시 기존 비보통주 RS 행까지 제거한 뒤 보통주만 다시 기록한다.
+supabase.table('rs_rankings_v2').delete() \
+    .gte('date', CALC_START_DATE_STR) \
+    .lte('date', CALC_END_DATE_STR) \
+    .execute()
     
 # 청크 업로드
 chunk_size = 5000 

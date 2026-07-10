@@ -176,9 +176,14 @@ def download_and_parse_kosdaq_master(base_dir):
 
 def get_all_stocks():
     """
-    Downloads and parses KOSPI and KOSDAQ master files to get a unified stock list.
-    Returns DataFrame with columns: Code, Name, Market, Marcap
-    Filters out SPACs, ETFs, ETNs, and Preferred shares.
+    Downloads and parses KOSPI and KOSDAQ master files to get every six-digit
+    listed security, including preferred shares, ETFs/ETNs, and SPACs.
+
+    Returns columns:
+      Code, Name, Market, Marcap, SecurityType, IsRsEligible
+
+    IsRsEligible deliberately preserves the former common-stock analysis
+    universe: ETPs, SPACs, and preferred shares are collected but excluded.
     """
     base_dir = os.getcwd() # Or use a temp dir
     
@@ -246,14 +251,14 @@ def get_all_stocks():
         else pd.Series(False, index=full_df.index)
     )
 
-    # Also filter for 6-digit codes (Standard stocks)
-    mask = (
-        (result_df["Code"].str.len() == 6)
-        & ~etp_flag
-        & ~spac_flag
-        & ~preferred_flag
-    )
+    result_df["SecurityType"] = "COMMON"
+    result_df.loc[spac_flag, "SecurityType"] = "SPAC"
+    result_df.loc[preferred_flag, "SecurityType"] = "PREFERRED"
+    result_df.loc[etp_flag, "SecurityType"] = "ETP"
+    result_df["IsRsEligible"] = ~(etp_flag | spac_flag | preferred_flag)
 
-    final_df = result_df[mask].copy()
+    # KIS master can contain non-security helper rows. All listed securities
+    # used by the domestic price API have a six-digit short code.
+    final_df = result_df[result_df["Code"].str.len() == 6].copy()
     
     return final_df

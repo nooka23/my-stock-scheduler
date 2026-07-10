@@ -5,6 +5,7 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 import time
 from datetime import datetime, timedelta
+from rs_universe import load_rs_eligible_codes
 
 load_dotenv('.env.local')
 
@@ -22,6 +23,13 @@ TARGET_DATE = datetime.now().strftime('%Y-%m-%d')
 # TARGET_DATE = '2025-12-07' # 테스트용
 
 print(f"🚀 V2 데일리 RS 랭킹 계산 시작 (Target Date: {TARGET_DATE})")
+
+try:
+    rs_eligible_codes = load_rs_eligible_codes(supabase)
+    print(f"✅ RS 유니버스: 보통주 {len(rs_eligible_codes)}개")
+except Exception as e:
+    print(f"❌ RS 유니버스 로드 실패: {e}")
+    exit()
 
 # 1. 필요 데이터 로딩 (최근 1년 + 여유분)
 # 12개월 RS를 구하려면 252거래일 전 데이터가 필요하므로, 넉넉히 380일 전부터 로드
@@ -76,6 +84,12 @@ try:
         exit()
 
     df = pd.DataFrame(all_rows)
+    loaded_count = len(df)
+    df = df[df['code'].astype(str).isin(rs_eligible_codes)].copy()
+    print(f"✅ RS 대상 필터: {loaded_count}건 → 보통주 {len(df)}건")
+    if df.empty:
+        print("❌ RS 대상 보통주 주가 데이터가 없습니다.")
+        exit()
     df['date'] = pd.to_datetime(df['date'])
     df['close'] = df['close'].astype(float)
     
@@ -162,6 +176,10 @@ for _, row in df_today.iterrows():
         'score_12m': row['ret_12m'],
         'rank_12m': int(row['rank_12m'])
     })
+
+# 재실행 시 과거 방식으로 생성된 ETF/ETN/우선주 RS 행이 남지 않도록
+# 해당 날짜를 비운 뒤 보통주 결과만 다시 기록한다.
+supabase.table('rs_rankings_v2').delete().eq('date', TARGET_DATE).execute()
 
 chunk_size = 2000
 total_chunks = len(upload_list) // chunk_size + 1

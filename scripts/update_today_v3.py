@@ -309,6 +309,8 @@ def update_indices() -> None:
                 "name": idx["name"],
                 "market": "INDEX",
                 "marcap": 0,
+                "security_type": "INDEX",
+                "is_rs_eligible": False,
             }
         ).execute()
 
@@ -338,6 +340,8 @@ def main() -> None:
                 "name": stock["Name"],
                 "market": stock["Market"],
                 "marcap": float(stock["Marcap"]) if not pd.isna(stock["Marcap"]) else 0,
+                "security_type": stock["SecurityType"],
+                "is_rs_eligible": bool(stock["IsRsEligible"]),
             }
         )
 

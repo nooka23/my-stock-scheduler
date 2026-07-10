@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
 import { createClientComponentClient } from '@/lib/supabase-browser';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
@@ -45,7 +45,16 @@ type SectorAllocation = {
 
 type AllocationBasis = 'cost' | 'market';
 
+type GroupedPosition = PortfolioPosition & {
+  groupKey: string;
+  transactions: PortfolioPosition[];
+  costAmount: number;
+  evaluationAmount: number;
+  returnRate: number;
+};
+
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#38B000'];
+const SELL_TAX_RATE_PERCENT = 0.22;
 
 const getCurrentMonthStart = (): string => {
   const now = new Date();
@@ -72,6 +81,13 @@ const getErrorMessage = (error: unknown): string => {
   return '알 수 없는 오류';
 };
 
+const calculateBreakEvenPrice = (purchasePrice: number, sellTaxRatePercent: number): number => {
+  if (purchasePrice <= 0) return 0;
+
+  const taxRate = Math.max(0, Math.min(sellTaxRatePercent, 99.99)) / 100;
+  return Math.ceil(purchasePrice / (1 - taxRate));
+};
+
 export default function PortfolioManagementPage() {
   const supabase = createClientComponentClient();
 
@@ -93,7 +109,7 @@ export default function PortfolioManagementPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [isAmountHidden, setIsAmountHidden] = useState(false);
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
-  const [showTableDetails, setShowTableDetails] = useState(false);
+  const [expandedPositionGroups, setExpandedPositionGroups] = useState<Set<string>>(new Set());
   const [closedFromDate, setClosedFromDate] = useState<string>(() => getCurrentMonthStart());
   const [closedToDate, setClosedToDate] = useState<string>(() => getTodayDate());
 
@@ -127,6 +143,7 @@ export default function PortfolioManagementPage() {
     if (savedCash) {
       setCash(parseFloat(savedCash));
     }
+
   }, []);
 
   // 현금 저장
@@ -232,6 +249,106 @@ export default function PortfolioManagementPage() {
     return sorted;
   }, [filteredPositions, sortField, sortOrder]);
 
+  const groupedPositions = useMemo<GroupedPosition[]>(() => {
+    if (currentTab !== 'active') return [];
+
+    const groups = new Map<string, PortfolioPosition[]>();
+    positions.forEach(position => {
+      const groupKey = `${position.company_code}::${position.position_type}`;
+      const group = groups.get(groupKey) || [];
+      group.push(position);
+      groups.set(groupKey, group);
+    });
+
+    const grouped = Array.from(groups.entries()).map(([groupKey, transactions]) => {
+      const sortedTransactions = [...transactions].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
+      const representative = sortedTransactions[0];
+      const positionSize = transactions.reduce((sum, position) => sum + position.position_size, 0);
+      const costAmount = transactions.reduce((sum, position) => sum + position.avg_price * position.position_size, 0);
+      const avgPrice = positionSize > 0 ? costAmount / positionSize : 0;
+      const weightedStopLoss = positionSize > 0
+        ? transactions.reduce((sum, position) => sum + position.stop_loss * position.position_size, 0) / positionSize
+        : 0;
+      const evaluationAmount = transactions.reduce(
+        (sum, position) => sum + (position.current_price || 0) * position.position_size,
+        0,
+      );
+      const unrealizedPnl = transactions.reduce((sum, position) => sum + (position.unrealized_pnl || 0), 0);
+      const realizedPnl = transactions.reduce((sum, position) => sum + (position.realized_pnl || 0), 0);
+      const totalPnl = unrealizedPnl + realizedPnl;
+      const rValue = transactions.reduce((sum, position) => sum + (position.r_value || 0), 0);
+
+      return {
+        ...representative,
+        id: groupKey,
+        groupKey,
+        entry_date: sortedTransactions[sortedTransactions.length - 1]?.entry_date || representative.entry_date,
+        position_size: positionSize,
+        initial_position_size: transactions.reduce((sum, position) => sum + position.initial_position_size, 0),
+        avg_price: avgPrice,
+        stop_loss: weightedStopLoss,
+        realized_pnl: realizedPnl,
+        unrealized_pnl: unrealizedPnl,
+        total_pnl: totalPnl,
+        r_value: rValue,
+        pnl_ratio: rValue !== 0 ? totalPnl / rValue : 0,
+        atr: transactions.reduce((sum, position) => sum + (position.atr || 0), 0),
+        transactions: sortedTransactions,
+        costAmount,
+        evaluationAmount,
+        returnRate: costAmount > 0 ? (unrealizedPnl / costAmount) * 100 : 0,
+      };
+    });
+
+    if (!sortField) {
+      return grouped.sort((a, b) => b.evaluationAmount - a.evaluationAmount);
+    }
+
+    return grouped.sort((a, b) => {
+      let compareA: string | number = 0;
+      let compareB: string | number = 0;
+
+      switch (sortField) {
+        case 'entry_date':
+          compareA = a.entry_date;
+          compareB = b.entry_date;
+          break;
+        case 'company_name':
+          compareA = a.company_name;
+          compareB = b.company_name;
+          break;
+        case 'evaluation':
+          compareA = a.evaluationAmount;
+          compareB = b.evaluationAmount;
+          break;
+        case 'sector':
+          compareA = a.sector;
+          compareB = b.sector;
+          break;
+        case 'pnl_ratio':
+          compareA = a.pnl_ratio || 0;
+          compareB = b.pnl_ratio || 0;
+          break;
+        case 'unrealized_pnl':
+          compareA = a.unrealized_pnl || 0;
+          compareB = b.unrealized_pnl || 0;
+          break;
+        case 'realized_pnl':
+          compareA = a.realized_pnl || 0;
+          compareB = b.realized_pnl || 0;
+          break;
+        case 'total_pnl':
+          compareA = a.total_pnl || 0;
+          compareB = b.total_pnl || 0;
+          break;
+      }
+
+      if (compareA < compareB) return sortOrder === 'asc' ? -1 : 1;
+      if (compareA > compareB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [positions, currentTab, sortField, sortOrder]);
+
   // 총 자산 계산 (롱 포지션 평가금액 + 현금)
   const totalAssets = useMemo(() => {
     const longPositionsValue = positions
@@ -298,8 +415,8 @@ export default function PortfolioManagementPage() {
     return allocations.sort((a, b) => b.percentage - a.percentage);
   }, [positions, cash, currentTab, sectorAllocationBasis]);
 
-  const showSummaryTable = currentTab === 'active' && viewMode === 'table' && !showTableDetails;
-  const showDetailedTable = (currentTab === 'closed' || viewMode === 'table') && !showSummaryTable;
+  const showSummaryTable = currentTab === 'active' && viewMode === 'table';
+  const shouldShowDetailedTable = (): boolean => currentTab === 'closed';
 
   // 포트폴리오 목록 조회
   const calculateATR = useCallback(async (code: string): Promise<number> => {
@@ -742,14 +859,6 @@ export default function PortfolioManagementPage() {
             >
               {isAmountHidden ? '금액 보기' : '금액 숨기기'}
             </button>
-            {viewMode === 'table' && currentTab === 'active' && (
-              <button
-                onClick={() => setShowTableDetails(prev => !prev)}
-                className="rounded-2xl border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-muted)] hover:bg-[var(--surface-muted)]"
-              >
-                {showTableDetails ? '간단히보기' : '자세히보기'}
-              </button>
-            )}
             {currentTab === 'active' && (
               <button
                 onClick={() => {
@@ -943,16 +1052,38 @@ export default function PortfolioManagementPage() {
         </div>
       )}
 
+      {currentTab === 'active' && viewMode === 'table' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/70 px-4 py-3">
+          <div>
+            <div className="text-sm font-semibold text-amber-950">세금 반영 손익분기 계산</div>
+            <div className="mt-0.5 text-xs text-amber-800/80">
+              평균 매입가 ÷ (1 - 매도 세율) · 증권사 수수료와 양도소득세는 제외
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+            매도 세율
+            <span className="rounded-xl border border-amber-300 bg-white px-4 py-2 font-bold text-amber-950">
+              {SELL_TAX_RATE_PERCENT}%
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
-        {/* 요약 테이블 (테이블 보기 + 간단히보기) */}
+        {/* 종목별 통합 포지션 테이블 */}
         {showSummaryTable && (
           <div className="flex-1 overflow-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
             <table className="w-full text-xs border-collapse">
               <thead className="sticky top-0 z-10 bg-gray-50">
                 <tr>
-                  <th className="border-b border-gray-200 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">종목명</th>
-                  <th className="border-b border-gray-200 px-3 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-500">롱/숏</th>
-                  <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">포지션규모</th>
+                  <th className="w-12 border-b border-gray-200 px-2 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-500">내역</th>
+                  <th className="border-b border-gray-200 px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <button onClick={() => handleSort('company_name')} className="font-semibold hover:text-blue-600">
+                      종목명 {sortField === 'company_name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                    </button>
+                  </th>
+                  <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">통합 평균단가</th>
+                  <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">보유수량</th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">현재가</th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <button
@@ -962,93 +1093,159 @@ export default function PortfolioManagementPage() {
                       평가금액 {sortField === 'evaluation' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
-                  <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    <button
-                      onClick={() => handleSort('unrealized_pnl')}
-                      className="w-full text-right font-semibold hover:text-blue-600"
-                    >
-                      평가손익 {sortField === 'unrealized_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
-                    </button>
-                  </th>
+                  <th className="border-b border-amber-200 bg-amber-50 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-amber-800">손익분기가</th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <button
                       onClick={() => handleSort('total_pnl')}
                       className="w-full text-right font-semibold hover:text-blue-600"
                     >
-                      총손익 {sortField === 'total_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
+                      평가손익 {sortField === 'total_pnl' && (sortOrder === 'asc' ? '▲' : '▼')}
                     </button>
                   </th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    <button
-                      onClick={() => handleSort('pnl_ratio')}
-                      className="w-full text-right font-semibold hover:text-blue-600"
-                    >
-                      손익비 {sortField === 'pnl_ratio' && (sortOrder === 'asc' ? '▲' : '▼')}
-                    </button>
+                    수익률
                   </th>
-                  <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">손절가격</th>
+                  <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">통합 손절가</th>
                   <th className="border-b border-gray-200 px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-500">R</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={9} className="py-6 text-center text-gray-400">
+                    <td colSpan={11} className="py-8 text-center text-gray-400">
                       로딩 중...
                     </td>
                   </tr>
                 )}
                 {!loading && positions.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-6 text-center text-gray-400">
+                    <td colSpan={11} className="py-10 text-center text-gray-400">
                       포지션이 없습니다. 추가해보세요!
                     </td>
                   </tr>
                 )}
-                {!loading && sortedPositions.map(position => {
-                  const evaluationAmount = (position.current_price || 0) * position.position_size;
+                {!loading && groupedPositions.map(position => {
+                  const isExpanded = expandedPositionGroups.has(position.groupKey);
+                  const breakEvenPrice = calculateBreakEvenPrice(position.avg_price, SELL_TAX_RATE_PERCENT);
                   return (
-                    <tr key={position.id} className="border-b border-gray-100 hover:bg-gray-50/80">
-                      <td className="sticky left-0 z-[1] bg-white px-3 py-3 text-left font-semibold text-gray-900">
-                        <div className="text-sm">{position.company_name}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
-                          <span>{position.company_code}</span>
-                          <span>·</span>
-                          <span>{position.sector || '업종없음'}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <span className={`inline-flex min-w-12 justify-center rounded-full px-2 py-1 text-[11px] font-bold ${
-                          position.position_type === '롱' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
-                        }`}>
-                          {position.position_type}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-right font-medium text-gray-700">
-                        {position.position_size.toLocaleString()}
-                      </td>
-                      <td className="px-3 py-3 text-right text-gray-600">
-                        {position.current_price ? formatAmount(position.current_price) : '-'}
-                      </td>
-                      <td className="bg-purple-50 px-3 py-3 text-right font-bold text-gray-900">
-                        {formatAmount(evaluationAmount)}
-                      </td>
-                      <td className={`px-3 py-3 text-right font-bold ${(position.unrealized_pnl || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                        {position.unrealized_pnl ? formatAmount(position.unrealized_pnl) : '-'}
-                      </td>
-                      <td className={`px-3 py-3 text-right text-sm font-bold ${(position.total_pnl || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                        {position.total_pnl ? formatAmount(position.total_pnl) : '-'}
-                      </td>
-                      <td className={`px-3 py-3 text-right font-bold ${(position.pnl_ratio || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                        {position.pnl_ratio?.toFixed(2) || '-'}R
-                      </td>
-                      <td className="px-3 py-3 text-right text-gray-600">
-                        {formatAmount(position.stop_loss)}
-                      </td>
-                      <td className="bg-yellow-50 px-3 py-3 text-right font-semibold text-gray-800">
-                        {position.r_value ? formatAmount(position.r_value) : '-'}
-                      </td>
-                    </tr>
+                    <Fragment key={position.groupKey}>
+                      <tr className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-slate-50' : 'hover:bg-gray-50/80'}`}>
+                        <td className="px-2 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              const next = new Set(expandedPositionGroups);
+                              if (next.has(position.groupKey)) next.delete(position.groupKey);
+                              else next.add(position.groupKey);
+                              setExpandedPositionGroups(next);
+                            }}
+                            className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border transition-all ${
+                              isExpanded
+                                ? 'rotate-180 border-slate-300 bg-slate-900 text-white'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-slate-400 hover:text-slate-900'
+                            }`}
+                            aria-expanded={isExpanded}
+                            aria-label={`${position.company_name} 편입 내역 ${isExpanded ? '접기' : '펼치기'}`}
+                            title={`${position.transactions.length}건의 매수 편입 내역`}
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </td>
+                        <td className="sticky left-0 z-[1] bg-inherit px-3 py-3 text-left font-semibold text-gray-900">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm">{position.company_name}</div>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              position.position_type === '롱' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'
+                            }`}>{position.position_type}</span>
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] text-gray-400">
+                            <span>{position.company_code}</span><span>·</span><span>{position.sector || '업종없음'}</span><span>·</span>
+                            <span className="font-semibold text-slate-500">{position.transactions.length}회 편입</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-right text-sm font-bold text-slate-900">{formatAmount(Math.round(position.avg_price))}</td>
+                        <td className="px-3 py-3 text-right font-semibold text-gray-700">{formatAmount(position.position_size)}</td>
+                        <td className="px-3 py-3 text-right text-gray-600">{position.current_price ? formatAmount(position.current_price) : '-'}</td>
+                        <td className="bg-violet-50/70 px-3 py-3 text-right font-bold text-gray-900">{formatAmount(position.evaluationAmount)}</td>
+                        <td className="bg-amber-50 px-3 py-3 text-right">
+                          <div className="font-bold text-amber-950">{formatAmount(breakEvenPrice)}</div>
+                          <div className="mt-0.5 text-[10px] text-amber-700">+{formatAmount(breakEvenPrice - Math.round(position.avg_price))}원</div>
+                        </td>
+                        <td className={`px-3 py-3 text-right text-sm font-bold ${(position.unrealized_pnl || 0) >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                          {(position.unrealized_pnl || 0) > 0 ? '+' : ''}{formatAmount(position.unrealized_pnl || 0)}
+                        </td>
+                        <td className={`px-3 py-3 text-right font-bold ${position.returnRate >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                          {position.returnRate > 0 ? '+' : ''}{position.returnRate.toFixed(2)}%
+                        </td>
+                        <td className="px-3 py-3 text-right text-gray-600">{formatAmount(Math.round(position.stop_loss))}</td>
+                        <td className="bg-yellow-50/70 px-3 py-3 text-right font-semibold text-gray-800">{position.r_value ? formatAmount(position.r_value) : '-'}</td>
+                      </tr>
+                      {isExpanded && (
+                        <tr className="border-b border-slate-200 bg-slate-50/80">
+                          <td colSpan={11} className="px-4 py-4 sm:px-8">
+                            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                  <div className="font-bold text-slate-900">현재 보유분의 매수 편입 내역</div>
+                                  <div className="mt-0.5 text-[11px] text-slate-500">최근 매수 순 · 청산된 거래는 포함하지 않습니다</div>
+                                </div>
+                                <div className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                                  총 {position.transactions.length}건
+                                </div>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[900px] text-xs">
+                                  <thead className="bg-white text-[10px] uppercase tracking-wide text-slate-400">
+                                    <tr>
+                                      <th className="px-4 py-2 text-left">편입일</th><th className="px-4 py-2 text-left">매매방식</th>
+                                      <th className="px-4 py-2 text-right">수량</th><th className="px-4 py-2 text-right">매수단가</th>
+                                      <th className="px-4 py-2 text-right">손익분기가</th><th className="px-4 py-2 text-right">손절가</th>
+                                      <th className="px-4 py-2 text-left">메모</th><th className="px-4 py-2 text-center">관리</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {position.transactions.map(transaction => {
+                                      const isEditing = editingId === transaction.id;
+                                      return (
+                                        <tr key={transaction.id} className="hover:bg-slate-50/70">
+                                          <td className="px-4 py-3 text-slate-600">
+                                            {isEditing ? <input type="date" value={transaction.entry_date} onChange={e => handleFieldChange(transaction.id, 'entry_date', e.target.value)} className="rounded-lg border px-2 py-1" /> : transaction.entry_date}
+                                          </td>
+                                          <td className="px-4 py-3 text-slate-600">{transaction.trade_type || '-'}</td>
+                                          <td className="px-4 py-3 text-right font-semibold">
+                                            {isEditing ? <input type="number" value={transaction.position_size} onChange={e => handleFieldChange(transaction.id, 'position_size', parseInt(e.target.value) || 0)} className="w-24 rounded-lg border px-2 py-1 text-right" /> : formatAmount(transaction.position_size)}
+                                          </td>
+                                          <td className="px-4 py-3 text-right font-bold text-slate-900">
+                                            {isEditing ? <input type="number" value={transaction.avg_price} onChange={e => handleFieldChange(transaction.id, 'avg_price', parseFloat(e.target.value) || 0)} className="w-28 rounded-lg border px-2 py-1 text-right" /> : formatAmount(transaction.avg_price)}
+                                          </td>
+                                          <td className="bg-amber-50/60 px-4 py-3 text-right font-semibold text-amber-900">{formatAmount(calculateBreakEvenPrice(transaction.avg_price, SELL_TAX_RATE_PERCENT))}</td>
+                                          <td className="px-4 py-3 text-right text-slate-600">
+                                            {isEditing ? <input type="number" value={transaction.stop_loss} onChange={e => handleFieldChange(transaction.id, 'stop_loss', parseFloat(e.target.value) || 0)} className="w-28 rounded-lg border px-2 py-1 text-right" /> : formatAmount(transaction.stop_loss)}
+                                          </td>
+                                          <td className="max-w-[220px] px-4 py-3 text-slate-500">
+                                            {isEditing ? <input type="text" value={transaction.comment} onChange={e => handleFieldChange(transaction.id, 'comment', e.target.value)} className="w-full rounded-lg border px-2 py-1" /> : <span className="block truncate" title={transaction.comment}>{transaction.comment || '-'}</span>}
+                                          </td>
+                                          <td className="px-4 py-3">
+                                            <div className="flex items-center justify-center gap-1">
+                                              {isEditing ? (
+                                                <><button onClick={() => handleUpdate(transaction.id)} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 font-semibold text-white hover:bg-emerald-700">저장</button><button onClick={() => { setEditingId(null); fetchPositions(); }} className="rounded-lg border px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">취소</button></>
+                                              ) : (
+                                                <><button onClick={() => openSellModal(transaction)} className="rounded-lg bg-orange-50 px-2.5 py-1.5 font-semibold text-orange-700 hover:bg-orange-100">매도</button><button onClick={() => setEditingId(transaction.id)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-100">수정</button><button onClick={() => handleDelete(transaction.id)} className="rounded-lg bg-red-50 px-2.5 py-1.5 font-semibold text-red-700 hover:bg-red-100">삭제</button></>
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -1057,7 +1254,7 @@ export default function PortfolioManagementPage() {
         )}
 
         {/* 테이블 (청산 매매 탭 또는 테이블 보기 모드) */}
-        {showDetailedTable && (
+        {shouldShowDetailedTable() && (
           <div className="flex-1 overflow-auto rounded-xl bg-white shadow-sm ring-1 ring-gray-200">
             <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 z-10 bg-gray-50">
@@ -1768,13 +1965,22 @@ export default function PortfolioManagementPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold mb-1">평균 가격 (원)</label>
+                <label className="block text-sm font-bold mb-1">매수단가 (원)</label>
                 <input
                   type="number"
                   value={formData.avg_price}
-                  onChange={e => setFormData({ ...formData, avg_price: parseFloat(e.target.value) })}
+                  onChange={e => setFormData({ ...formData, avg_price: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border rounded"
                 />
+                <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold text-amber-800">세금 반영 손익분기 매도가</span>
+                    <span className="text-base font-bold text-amber-950">
+                      {formData.avg_price > 0 ? `${formatAmount(calculateBreakEvenPrice(formData.avg_price, SELL_TAX_RATE_PERCENT))}원` : '-'}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-amber-700">매도 세율 {SELL_TAX_RATE_PERCENT}% 고정 · 수수료 제외</div>
+                </div>
               </div>
 
               <div>
