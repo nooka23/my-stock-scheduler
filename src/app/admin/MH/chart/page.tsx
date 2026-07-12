@@ -109,6 +109,16 @@ type PatternScanEntry = {
   rsMomentum?: RsMomentumData | null;
 };
 
+type RecentListingStock = {
+  code: string;
+  name: string;
+  listing_date: string;
+  latest_date: string;
+  latest_close: number;
+  return_since_listing: number;
+  listed_days: number;
+};
+
 type IndustryRelationRow = {
   industries?: { name?: string | null } | null;
 };
@@ -180,9 +190,11 @@ export default function ChartPage() {
   });
   const [currentPatterns, setCurrentPatterns] = useState<PatternResult[]>([]);
 
-  const [activeView, setActiveView] = useState<'list' | 'cup_handle' | 'vcp' | 'rs_momentum'>('list');
+  const [activeView, setActiveView] = useState<'list' | 'recent_listing' | 'cup_handle' | 'vcp' | 'rs_momentum'>('list');
   const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
   const [patternScanProgress, setPatternScanProgress] = useState<{ done: number; total: number } | null>(null);
+  const [recentListingStocks, setRecentListingStocks] = useState<RecentListingStock[]>([]);
+  const [recentListingLoading, setRecentListingLoading] = useState(false);
 
   const [industries, setIndustries] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
@@ -630,6 +642,33 @@ export default function ChartPage() {
     fetchRankingsAndCompanies();
   }, [fetchRankingsAndCompanies]);
 
+  useEffect(() => {
+    if (activeView !== 'recent_listing' || recentListingStocks.length > 0) return;
+
+    const fetchRecentListings = async () => {
+      setRecentListingLoading(true);
+      const { data: rows, error } = await supabase
+        .from('recent_listing_returns')
+        .select('code, name, listing_date, latest_date, latest_close, return_since_listing, listed_days')
+        .order('return_since_listing', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching recent listings:', error);
+        setRecentListingStocks([]);
+      } else {
+        setRecentListingStocks((rows || []).map((row) => ({
+          ...row,
+          latest_close: Number(row.latest_close),
+          return_since_listing: Number(row.return_since_listing),
+          listed_days: Number(row.listed_days),
+        })));
+      }
+      setRecentListingLoading(false);
+    };
+
+    fetchRecentListings();
+  }, [activeView, recentListingStocks.length, supabase]);
+
   const fetchChartData = useCallback(async (code: string) => {
     setChartLoading(true);
 
@@ -1072,19 +1111,19 @@ export default function ChartPage() {
                     </span>
                   )}
                   <div className="flex rounded-lg border border-[var(--border)] bg-white p-[2px] text-[10px]">
-                    {(['list', 'cup_handle', 'vcp', 'rs_momentum'] as const).map((v) => (
+                    {(['list', 'recent_listing', 'cup_handle', 'vcp', 'rs_momentum'] as const).map((v) => (
                       <button
                         key={v}
                         onClick={() => setActiveView(v)}
                         className={`rounded-md px-2 py-0.5 font-bold transition-colors ${activeView === v ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
                       >
-                        {v === 'list' ? '목록' : v === 'cup_handle' ? 'C&H' : v === 'vcp' ? 'VCP' : 'RS↑'}
+                        {v === 'list' ? '목록' : v === 'recent_listing' ? '신규' : v === 'cup_handle' ? 'C&H' : v === 'vcp' ? 'VCP' : 'RS↑'}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
-                  <span>{reviewStocks.length}개</span>
+                  <span>{activeView === 'recent_listing' ? recentListingStocks.length : reviewStocks.length}개</span>
                   <span>후보 {candidateCount}</span>
                   <span>제외 {excludedCount}</span>
                   <label className="flex items-center gap-1 font-semibold">
@@ -1215,6 +1254,55 @@ export default function ChartPage() {
                   })}
                 </tbody>
               </table>
+            ) : activeView === 'recent_listing' ? (
+              <div className="flex h-full flex-col">
+                <div className="border-b border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[10px] leading-relaxed text-emerald-800">
+                  최신 거래일 기준 상장 1년 이내 · RS 미산출 보통주<br />
+                  최초 종가 대비 수익률 순
+                </div>
+                <table className="w-full border-collapse text-left">
+                  <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
+                    <tr>
+                      <th className="px-3 py-2">순위</th>
+                      <th className="px-2 py-2">종목</th>
+                      <th className="px-2 py-2 text-right">수익률</th>
+                      <th className="px-2 py-2 text-right">상장일</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-xs">
+                    {recentListingLoading ? (
+                      <tr><td colSpan={4} className="p-10 text-center text-[var(--text-subtle)]">신규 상장 종목 집계 중...</td></tr>
+                    ) : recentListingStocks.length === 0 ? (
+                      <tr><td colSpan={4} className="p-10 text-center text-[var(--text-subtle)]">조건에 맞는 종목이 없습니다.</td></tr>
+                    ) : recentListingStocks.map((stock, index) => (
+                      <tr
+                        key={stock.code}
+                        onClick={() => handleStockClick({
+                          code: stock.code,
+                          name: stock.name,
+                          rank: 0,
+                          rs_score: 0,
+                          close: stock.latest_close,
+                          marcap: 0,
+                        })}
+                        className={`cursor-pointer transition-colors hover:bg-emerald-50 ${currentCompany.code === stock.code ? 'bg-emerald-100' : ''}`}
+                      >
+                        <td className="px-3 py-2 font-medium text-gray-400">{index + 1}</td>
+                        <td className="px-2 py-2">
+                          <div className="font-semibold text-slate-900">{stock.name}</div>
+                          <div className="text-[9px] text-[var(--text-subtle)]">{stock.code} · {stock.listed_days}일</div>
+                        </td>
+                        <td className={`px-2 py-2 text-right font-bold tabular-nums ${stock.return_since_listing >= 0 ? 'text-rose-600' : 'text-blue-600'}`}>
+                          {stock.return_since_listing > 0 ? '+' : ''}{stock.return_since_listing.toFixed(1)}%
+                        </td>
+                        <td className="px-2 py-2 text-right text-[10px] text-gray-500">
+                          {stock.listing_date.slice(2).replaceAll('-', '.')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
               /* 패턴 리스트 뷰 */
               <div className="flex flex-col h-full">
