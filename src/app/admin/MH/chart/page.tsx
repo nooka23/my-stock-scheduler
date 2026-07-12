@@ -1257,8 +1257,8 @@ export default function ChartPage() {
             ) : activeView === 'recent_listing' ? (
               <div className="flex h-full flex-col">
                 <div className="border-b border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[10px] leading-relaxed text-emerald-800">
-                  최신 거래일 기준 상장 1년 이내 · RS 미산출 보통주<br />
-                  최초 종가 대비 수익률 순
+                  최신 거래일 기준 상장 1년 이내 보통주 전체<br />
+                  RS·700종목 제한 제외 · 최초 종가 대비 수익률 순
                 </div>
                 <table className="w-full border-collapse text-left">
                   <thead className="sticky top-0 z-10 bg-[var(--surface-muted)] text-[10px] uppercase text-[var(--text-subtle)]">
