@@ -13,6 +13,7 @@ type PortfolioPosition = {
   position_type: string;
   position_size: number;
   avg_price: number;
+  group_avg_price?: number;
   stop_loss: number;
   initial_position_size: number;
   realized_pnl: number;
@@ -102,6 +103,10 @@ const calculateBreakEvenPrice = (purchasePrice: number, sellTaxRatePercent: numb
 const isGroupedPosition = (position: PortfolioPosition | GroupedPosition): position is GroupedPosition => {
   return 'transactions' in position && Array.isArray(position.transactions);
 };
+
+const getPortfolioGroupKey = (companyCode: string, positionType: string): string => (
+  `${companyCode}::${positionType}`
+);
 
 const toNumber = (value: unknown): number => {
   const numericValue = Number(value || 0);
@@ -344,7 +349,7 @@ export default function PortfolioManagementPage() {
 
     const groups = new Map<string, PortfolioPosition[]>();
     positions.forEach(position => {
-      const groupKey = `${position.company_code}::${position.position_type}`;
+      const groupKey = getPortfolioGroupKey(position.company_code, position.position_type);
       const group = groups.get(groupKey) || [];
       group.push(position);
       groups.set(groupKey, group);
@@ -354,8 +359,11 @@ export default function PortfolioManagementPage() {
       const sortedTransactions = [...transactions].sort((a, b) => b.entry_date.localeCompare(a.entry_date));
       const representative = sortedTransactions[0];
       const positionSize = transactions.reduce((sum, position) => sum + position.position_size, 0);
-      const costAmount = transactions.reduce((sum, position) => sum + position.avg_price * position.position_size, 0);
-      const avgPrice = positionSize > 0 ? costAmount / positionSize : 0;
+      const weightedCostAmount = transactions.reduce((sum, position) => sum + position.avg_price * position.position_size, 0);
+      const weightedAvgPrice = positionSize > 0 ? weightedCostAmount / positionSize : 0;
+      const storedAvgPrice = transactions.find(position => position.group_avg_price !== undefined)?.group_avg_price;
+      const avgPrice = storedAvgPrice ?? weightedAvgPrice;
+      const costAmount = avgPrice * positionSize;
       const weightedStopLoss = positionSize > 0
         ? transactions.reduce((sum, position) => sum + position.stop_loss * position.position_size, 0) / positionSize
         : 0;
@@ -363,7 +371,10 @@ export default function PortfolioManagementPage() {
         (sum, position) => sum + (position.current_price || 0) * position.position_size,
         0,
       );
-      const unrealizedPnl = transactions.reduce((sum, position) => sum + (position.unrealized_pnl || 0), 0);
+      const unrealizedPnl = transactions.reduce(
+        (sum, position) => sum + ((position.current_price || 0) - avgPrice) * position.position_size,
+        0,
+      );
       const realizedPnl = transactions.reduce((sum, position) => sum + (position.realized_pnl || 0), 0);
       const totalPnl = unrealizedPnl + realizedPnl;
       const rValue = transactions.reduce((sum, position) => sum + (position.r_value || 0), 0);
@@ -470,15 +481,17 @@ export default function PortfolioManagementPage() {
     const sectorMap = new Map<string, { costAmount: number; marketAmount: number; totalR: number; unrealizedPnl: number }>();
 
     positions.forEach(p => {
-      const costAmount = p.avg_price * p.position_size;
+      const avgPrice = p.group_avg_price ?? p.avg_price;
+      const costAmount = avgPrice * p.position_size;
       const marketAmount = (p.current_price || 0) * p.position_size;
+      const unrealizedPnl = ((p.current_price || 0) - avgPrice) * p.position_size;
       const sector = p.sector || '기타';
       const existing = sectorMap.get(sector) || { costAmount: 0, marketAmount: 0, totalR: 0, unrealizedPnl: 0 };
       sectorMap.set(sector, {
         costAmount: existing.costAmount + costAmount,
         marketAmount: existing.marketAmount + marketAmount,
         totalR: existing.totalR + (p.r_value || 0),
-        unrealizedPnl: existing.unrealizedPnl + (p.unrealized_pnl || 0)
+        unrealizedPnl: existing.unrealizedPnl + unrealizedPnl
       });
     });
 
@@ -553,6 +566,7 @@ export default function PortfolioManagementPage() {
       if (!user) return;
 
       let baseRows: PortfolioPosition[] = [];
+      const groupAverageMap = new Map<string, number>();
 
       if (currentTab === 'closed') {
         let transactionQuery = supabase
@@ -651,6 +665,22 @@ export default function PortfolioManagementPage() {
 
         if (error) throw error;
         baseRows = (portfolioData || []) as PortfolioPosition[];
+
+        const { data: groupAverageData, error: groupAverageError } = await supabase
+          .from('user_portfolio_group_averages')
+          .select('company_code, position_type, avg_price')
+          .eq('user_id', user.id);
+
+        if (groupAverageError) {
+          console.error('Error fetching portfolio group averages:', groupAverageError);
+        } else {
+          (groupAverageData || []).forEach(row => {
+            groupAverageMap.set(
+              getPortfolioGroupKey(row.company_code, row.position_type),
+              Number(row.avg_price),
+            );
+          });
+        }
       }
 
       if (baseRows.length === 0) {
@@ -697,6 +727,9 @@ export default function PortfolioManagementPage() {
       }
 
       const enrichedData: PortfolioPosition[] = baseRows.map(p => {
+        const groupAvgPrice = currentTab === 'active'
+          ? groupAverageMap.get(getPortfolioGroupKey(p.company_code, p.position_type))
+          : undefined;
         const current_price = p.is_custom_asset && p.manual_current_price
           ? p.manual_current_price
           : (priceMap.get(p.company_code) || 0);
@@ -717,6 +750,7 @@ export default function PortfolioManagementPage() {
 
         return {
           ...p,
+          group_avg_price: groupAvgPrice,
           current_price,
           unrealized_pnl,
           total_pnl,
@@ -777,6 +811,27 @@ export default function PortfolioManagementPage() {
     setShowSearchResults(false);
   };
 
+  const syncPortfolioGroupAverage = async (
+    companyCode: string,
+    positionType: string,
+    addedQuantity?: number,
+    addedAvgPrice?: number,
+  ) => {
+    const rpcParams: Record<string, string | number> = {
+      p_company_code: companyCode,
+      p_position_type: positionType,
+    };
+
+    if (addedQuantity !== undefined && addedAvgPrice !== undefined) {
+      rpcParams.p_added_quantity = addedQuantity;
+      rpcParams.p_added_avg_price = addedAvgPrice;
+    }
+
+    const { error } = await supabase.rpc('sync_portfolio_group_avg', rpcParams);
+
+    if (error) throw error;
+  };
+
   // 포지션 추가
   const handleAdd = async () => {
     try {
@@ -807,6 +862,13 @@ export default function PortfolioManagementPage() {
 
       if (error) throw error;
 
+      await syncPortfolioGroupAverage(
+        formData.company_code,
+        formData.position_type,
+        formData.position_size,
+        formData.avg_price,
+      );
+
       alert('포지션이 추가되었습니다.');
       setShowAddModal(false);
       setFormData(createEmptyForm());
@@ -825,6 +887,19 @@ export default function PortfolioManagementPage() {
     try {
       const position = positions.find(p => p.id === id);
       if (!position) return;
+
+      const { data: persistedPosition, error: persistedPositionError } = await supabase
+        .from('user_portfolio')
+        .select('company_code, position_type')
+        .eq('id', id)
+        .single();
+
+      if (persistedPositionError) throw persistedPositionError;
+
+      const previousGroup = {
+        company_code: persistedPosition.company_code,
+        position_type: persistedPosition.position_type,
+      };
 
       const { error } = await supabase
         .from('user_portfolio')
@@ -850,6 +925,14 @@ export default function PortfolioManagementPage() {
 
       if (error) throw error;
 
+      await syncPortfolioGroupAverage(position.company_code, position.position_type);
+      if (
+        previousGroup.company_code !== position.company_code
+        || previousGroup.position_type !== position.position_type
+      ) {
+        await syncPortfolioGroupAverage(previousGroup.company_code, previousGroup.position_type);
+      }
+
       alert('수정되었습니다.');
       setEditingId(null);
       fetchPositions();
@@ -863,6 +946,8 @@ export default function PortfolioManagementPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('정말 삭제하시겠습니까?')) return;
 
+    const position = positions.find(p => p.id === id);
+
     try {
       const { error } = await supabase
         .from('user_portfolio')
@@ -870,6 +955,10 @@ export default function PortfolioManagementPage() {
         .eq('id', id);
 
       if (error) throw error;
+
+      if (position) {
+        await syncPortfolioGroupAverage(position.company_code, position.position_type);
+      }
 
       alert('삭제되었습니다.');
       fetchPositions();
@@ -2192,7 +2281,7 @@ export default function PortfolioManagementPage() {
               </p>
               {isGroupedPosition(sellingPosition) && (
                 <p className="text-sm text-gray-600">
-                  편입 내역: <span className="font-bold">{sellingPosition.transactions.length}</span>건 · 오래된 편입부터 자동 차감
+                  편입 내역: <span className="font-bold">{sellingPosition.transactions.length}</span>건 · 오래된 편입부터 자동 차감 · 통합평균단가 유지
                 </p>
               )}
             </div>
@@ -2240,7 +2329,7 @@ export default function PortfolioManagementPage() {
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-bold text-slate-900">자동 차감 미리보기</p>
-                  <span className="text-xs font-semibold text-slate-500">FIFO</span>
+                  <span className="text-xs font-semibold text-slate-500">FIFO · 평균단가 유지</span>
                 </div>
                 {sellAllocationPreview.length > 0 ? (
                   <div className="mt-2 divide-y divide-slate-200 rounded-lg bg-white ring-1 ring-slate-200">
