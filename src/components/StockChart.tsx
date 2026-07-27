@@ -459,13 +459,27 @@ function createChartStyles(textColor: string): DeepPartial<Styles> {
   };
 }
 
+function applyChartData(chart: Chart, container: HTMLDivElement, chartData: KLineData[]) {
+  chart.removeOverlay({ groupId: DRAWING_GROUP_ID });
+
+  if (chartData.length === 0) {
+    chart.clearData();
+    return;
+  }
+
+  chart.applyNewData(chartData);
+  const visibleCount = Math.min(250, chartData.length);
+  const barSpace = Math.max(3, Math.min(18, Math.floor(container.clientWidth / Math.max(visibleCount, 1))));
+  chart.setBarSpace(barSpace);
+  chart.scrollToRealTime();
+}
+
 const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
   data = [],
   colors: { backgroundColor = 'white', textColor = 'black' } = {},
   showLegend = true,
   showOHLC = false,
   showIndicatorsValues = true,
-  showMacd = true,
   visibleIndicators,
   onLegendChange,
 }: Props, ref) {
@@ -477,6 +491,28 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
     ...DEFAULT_VISIBLE_INDICATORS,
     ...visibleIndicators,
   }), [visibleIndicators]);
+  const chartData = useMemo<KLineData[]>(() => data.map(item => ({
+    timestamp: toTimestamp(item.time),
+    open: item.open,
+    high: item.high,
+    low: item.low,
+    close: item.close,
+    volume: item.volume ?? 0,
+    ema20: indicatorVisibility.ema20 ? item.ema20 : undefined,
+    ma30: indicatorVisibility.ma30 ? item.ma30 : undefined,
+    ma50: indicatorVisibility.ma50 ? item.ma50 : undefined,
+    wma150: indicatorVisibility.wma150 ? item.wma150 : undefined,
+    rs: item.rs,
+    keltner: indicatorVisibility.keltner ? item.keltner : undefined,
+    macd: item.macd,
+  })), [data, indicatorVisibility]);
+  const latestDataRef = useRef(data);
+  const latestChartDataRef = useRef(chartData);
+  const onLegendChangeRef = useRef(onLegendChange);
+
+  latestDataRef.current = data;
+  latestChartDataRef.current = chartData;
+  onLegendChangeRef.current = onLegendChange;
 
   const startDrawing = (tool: DrawingTool) => {
     const chart = chartRef.current;
@@ -552,22 +588,6 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
 
       const container = chartContainerRef.current;
       container.style.backgroundColor = backgroundColor;
-      const chartData: KLineData[] = data.map(item => ({
-        timestamp: toTimestamp(item.time),
-        open: item.open,
-        high: item.high,
-        low: item.low,
-        close: item.close,
-        volume: item.volume ?? 0,
-        ema20: indicatorVisibility.ema20 ? item.ema20 : undefined,
-        ma30: indicatorVisibility.ma30 ? item.ma30 : undefined,
-        ma50: indicatorVisibility.ma50 ? item.ma50 : undefined,
-        wma150: indicatorVisibility.wma150 ? item.wma150 : undefined,
-        rs: item.rs,
-        keltner: indicatorVisibility.keltner ? item.keltner : undefined,
-        macd: item.macd,
-      }));
-
       const containerHeight = container.clientHeight || 600;
       const volumeHeight = Math.max(70, Math.round(containerHeight * 0.15));
       const rsHeight = Math.max(90, Math.round(containerHeight * 0.18));
@@ -602,63 +622,42 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
       chart.setOffsetRightDistance(0);
       chart.setPriceVolumePrecision(0, 0);
 
-      if (chartData.length > 0) {
-        chart.applyNewData(chartData);
-        const visibleCount = Math.min(250, chartData.length);
-        const barSpace = Math.max(3, Math.min(18, Math.floor(container.clientWidth / Math.max(visibleCount, 1))));
-        chart.setBarSpace(barSpace);
-        chart.scrollToRealTime();
-      } else {
-        chart.clearData();
-      }
-
-      onLegendChange?.(data[data.length - 1]);
+      applyChartData(chart, container, latestChartDataRef.current);
+      const latestItem = latestDataRef.current[latestDataRef.current.length - 1];
+      onLegendChangeRef.current?.(latestItem);
 
       if (showLegend && legendRef.current) {
-        legendRef.current.innerHTML = formatLegendHtml(data[data.length - 1], {
+        legendRef.current.innerHTML = formatLegendHtml(latestItem, {
           showOHLC,
           showIndicatorsValues,
           visibleIndicators: indicatorVisibility,
         });
+      }
 
-        crosshairHandler = payload => {
-          if (!legendRef.current || !payload || typeof payload !== 'object') {
-            return;
-          }
+      crosshairHandler = payload => {
+        if (!payload || typeof payload !== 'object') {
+          return;
+        }
 
-          const maybeCrosshair = payload as { dataIndex?: number };
-          const dataIndex = maybeCrosshair.dataIndex;
-          if (typeof dataIndex !== 'number' || dataIndex < 0 || dataIndex >= data.length) {
-            return;
-          }
+        const maybeCrosshair = payload as { dataIndex?: number };
+        const dataIndex = maybeCrosshair.dataIndex;
+        const latestData = latestDataRef.current;
+        if (typeof dataIndex !== 'number' || dataIndex < 0 || dataIndex >= latestData.length) {
+          return;
+        }
 
-          onLegendChange?.(data[dataIndex]);
+        const item = latestData[dataIndex];
+        onLegendChangeRef.current?.(item);
 
-          legendRef.current.innerHTML = formatLegendHtml(data[dataIndex], {
+        if (showLegend && legendRef.current) {
+          legendRef.current.innerHTML = formatLegendHtml(item, {
             showOHLC,
             showIndicatorsValues,
             visibleIndicators: indicatorVisibility,
           });
-        };
-
-        chart.subscribeAction(ActionType.OnCrosshairChange, crosshairHandler);
-      } else if (onLegendChange) {
-        crosshairHandler = payload => {
-          if (!payload || typeof payload !== 'object') {
-            return;
-          }
-
-          const maybeCrosshair = payload as { dataIndex?: number };
-          const dataIndex = maybeCrosshair.dataIndex;
-          if (typeof dataIndex !== 'number' || dataIndex < 0 || dataIndex >= data.length) {
-            return;
-          }
-
-          onLegendChange(data[dataIndex]);
-        };
-
-        chart.subscribeAction(ActionType.OnCrosshairChange, crosshairHandler);
-      }
+        }
+      };
+      chart.subscribeAction(ActionType.OnCrosshairChange, crosshairHandler);
 
       resizeHandler = () => {
         if (!chart || !chartContainerRef.current) {
@@ -686,14 +685,20 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
           window.removeEventListener('resize', resizeHandler);
         }
         if (chartContainerRef.current) {
-          dispose(chartContainerRef.current);
+          dispose(container);
         }
-        chartRef.current = null;
+        if (chartRef.current === chart) {
+          chartRef.current = null;
+        }
       };
     };
 
     let cleanup: (() => void) | undefined;
     void initialize().then(result => {
+      if (!mounted) {
+        result?.();
+        return;
+      }
       cleanup = result;
     });
 
@@ -701,7 +706,35 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
       mounted = false;
       cleanup?.();
     };
-  }, [data, backgroundColor, textColor, showLegend, showOHLC, showIndicatorsValues, showMacd, indicatorVisibility, onLegendChange]);
+  }, [
+    backgroundColor,
+    textColor,
+    showLegend,
+    showOHLC,
+    showIndicatorsValues,
+    indicatorVisibility.volume,
+    indicatorVisibility.rs,
+  ]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    const container = chartContainerRef.current;
+    if (!chart || !container) {
+      return;
+    }
+
+    applyChartData(chart, container, chartData);
+    const latestItem = data[data.length - 1];
+    onLegendChangeRef.current?.(latestItem);
+
+    if (showLegend && legendRef.current) {
+      legendRef.current.innerHTML = formatLegendHtml(latestItem, {
+        showOHLC,
+        showIndicatorsValues,
+        visibleIndicators: indicatorVisibility,
+      });
+    }
+  }, [chartData, data, showLegend, showOHLC, showIndicatorsValues, indicatorVisibility]);
 
   return (
     <div className="flex h-full w-full min-h-0 flex-col">

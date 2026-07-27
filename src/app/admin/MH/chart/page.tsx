@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import StockChart, { type StockChartHandle, type StockChartIndicatorVisibility } from '@/components/StockChart';
 import FullscreenPanel from '@/components/FullscreenPanel';
 import { createClientComponentClient } from '@/lib/supabase-browser';
@@ -34,6 +34,13 @@ type ChartData = {
   atr20?: number;
   keltner?: { upper: number; lower: number; middle: number };
   macd?: { macd: number; signal: number; histogram: number };
+};
+
+type ChartBundle = {
+  rawDailyData: ChartData[];
+  industries: string[];
+  themes: string[];
+  fetchedAt: number;
 };
 
 function formatChartLegend(item: ChartData | undefined) {
@@ -144,12 +151,89 @@ const INDICATOR_TOGGLES: Array<{ key: keyof PageIndicatorVisibility; label: stri
 
 const ITEMS_PER_PAGE = 20;
 const REVIEW_LIMIT = 700;
+const CHART_CACHE_TTL_MS = 5 * 60 * 1000;
+const CHART_CACHE_LIMIT = 24;
+
+function convertToWeekly(dailyData: ChartData[]): ChartData[] {
+  if (dailyData.length === 0) return [];
+
+  const weeklyMap = new Map<string, ChartData>();
+  const sortedDaily = [...dailyData].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+
+  sortedDaily.forEach((day) => {
+    const date = new Date(day.time);
+    const dayOfWeek = date.getDay();
+    const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const monday = new Date(date.setDate(diff));
+    const weekKey = monday.toISOString().split('T')[0];
+
+    if (!weeklyMap.has(weekKey)) {
+      weeklyMap.set(weekKey, {
+        ...day,
+        time: weekKey,
+        volume: 0,
+        high: -Infinity,
+        low: Infinity,
+      });
+    }
+
+    const weekData = weeklyMap.get(weekKey)!;
+    weekData.high = Math.max(weekData.high, day.high);
+    weekData.low = Math.min(weekData.low, day.low);
+    weekData.close = day.close;
+    weekData.volume += day.volume;
+  });
+
+  return Array.from(weeklyMap.values());
+}
+
+function createChartData(rawDailyData: ChartData[], timeframe: 'daily' | 'weekly') {
+  if (rawDailyData.length === 0) {
+    return { data: [], patterns: [] as PatternResult[] };
+  }
+
+  const ohlcv = rawDailyData.map((d) => ({
+    open: d.open,
+    high: d.high,
+    low: d.low,
+    close: d.close,
+    volume: d.volume,
+  }));
+
+  let targetData = [...rawDailyData];
+  if (timeframe === 'weekly') {
+    targetData = convertToWeekly(targetData);
+  }
+
+  const ema = calculateEMA(targetData, 20);
+  const ma30 = calculateSMA(targetData, 30);
+  const ma50 = calculateSMA(targetData, 50);
+  const wma = timeframe === 'weekly'
+    ? calculateWMA(targetData, 30)
+    : calculateWMA(targetData, 150);
+  const atr = calculateATR(targetData, 20);
+  const keltner = calculateKeltner(targetData, 20, 2.25);
+  const macd = calculateMACD(targetData, 3, 10, 16);
+
+  return {
+    data: targetData.map((point, index) => ({
+      ...point,
+      ema20: ema[index],
+      ma30: ma30[index],
+      ma50: ma50[index],
+      wma150: wma[index],
+      atr20: atr[index],
+      keltner: keltner[index],
+      macd: macd[index],
+    })),
+    patterns: runDetectors(ohlcv),
+  };
+}
 
 export default function ChartPage() {
   const supabase = createClientComponentClient();
   const chartRef = useRef<StockChartHandle | null>(null);
 
-  const [data, setData] = useState<ChartData[]>([]);
   const [rawDailyData, setRawDailyData] = useState<ChartData[]>([]);
   const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930' });
   const [chartLoading, setChartLoading] = useState(false);
@@ -188,7 +272,6 @@ export default function ChartPage() {
     volume: true,
     rs: true,
   });
-  const [currentPatterns, setCurrentPatterns] = useState<PatternResult[]>([]);
 
   const [activeView, setActiveView] = useState<'list' | 'recent_listing' | 'cup_handle' | 'vcp' | 'rs_momentum'>('list');
   const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
@@ -201,39 +284,12 @@ export default function ChartPage() {
   const [showAllThemes, setShowAllThemes] = useState(false);
   const [legendData, setLegendData] = useState<ChartData | undefined>(undefined);
   const legendDisplay = formatChartLegend(legendData);
-
-  const convertToWeekly = (dailyData: ChartData[]): ChartData[] => {
-    if (dailyData.length === 0) return [];
-
-    const weeklyMap = new Map<string, ChartData>();
-    const sortedDaily = [...dailyData].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-    sortedDaily.forEach((day) => {
-      const date = new Date(day.time);
-      const dayOfWeek = date.getDay();
-      const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-      const monday = new Date(date.setDate(diff));
-      const weekKey = monday.toISOString().split('T')[0];
-
-      if (!weeklyMap.has(weekKey)) {
-        weeklyMap.set(weekKey, {
-          ...day,
-          time: weekKey,
-          volume: 0,
-          high: -Infinity,
-          low: Infinity,
-        });
-      }
-
-      const weekData = weeklyMap.get(weekKey)!;
-      weekData.high = Math.max(weekData.high, day.high);
-      weekData.low = Math.min(weekData.low, day.low);
-      weekData.close = day.close;
-      weekData.volume += day.volume;
-    });
-
-    return Array.from(weeklyMap.values());
-  };
+  const chartCacheRef = useRef(new Map<string, ChartBundle>());
+  const chartRequestRef = useRef(new Map<string, Promise<ChartBundle>>());
+  const { data, patterns: currentPatterns } = useMemo(
+    () => createChartData(rawDailyData, timeframe),
+    [rawDailyData, timeframe],
+  );
 
   // reviewStocks(날짜·minRS)가 바뀌면 이전 스캔 결과 초기화
   useEffect(() => {
@@ -669,11 +725,26 @@ export default function ChartPage() {
     fetchRecentListings();
   }, [activeView, recentListingStocks.length, supabase]);
 
-  const fetchChartData = useCallback(async (code: string) => {
-    setChartLoading(true);
+  const cacheChartBundle = useCallback((code: string, bundle: ChartBundle) => {
+    const cache = chartCacheRef.current;
+    cache.delete(code);
+    cache.set(code, bundle);
 
-    try {
-      const [dbRes, rsRes] = await Promise.all([
+    while (cache.size > CHART_CACHE_LIMIT) {
+      const oldestCode = cache.keys().next().value;
+      if (!oldestCode) break;
+      cache.delete(oldestCode);
+    }
+  }, []);
+
+  const fetchChartBundle = useCallback((code: string) => {
+    const pendingRequest = chartRequestRef.current.get(code);
+    if (pendingRequest) {
+      return pendingRequest;
+    }
+
+    const request = (async (): Promise<ChartBundle> => {
+      const [dbRes, rsRes, industryRes, themeRes] = await Promise.all([
         supabase
           .from('daily_prices_v2')
           .select('date, open, high, low, close, volume')
@@ -686,7 +757,20 @@ export default function ChartPage() {
           .eq('code', code)
           .order('date', { ascending: false })
           .limit(1000),
+        supabase
+          .from('company_industries')
+          .select('industry_id, industries(name)')
+          .eq('company_code', code),
+        supabase
+          .from('company_themes')
+          .select('theme_id, themes(name)')
+          .eq('company_code', code),
       ]);
+
+      if (dbRes.error) throw dbRes.error;
+      if (rsRes.error) throw rsRes.error;
+      if (industryRes.error) throw industryRes.error;
+      if (themeRes.error) throw themeRes.error;
 
       const dataMap = new Map<string, ChartData>();
 
@@ -721,101 +805,113 @@ export default function ChartPage() {
         dataMap.set(row.date, { ...existing, rs: Number(row.score_weighted) });
       });
 
-      const sorted = Array.from(dataMap.values()).sort(
-        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
-      );
+      const bundle: ChartBundle = {
+        rawDailyData: Array.from(dataMap.values()).sort(
+          (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+        ),
+        industries: industryRes.data
+          ? (industryRes.data as IndustryRelationRow[]).map((item) => item.industries?.name).filter((name): name is string => Boolean(name))
+          : [],
+        themes: themeRes.data
+          ? (themeRes.data as ThemeRelationRow[]).map((item) => item.themes?.name).filter((name): name is string => Boolean(name))
+          : [],
+        fetchedAt: Date.now(),
+      };
 
-      setRawDailyData(sorted);
-    } catch (error) {
-      console.error(error);
-      setRawDailyData([]);
-    } finally {
-      setChartLoading(false);
-    }
-  }, [supabase]);
+      cacheChartBundle(code, bundle);
+      return bundle;
+    })();
 
-  const fetchIndustriesAndThemes = useCallback(async (code: string) => {
-    try {
-      const [industryRes, themeRes] = await Promise.all([
-        supabase
-          .from('company_industries')
-          .select('industry_id, industries(name)')
-          .eq('company_code', code),
-        supabase
-          .from('company_themes')
-          .select('theme_id, themes(name)')
-          .eq('company_code', code),
-      ]);
+    chartRequestRef.current.set(code, request);
+    void request.then(
+      () => {
+        if (chartRequestRef.current.get(code) === request) {
+          chartRequestRef.current.delete(code);
+        }
+      },
+      () => {
+        if (chartRequestRef.current.get(code) === request) {
+          chartRequestRef.current.delete(code);
+        }
+      },
+    );
 
-      const industryNames = industryRes.data
-        ? (industryRes.data as IndustryRelationRow[]).map((item) => item.industries?.name).filter((name): name is string => Boolean(name))
-        : [];
-      const themeNames = themeRes.data
-        ? (themeRes.data as ThemeRelationRow[]).map((item) => item.themes?.name).filter((name): name is string => Boolean(name))
-        : [];
-
-      setIndustries(industryNames);
-      setThemes(themeNames);
-    } catch (error) {
-      console.error('Error fetching industries and themes:', error);
-      setIndustries([]);
-      setThemes([]);
-    }
-  }, [supabase]);
+    return request;
+  }, [cacheChartBundle, supabase]);
 
   useEffect(() => {
-    fetchChartData(currentCompany.code);
-    fetchIndustriesAndThemes(currentCompany.code);
+    let cancelled = false;
+    const code = currentCompany.code;
+    const cachedBundle = chartCacheRef.current.get(code);
+
+    const applyBundle = (bundle: ChartBundle) => {
+      if (cancelled) return;
+      setRawDailyData(bundle.rawDailyData);
+      setIndustries(bundle.industries);
+      setThemes(bundle.themes);
+    };
+
     setShowAllThemes(false);
-  }, [currentCompany, fetchChartData, fetchIndustriesAndThemes]);
+
+    if (cachedBundle) {
+      applyBundle(cachedBundle);
+      setChartLoading(false);
+
+      if (Date.now() - cachedBundle.fetchedAt < CHART_CACHE_TTL_MS) {
+        return () => {
+          cancelled = true;
+        };
+      }
+    } else {
+      setChartLoading(true);
+      setLegendData(undefined);
+    }
+
+    void fetchChartBundle(code)
+      .then(applyBundle)
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Error fetching chart data:', error);
+        if (!cachedBundle) {
+          setRawDailyData([]);
+          setIndustries([]);
+          setThemes([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setChartLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentCompany.code, fetchChartBundle]);
 
   useEffect(() => {
-    if (rawDailyData.length === 0) {
-      setData([]);
-      setLegendData(undefined);
-      setCurrentPatterns([]);
-      return;
-    }
+    setLegendData(data[data.length - 1]);
+  }, [data]);
 
-    // 패턴 감지 — rawDailyData는 이미 시간순(오래된→최신)
-    const ohlcv = rawDailyData.map((d) => ({
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-      volume: d.volume,
-    }));
-    setCurrentPatterns(runDetectors(ohlcv));
+  useEffect(() => {
+    if (currentReviewIndex < 0) return;
 
-    let targetData = [...rawDailyData];
-    if (timeframe === 'weekly') {
-      targetData = convertToWeekly(targetData);
-    }
+    const nearbyCodes = [
+      reviewStocks[currentReviewIndex - 1]?.code,
+      reviewStocks[currentReviewIndex + 1]?.code,
+    ].filter((code): code is string => Boolean(code));
 
-    const ema = calculateEMA(targetData, 20);
-    const ma30 = calculateSMA(targetData, 30);
-    const ma50 = calculateSMA(targetData, 50);
-    const wma = timeframe === 'weekly'
-      ? calculateWMA(targetData, 30)
-      : calculateWMA(targetData, 150);
-    const atr = calculateATR(targetData, 20);
-    const keltner = calculateKeltner(targetData, 20, 2.25);
-    const macd = calculateMACD(targetData, 3, 10, 16);
+    nearbyCodes.forEach((code) => {
+      const cachedBundle = chartCacheRef.current.get(code);
+      if (cachedBundle && Date.now() - cachedBundle.fetchedAt < CHART_CACHE_TTL_MS) {
+        return;
+      }
 
-    const nextData = targetData.map((point, index) => ({
-      ...point,
-      ema20: ema[index],
-      ma30: ma30[index],
-      ma50: ma50[index],
-      wma150: wma[index],
-      atr20: atr[index],
-      keltner: keltner[index],
-      macd: macd[index],
-    }));
-
-    setData(nextData);
-    setLegendData(nextData[nextData.length - 1]);
-  }, [rawDailyData, timeframe]);
+      void fetchChartBundle(code).catch((error) => {
+        console.error(`Error prefetching chart data for ${code}:`, error);
+      });
+    });
+  }, [currentReviewIndex, fetchChartBundle, reviewStocks]);
 
   const handleStockClick = (stock: TableStock) => {
     setCurrentCompany({ name: stock.name, code: stock.code });
@@ -1766,19 +1862,24 @@ export default function ChartPage() {
                   </div>
                 </div>
               </div>
-              {chartLoading ? (
-                <div className="flex h-full items-center justify-center text-gray-400">차트 로딩 중...</div>
-              ) : data.length > 0 ? (
-                <StockChart
-                  ref={chartRef}
-                  data={data}
-                  showLegend={false}
-                  visibleIndicators={visibleIndicators}
-                  onLegendChange={setLegendData}
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-gray-400">데이터가 없습니다</div>
-              )}
+              <div className="relative h-full min-h-0">
+                {data.length > 0 ? (
+                  <StockChart
+                    ref={chartRef}
+                    data={data}
+                    showLegend={false}
+                    visibleIndicators={visibleIndicators}
+                    onLegendChange={setLegendData}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-gray-400">데이터가 없습니다</div>
+                )}
+                {chartLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/65 text-sm text-gray-500 backdrop-blur-[1px]">
+                    차트 로딩 중...
+                  </div>
+                )}
+              </div>
             </FullscreenPanel>
           </div>
         </div>

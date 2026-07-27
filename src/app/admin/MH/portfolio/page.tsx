@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClientComponentClient } from '@/lib/supabase-browser';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
@@ -58,6 +58,18 @@ type GroupedPosition = PortfolioPosition & {
 
 type TransactionRow = Record<string, unknown>;
 
+type PortfolioMarketSnapshot = {
+  code: string;
+  price_date: string | null;
+  current_price: number | string | null;
+  atr20: number | string | null;
+};
+
+type PortfolioCacheEntry = {
+  fetchedAt: number;
+  positions: PortfolioPosition[];
+};
+
 type SellAllocationPreview = {
   id: string;
   entry_date: string;
@@ -67,6 +79,15 @@ type SellAllocationPreview = {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D', '#C77DFF', '#38B000'];
 const SELL_TAX_RATE_PERCENT = 0.22;
+const PORTFOLIO_CACHE_TTL_MS = 60 * 1000;
+const PORTFOLIO_CACHE_PREFIX = 'mh-portfolio-cache:v1:';
+
+const getPortfolioCacheKey = (
+  userId: string,
+  currentTab: 'active' | 'closed',
+  closedFromDate: string,
+  closedToDate: string,
+) => `${PORTFOLIO_CACHE_PREFIX}${userId}:${currentTab}:${closedFromDate}:${closedToDate}`;
 
 const getCurrentMonthStart = (): string => {
   const now = new Date();
@@ -185,6 +206,8 @@ const buildSellAllocationPreview = (
 
 export default function PortfolioManagementPage() {
   const supabase = createClientComponentClient();
+  const portfolioCacheRef = useRef(new Map<string, PortfolioCacheEntry>());
+  const fetchRequestIdRef = useRef(0);
 
   const [currentTab, setCurrentTab] = useState<'active' | 'closed'>('active');
   const [viewMode, setViewMode] = useState<'table' | 'sector'>('table');
@@ -521,49 +544,67 @@ export default function PortfolioManagementPage() {
   const showSummaryTable = currentTab === 'active' && viewMode === 'table';
   const shouldShowDetailedTable = (): boolean => currentTab === 'closed';
 
-  // 포트폴리오 목록 조회
-  const calculateATR = useCallback(async (code: string): Promise<number> => {
+  const readPortfolioCache = useCallback((key: string): PortfolioCacheEntry | null => {
+    const memoryEntry = portfolioCacheRef.current.get(key);
+    if (memoryEntry) return memoryEntry;
+
+    if (typeof window === 'undefined') return null;
+
     try {
-      const { data, error } = await supabase
-        .from('daily_prices_v2')
-        .select('date, high, low, close')
-        .eq('code', code)
-        .order('date', { ascending: false })
-        .limit(21);
+      const serialized = window.sessionStorage.getItem(key);
+      if (!serialized) return null;
 
-      if (error || !data || data.length < 20) {
-        console.log('ATR 계산 실패: 데이터 부족', code);
-        return 0;
-      }
+      const entry = JSON.parse(serialized) as PortfolioCacheEntry;
+      if (!Array.isArray(entry.positions) || typeof entry.fetchedAt !== 'number') return null;
 
-      const sortedData = [...data].reverse();
-      const trueRanges: number[] = [];
-
-      for (let i = 1; i < sortedData.length; i++) {
-        const current = sortedData[i];
-        const previous = sortedData[i - 1];
-
-        const tr = Math.max(
-          current.high - current.low,
-          Math.abs(current.high - previous.close),
-          Math.abs(current.low - previous.close)
-        );
-
-        trueRanges.push(tr);
-      }
-
-      return trueRanges.slice(-20).reduce((sum, tr) => sum + tr, 0) / 20;
-    } catch (error) {
-      console.error('ATR 계산 오류:', error);
-      return 0;
+      portfolioCacheRef.current.set(key, entry);
+      return entry;
+    } catch {
+      return null;
     }
-  }, [supabase]);
+  }, []);
 
-  const fetchPositions = useCallback(async () => {
+  const writePortfolioCache = useCallback((key: string, positionsToCache: PortfolioPosition[]) => {
+    const entry: PortfolioCacheEntry = {
+      fetchedAt: Date.now(),
+      positions: positionsToCache,
+    };
+
+    portfolioCacheRef.current.set(key, entry);
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.setItem(key, JSON.stringify(entry));
+      } catch {
+        // 세션 저장 공간이 부족해도 화면 조회는 계속 진행한다.
+      }
+    }
+  }, []);
+
+  // 포트폴리오 목록 조회
+  const fetchPositions = useCallback(async ({ force = false }: { force?: boolean } = {}) => {
+    const requestId = ++fetchRequestIdRef.current;
     setLoading(true);
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        if (requestId === fetchRequestIdRef.current) setPositions([]);
+        return;
+      }
+
+      const cacheKey = getPortfolioCacheKey(user.id, currentTab, closedFromDate, closedToDate);
+      const cached = !force ? readPortfolioCache(cacheKey) : null;
+      if (cached) {
+        if (requestId === fetchRequestIdRef.current) {
+          setPositions(cached.positions);
+          setLoading(false);
+        }
+
+        if (Date.now() - cached.fetchedAt < PORTFOLIO_CACHE_TTL_MS) {
+          return;
+        }
+      }
 
       let baseRows: PortfolioPosition[] = [];
       const groupAverageMap = new Map<string, number>();
@@ -582,12 +623,6 @@ export default function PortfolioManagementPage() {
           transactionQuery = transactionQuery.lte('transaction_date', closedToDate);
         }
 
-        const { data: transactionData, error: transactionError } = await transactionQuery
-          .order('transaction_date', { ascending: false })
-          .order('created_at', { ascending: false });
-
-        if (transactionError) throw transactionError;
-
         let legacyClosedQuery = supabase
           .from('user_portfolio')
           .select('*')
@@ -602,9 +637,16 @@ export default function PortfolioManagementPage() {
           legacyClosedQuery = legacyClosedQuery.lte('close_date', closedToDate);
         }
 
-        const { data: legacyClosedData, error: legacyClosedError } = await legacyClosedQuery
-          .order('close_date', { ascending: false });
+        const [transactionResult, legacyClosedResult] = await Promise.all([
+          transactionQuery
+            .order('transaction_date', { ascending: false })
+            .order('created_at', { ascending: false }),
+          legacyClosedQuery.order('close_date', { ascending: false }),
+        ]);
 
+        const { data: transactionData, error: transactionError } = transactionResult;
+        const { data: legacyClosedData, error: legacyClosedError } = legacyClosedResult;
+        if (transactionError) throw transactionError;
         if (legacyClosedError) throw legacyClosedError;
 
         const transactionRowsRaw = (transactionData || []) as TransactionRow[];
@@ -656,20 +698,23 @@ export default function PortfolioManagementPage() {
 
         baseRows = [...transactionRows, ...legacyRows];
       } else {
-        const { data: portfolioData, error } = await supabase
-          .from('user_portfolio')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_closed', false)
-          .order('entry_date', { ascending: false });
+        const [portfolioResult, groupAverageResult] = await Promise.all([
+          supabase
+            .from('user_portfolio')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('is_closed', false)
+            .order('entry_date', { ascending: false }),
+          supabase
+            .from('user_portfolio_group_averages')
+            .select('company_code, position_type, avg_price')
+            .eq('user_id', user.id),
+        ]);
 
+        const { data: portfolioData, error } = portfolioResult;
+        const { data: groupAverageData, error: groupAverageError } = groupAverageResult;
         if (error) throw error;
         baseRows = (portfolioData || []) as PortfolioPosition[];
-
-        const { data: groupAverageData, error: groupAverageError } = await supabase
-          .from('user_portfolio_group_averages')
-          .select('company_code, position_type, avg_price')
-          .eq('user_id', user.id);
 
         if (groupAverageError) {
           console.error('Error fetching portfolio group averages:', groupAverageError);
@@ -684,55 +729,33 @@ export default function PortfolioManagementPage() {
       }
 
       if (baseRows.length === 0) {
-        setPositions([]);
+        writePortfolioCache(cacheKey, []);
+        if (requestId === fetchRequestIdRef.current) setPositions([]);
         return;
       }
 
       const tradablePositions = baseRows.filter(p => !p.is_custom_asset);
       const codes = [...new Set(tradablePositions.map(p => p.company_code))];
 
-      let latestDate: string | undefined;
-      if (currentTab === 'active' && codes.length > 0) {
-        const { data: dateData } = await supabase
-          .from('daily_prices_v2')
-          .select('date')
-          .order('date', { ascending: false })
-          .limit(1)
-          .single();
+      const { data: marketSnapshotData, error: marketSnapshotError } = currentTab === 'active' && codes.length > 0
+        ? await supabase.rpc('get_portfolio_market_snapshot', { p_codes: codes })
+        : { data: null, error: null };
 
-        latestDate = dateData?.date;
-      }
+      if (marketSnapshotError) throw marketSnapshotError;
 
-      const { data: priceData } = currentTab === 'active' && codes.length > 0 && latestDate
-        ? await supabase
-          .from('daily_prices_v2')
-          .select('code, close')
-          .in('code', codes)
-          .eq('date', latestDate)
-        : { data: null };
-
-      const priceMap = new Map<string, number>();
-      if (priceData) {
-        priceData.forEach(p => priceMap.set(p.code, p.close));
-      }
-
-      const atrMap = new Map<string, number>();
-      if (currentTab === 'active') {
-        for (const code of codes) {
-          const atr = await calculateATR(code);
-          if (atr > 0) {
-            atrMap.set(code, atr);
-          }
-        }
-      }
+      const marketSnapshotMap = new Map<string, PortfolioMarketSnapshot>();
+      ((marketSnapshotData || []) as PortfolioMarketSnapshot[]).forEach((row) => {
+        marketSnapshotMap.set(row.code, row);
+      });
 
       const enrichedData: PortfolioPosition[] = baseRows.map(p => {
         const groupAvgPrice = currentTab === 'active'
           ? groupAverageMap.get(getPortfolioGroupKey(p.company_code, p.position_type))
           : undefined;
+        const marketSnapshot = marketSnapshotMap.get(p.company_code);
         const current_price = p.is_custom_asset && p.manual_current_price
           ? p.manual_current_price
-          : (priceMap.get(p.company_code) || 0);
+          : Number(marketSnapshot?.current_price || 0);
         const unrealized_pnl = (current_price - p.avg_price) * p.position_size;
         const total_pnl = unrealized_pnl + (p.realized_pnl || 0);
         const riskSize = currentTab === 'closed'
@@ -742,7 +765,7 @@ export default function PortfolioManagementPage() {
         const pnl_ratio = r_value !== 0
           ? (currentTab === 'closed' ? (p.realized_pnl || 0) / r_value : total_pnl / r_value)
           : 0;
-        const atr_value = p.is_custom_asset ? 0 : (atrMap.get(p.company_code) || 0);
+        const atr_value = p.is_custom_asset ? 0 : Number(marketSnapshot?.atr20 || 0);
         const position_for_atr = currentTab === 'closed'
           ? (p.sold_quantity || p.initial_position_size || p.position_size)
           : p.position_size;
@@ -760,13 +783,14 @@ export default function PortfolioManagementPage() {
         };
       });
 
-      setPositions(enrichedData);
+      writePortfolioCache(cacheKey, enrichedData);
+      if (requestId === fetchRequestIdRef.current) setPositions(enrichedData);
     } catch (error) {
       console.error('Error fetching positions:', error);
     } finally {
-      setLoading(false);
+      if (requestId === fetchRequestIdRef.current) setLoading(false);
     }
-  }, [calculateATR, supabase, currentTab, closedFromDate, closedToDate]);
+  }, [supabase, currentTab, closedFromDate, closedToDate, readPortfolioCache, writePortfolioCache]);
 
   useEffect(() => {
     fetchPositions();
@@ -875,7 +899,7 @@ export default function PortfolioManagementPage() {
       setSearchQuery('');
       setSearchResults([]);
       setShowSearchResults(false);
-      fetchPositions();
+      fetchPositions({ force: true });
     } catch (error: unknown) {
       console.error('Error adding position:', error);
       alert('추가 실패: ' + getErrorMessage(error));
@@ -935,7 +959,7 @@ export default function PortfolioManagementPage() {
 
       alert('수정되었습니다.');
       setEditingId(null);
-      fetchPositions();
+      fetchPositions({ force: true });
     } catch (error: unknown) {
       console.error('Error updating position:', error);
       alert('수정 실패: ' + getErrorMessage(error));
@@ -961,7 +985,7 @@ export default function PortfolioManagementPage() {
       }
 
       alert('삭제되었습니다.');
-      fetchPositions();
+      fetchPositions({ force: true });
     } catch (error: unknown) {
       console.error('Error deleting position:', error);
       alert('삭제 실패: ' + getErrorMessage(error));
@@ -1032,7 +1056,7 @@ export default function PortfolioManagementPage() {
       setSellAmount(0);
       setSellRealizedPnl(0);
       setSellDate(getTodayDate());
-      fetchPositions();
+      fetchPositions({ force: true });
     } catch (error: unknown) {
       console.error('Error selling position:', error);
       alert('매도 실패: ' + getErrorMessage(error));
@@ -1446,7 +1470,7 @@ export default function PortfolioManagementPage() {
                                           <td className="px-4 py-3">
                                             <div className="flex items-center justify-center gap-1">
                                               {isEditing ? (
-                                                <><button onClick={() => handleUpdate(transaction.id)} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 font-semibold text-white hover:bg-emerald-700">저장</button><button onClick={() => { setEditingId(null); fetchPositions(); }} className="rounded-lg border px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">취소</button></>
+                                                <><button onClick={() => handleUpdate(transaction.id)} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 font-semibold text-white hover:bg-emerald-700">저장</button><button onClick={() => { setEditingId(null); fetchPositions({ force: true }); }} className="rounded-lg border px-2.5 py-1.5 text-slate-600 hover:bg-slate-50">취소</button></>
                                               ) : (
                                                 <><button onClick={() => setEditingId(transaction.id)} className="rounded-lg bg-blue-50 px-2.5 py-1.5 font-semibold text-blue-700 hover:bg-blue-100">수정</button><button onClick={() => handleDelete(transaction.id)} className="rounded-lg bg-red-50 px-2.5 py-1.5 font-semibold text-red-700 hover:bg-red-100">삭제</button></>
                                               )}
