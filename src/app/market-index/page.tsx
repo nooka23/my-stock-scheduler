@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createClientComponentClient } from '@/lib/supabase-browser';
 import IndexLineChart from '@/components/IndexLineChart';
+import MarketBreadthChart from '@/components/MarketBreadthChart';
 
 type IndexType = 'industry' | 'theme';
 
@@ -46,6 +47,17 @@ type LeaderRow = {
   industry: string;
 };
 
+type MarketBreadthRow = {
+  date: string;
+  universe_size: number;
+  wma150_eligible_count: number;
+  above_wma150_count: number;
+  above_wma150_ratio: number;
+};
+
+type PageTab = 'indices' | 'leaders' | 'breadth';
+type BreadthRange = '1y' | '3y' | 'all';
+
 const CHUNK_SIZE = 1000;
 const MARCAP_SUM_THRESHOLD = 200_000_000_000_000;
 
@@ -54,6 +66,35 @@ const buildStatKey = (type: IndexType, code: string) => `${type}:${code}`;
 const buildReturn = (first: number | null, last: number | null) => {
   if (first === null || last === null || first === 0) return null;
   return ((last - first) / first) * 100;
+};
+
+const getBreadthSignal = (ratio: number) => {
+  if (ratio >= 0.75) {
+    return {
+      label: '강한 확산',
+      description: 'RS 선도주의 다수가 장기 추세 위에 있습니다.',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    };
+  }
+  if (ratio >= 0.5) {
+    return {
+      label: '확산 우위',
+      description: '선도주 내부 추세가 절반 이상 유지되고 있습니다.',
+      className: 'border-teal-200 bg-teal-50 text-teal-800',
+    };
+  }
+  if (ratio >= 0.25) {
+    return {
+      label: '중립 · 압축',
+      description: '선도주의 장기 추세 참여도가 절반 아래입니다.',
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
+    };
+  }
+  return {
+    label: '추세 위축',
+    description: '장기 추세 위에 있는 선도주가 제한적입니다.',
+    className: 'border-rose-200 bg-rose-50 text-rose-800',
+  };
 };
 
 export default function MarketIndexPage() {
@@ -66,7 +107,7 @@ export default function MarketIndexPage() {
   const [themeRanks, setThemeRanks] = useState<RankRow[]>([]);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState<string>('');
-  const [pageTab, setPageTab] = useState<'indices' | 'leaders'>('leaders');
+  const [pageTab, setPageTab] = useState<PageTab>('leaders');
   const [viewMode, setViewMode] = useState<'chart' | 'constituents'>('chart');
   const [chartRows, setChartRows] = useState<IndexRow[]>([]);
   const [loadingRanks, setLoadingRanks] = useState<boolean>(false);
@@ -92,6 +133,10 @@ export default function MarketIndexPage() {
   const [leaderLoading, setLeaderLoading] = useState<boolean>(false);
   const [leaderError, setLeaderError] = useState<string | null>(null);
   const [leaderQuery, setLeaderQuery] = useState<string>('');
+  const [breadthRows, setBreadthRows] = useState<MarketBreadthRow[]>([]);
+  const [breadthLoading, setBreadthLoading] = useState<boolean>(false);
+  const [breadthError, setBreadthError] = useState<string | null>(null);
+  const [breadthRange, setBreadthRange] = useState<BreadthRange>('1y');
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -346,6 +391,55 @@ export default function MarketIndexPage() {
     loadLeaders();
   }, [pageTab, supabase]);
 
+  useEffect(() => {
+    if (pageTab !== 'breadth') return;
+
+    const loadBreadth = async () => {
+      setBreadthLoading(true);
+      setBreadthError(null);
+      try {
+        const rows: MarketBreadthRow[] = [];
+        const pageSize = 1000;
+        let offset = 0;
+
+        while (true) {
+          const { data, error } = await supabase
+            .from('market_breadth_daily')
+            .select(
+              'date, universe_size, wma150_eligible_count, above_wma150_count, above_wma150_ratio'
+            )
+            .order('date', { ascending: true })
+            .range(offset, offset + pageSize - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+
+          rows.push(
+            ...data.map(row => ({
+              date: row.date,
+              universe_size: Number(row.universe_size),
+              wma150_eligible_count: Number(row.wma150_eligible_count),
+              above_wma150_count: Number(row.above_wma150_count),
+              above_wma150_ratio: Number(row.above_wma150_ratio),
+            }))
+          );
+
+          if (data.length < pageSize) break;
+          offset += pageSize;
+        }
+
+        setBreadthRows(rows);
+      } catch (err) {
+        console.error('market breadth load failed:', err);
+        setBreadthError('시장 폭 데이터를 불러오지 못했습니다. 집계 작업 상태를 확인하세요.');
+      } finally {
+        setBreadthLoading(false);
+      }
+    };
+
+    loadBreadth();
+  }, [pageTab, supabase]);
+
   const activeRanks = useMemo(() => {
     const source = [...industryRanks, ...themeRanks];
     const keyMap: Record<typeof sortKey, keyof RankRow> = {
@@ -422,6 +516,23 @@ export default function MarketIndexPage() {
     }
     return list;
   }, [leaderRows, leaderQuery]);
+
+  const latestBreadth = breadthRows[breadthRows.length - 1] ?? null;
+
+  const visibleBreadthRows = useMemo(() => {
+    if (breadthRange === 'all' || breadthRows.length === 0) return breadthRows;
+
+    const latest = new Date(breadthRows[breadthRows.length - 1].date);
+    const lookbackDays = breadthRange === '1y' ? 365 : 365 * 3;
+    const cutoff = new Date(latest);
+    cutoff.setDate(cutoff.getDate() - lookbackDays);
+    const cutoffDate = cutoff.toISOString().split('T')[0];
+    return breadthRows.filter(row => row.date >= cutoffDate);
+  }, [breadthRange, breadthRows]);
+
+  const breadthSignal = latestBreadth
+    ? getBreadthSignal(latestBreadth.above_wma150_ratio)
+    : null;
 
   const leaderTopGroups = useMemo(() => {
     const industryCounts = new Map<string, number>();
@@ -665,6 +776,17 @@ export default function MarketIndexPage() {
                 }`}
               >
                 오늘의 선도주
+              </button>
+              <button
+                type="button"
+                onClick={() => setPageTab('breadth')}
+                className={`rounded-full px-4 py-1.5 font-semibold ${
+                  pageTab === 'breadth'
+                    ? 'bg-slate-950 text-white shadow-[var(--shadow-sm)]'
+                    : 'text-[var(--text-muted)] hover:text-gray-800'
+                }`}
+              >
+                시장 폭
               </button>
             </div>
             <span className="hidden md:inline-block text-xs text-[var(--text-subtle)]">
@@ -1106,6 +1228,139 @@ export default function MarketIndexPage() {
               )}
             </div>
           </div>
+        )}
+
+        {pageTab === 'breadth' && (
+          <section className="flex flex-1 min-h-0 flex-col gap-4">
+            <div className="flex flex-col gap-4 rounded-3xl border border-teal-100 bg-[linear-gradient(118deg,rgba(240,253,250,0.94),rgba(255,255,255,0.92)_48%,rgba(248,250,252,0.96))] px-5 py-5 shadow-[var(--shadow-sm)] lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-teal-700">
+                  Market Breadth
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+                  RS 선도주의 장기 추세 확산도
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  매 거래일 RS 상위 400개를 새로 선정해 WMA150 상회 종목을 집계합니다.
+                  지수 방향보다 먼저 선도주 내부의 추세 참여도를 확인하는 보조 지표입니다.
+                </p>
+              </div>
+              <div className="flex rounded-full border border-teal-100 bg-white/80 p-1 text-xs shadow-[var(--shadow-sm)]">
+                {([
+                  ['1y', '1년'],
+                  ['3y', '3년'],
+                  ['all', '전체'],
+                ] as const).map(([range, label]) => (
+                  <button
+                    key={range}
+                    type="button"
+                    onClick={() => setBreadthRange(range)}
+                    className={`rounded-full px-3 py-1.5 font-semibold transition-colors ${
+                      breadthRange === range
+                        ? 'bg-teal-700 text-white'
+                        : 'text-slate-500 hover:bg-teal-50 hover:text-teal-800'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {breadthLoading && (
+              <div className="flex flex-1 items-center justify-center app-card-strong text-sm text-gray-500">
+                시장 폭 데이터를 불러오는 중...
+              </div>
+            )}
+
+            {!breadthLoading && breadthError && (
+              <div className="flex flex-1 items-center justify-center app-card-strong px-6 text-center text-sm text-rose-600">
+                {breadthError}
+              </div>
+            )}
+
+            {!breadthLoading && !breadthError && breadthRows.length === 0 && (
+              <div className="flex flex-1 items-center justify-center app-card-strong px-6 text-center text-sm text-gray-500">
+                아직 시장 폭 집계 데이터가 없습니다.
+              </div>
+            )}
+
+            {!breadthLoading && !breadthError && latestBreadth && breadthSignal && (
+              <>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-sm)]">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      WMA150 상회
+                    </div>
+                    <div className="mt-2 flex items-end gap-2">
+                      <strong className="text-3xl tracking-tight text-slate-950">
+                        {latestBreadth.above_wma150_count.toLocaleString()}
+                      </strong>
+                      <span className="mb-1 text-sm text-slate-500">
+                        / {latestBreadth.wma150_eligible_count.toLocaleString()} 종목
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">기준일 {latestBreadth.date}</p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-sm)]">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      추세 참여 비율
+                    </div>
+                    <div className="mt-2 flex items-end gap-2">
+                      <strong className="text-3xl tracking-tight text-teal-700">
+                        {(latestBreadth.above_wma150_ratio * 100).toFixed(1)}%
+                      </strong>
+                      <span className="mb-1 text-sm text-slate-500">
+                        RS 상위 {latestBreadth.universe_size.toLocaleString()}개 기준
+                      </span>
+                    </div>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-teal-600 transition-[width] duration-500"
+                        style={{ width: `${Math.min(latestBreadth.above_wma150_ratio * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className={`rounded-2xl border p-4 shadow-[var(--shadow-sm)] ${breadthSignal.className}`}>
+                    <div className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-70">
+                      시장 폭 상태
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold tracking-tight">{breadthSignal.label}</div>
+                    <p className="mt-2 text-xs leading-5 opacity-80">{breadthSignal.description}</p>
+                  </div>
+                </div>
+
+                <div className="flex min-h-[360px] flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-[var(--shadow-sm)]">
+                  <div className="flex flex-col gap-2 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-semibold text-slate-800">WMA150 상회 종목 수</h3>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        300 이상 확산 · 200 중심선 · 100 이하 위축 구간
+                      </p>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      WMA 계산 가능 종목을 분모로 사용
+                    </span>
+                  </div>
+                  <div className="min-h-[300px] flex-1 pt-4">
+                    <MarketBreadthChart
+                      data={visibleBreadthRows.map(row => ({
+                        time: row.date,
+                        value: row.above_wma150_count,
+                      }))}
+                    />
+                  </div>
+                </div>
+
+                <p className="px-1 text-xs leading-5 text-slate-500">
+                  이 지표는 RS 선도주의 장기 추세 참여도를 나타내며 단독 매매 신호가 아닙니다.
+                  상장 초기·거래 공백 등으로 WMA150을 계산할 수 없는 종목은 분모에서 제외됩니다.
+                </p>
+              </>
+            )}
+          </section>
         )}
       </div>
     </div>
