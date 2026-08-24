@@ -92,6 +92,15 @@ type FavItem = {
 
 type ReviewStatus = 'candidate' | 'excluded';
 
+type DiscoveryView =
+  | 'list'
+  | 'recent_listing'
+  | 'cup_handle'
+  | 'vcp'
+  | 'rs_momentum'
+  | 'fresh_demand'
+  | 'theme_relay';
+
 type RankingRow = {
   code: string;
   rank_weighted: number;
@@ -124,6 +133,49 @@ type RecentListingStock = {
   latest_close: number;
   return_since_listing: number;
   listed_days: number;
+};
+
+type FreshDemandCandidate = {
+  target_date: string;
+  code: string;
+  name: string;
+  close: number;
+  market_cap: number;
+  rs_rating: number;
+  rs_change_3d: number;
+  ret_1d: number;
+  ret_3d: number;
+  relative_volume_20: number;
+  trading_value: number;
+  distance_to_high_20: number;
+  is_breakout_20: boolean;
+  signal_stage: '탐색' | '확인';
+  signal_score: number;
+};
+
+type ThemeRelayCandidate = {
+  target_date: string;
+  theme_name: string;
+  theme_ret_1d: number;
+  theme_ret_5d: number;
+  theme_rank_1d: number;
+  theme_rank_5d: number;
+  leader_code: string;
+  leader_name: string;
+  leader_ret_5d: number;
+  code: string;
+  name: string;
+  close: number;
+  market_cap: number;
+  rs_rating: number;
+  rank_amount_60: number | null;
+  ret_1d: number;
+  ret_5d: number;
+  relative_volume_20: number;
+  trading_value: number;
+  distance_to_high_20: number;
+  distance_to_ma_20: number;
+  relay_score: number;
 };
 
 type IndustryRelationRow = {
@@ -273,11 +325,17 @@ export default function ChartPage() {
     rs: true,
   });
 
-  const [activeView, setActiveView] = useState<'list' | 'recent_listing' | 'cup_handle' | 'vcp' | 'rs_momentum'>('list');
+  const [activeView, setActiveView] = useState<DiscoveryView>('list');
   const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
   const [patternScanProgress, setPatternScanProgress] = useState<{ done: number; total: number } | null>(null);
   const [recentListingStocks, setRecentListingStocks] = useState<RecentListingStock[]>([]);
   const [recentListingLoading, setRecentListingLoading] = useState(false);
+  const [freshDemandStocks, setFreshDemandStocks] = useState<FreshDemandCandidate[]>([]);
+  const [freshDemandLoading, setFreshDemandLoading] = useState(false);
+  const [freshDemandError, setFreshDemandError] = useState<string | null>(null);
+  const [themeRelayStocks, setThemeRelayStocks] = useState<ThemeRelayCandidate[]>([]);
+  const [themeRelayLoading, setThemeRelayLoading] = useState(false);
+  const [themeRelayError, setThemeRelayError] = useState<string | null>(null);
 
   const [industries, setIndustries] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
@@ -290,6 +348,38 @@ export default function ChartPage() {
     () => createChartData(rawDailyData, timeframe),
     [rawDailyData, timeframe],
   );
+
+  const freshDemandReviewStocks = useMemo<TableStock[]>(() => (
+    freshDemandStocks.map((stock) => ({
+      code: stock.code,
+      name: stock.name,
+      rank: stock.signal_score,
+      rs_score: stock.rs_rating,
+      close: stock.close,
+      marcap: stock.market_cap,
+      rank_amount: null,
+      patterns: null,
+    }))
+  ), [freshDemandStocks]);
+
+  const themeRelayReviewStocks = useMemo<TableStock[]>(() => (
+    themeRelayStocks.map((stock) => ({
+      code: stock.code,
+      name: stock.name,
+      rank: stock.relay_score,
+      rs_score: stock.rs_rating,
+      close: stock.close,
+      marcap: stock.market_cap,
+      rank_amount: stock.rank_amount_60,
+      patterns: null,
+    }))
+  ), [themeRelayStocks]);
+
+  const activeReviewStocks = useMemo(() => {
+    if (activeView === 'fresh_demand') return freshDemandReviewStocks;
+    if (activeView === 'theme_relay') return themeRelayReviewStocks;
+    return reviewStocks;
+  }, [activeView, freshDemandReviewStocks, reviewStocks, themeRelayReviewStocks]);
 
   // reviewStocks(날짜·minRS)가 바뀌면 이전 스캔 결과 초기화
   useEffect(() => {
@@ -389,8 +479,14 @@ export default function ChartPage() {
   }, [reviewStocks, supabase, patternScanProgress, activeView]);
 
   const getReviewStorageKey = useCallback(
-    () => (latestDate ? `mh-chart-review:${latestDate}:minRS:${minRS}` : ''),
-    [latestDate, minRS]
+    () => {
+      if (!latestDate) return '';
+      if (activeView === 'fresh_demand' || activeView === 'theme_relay') {
+        return `mh-chart-review:${latestDate}:${activeView}`;
+      }
+      return `mh-chart-review:${latestDate}:minRS:${minRS}`;
+    },
+    [activeView, latestDate, minRS]
   );
 
   const getStockStatus = useCallback(
@@ -398,8 +494,8 @@ export default function ChartPage() {
     [reviewStatusMap]
   );
 
-  const currentReviewIndex = reviewStocks.findIndex((stock) => stock.code === currentCompany.code);
-  const currentReviewStock = currentReviewIndex >= 0 ? reviewStocks[currentReviewIndex] : null;
+  const currentReviewIndex = activeReviewStocks.findIndex((stock) => stock.code === currentCompany.code);
+  const currentReviewStock = currentReviewIndex >= 0 ? activeReviewStocks[currentReviewIndex] : null;
   const candidateCount = Object.values(reviewStatusMap).filter((status) => status === 'candidate').length;
   const excludedCount = Object.values(reviewStatusMap).filter((status) => status === 'excluded').length;
 
@@ -411,15 +507,14 @@ export default function ChartPage() {
   };
 
   const selectReviewStockByIndex = useCallback((index: number) => {
-    setReviewStocks((prev) => {
-      const stock = prev[index];
-      if (stock) {
-        setCurrentCompany({ code: stock.code, name: stock.name });
-        setCurrentPage(Math.floor(index / ITEMS_PER_PAGE) + 1);
-      }
-      return prev;
-    });
-  }, []);
+    const stock = activeReviewStocks[index];
+    if (!stock) return;
+    setCurrentCompany({ code: stock.code, name: stock.name });
+    setInputCompany(stock.name);
+    if (activeView === 'list') {
+      setCurrentPage(Math.floor(index / ITEMS_PER_PAGE) + 1);
+    }
+  }, [activeReviewStocks, activeView]);
 
   useEffect(() => {
     const getUserAndFavs = async () => {
@@ -458,7 +553,7 @@ export default function ChartPage() {
 
   useEffect(() => {
     const storageKey = getReviewStorageKey();
-    if (!storageKey || reviewStocks.length === 0 || typeof window === 'undefined') {
+    if (!storageKey || activeReviewStocks.length === 0 || typeof window === 'undefined') {
       setReviewStatusMap({});
       return;
     }
@@ -471,7 +566,7 @@ export default function ChartPage() {
 
     try {
       const parsed = JSON.parse(raw) as Record<string, ReviewStatus>;
-      const validCodes = new Set(reviewStocks.map((stock) => stock.code));
+      const validCodes = new Set(activeReviewStocks.map((stock) => stock.code));
       const filtered = Object.fromEntries(
         Object.entries(parsed).filter(([code, status]) => validCodes.has(code) && (status === 'candidate' || status === 'excluded'))
       );
@@ -479,7 +574,7 @@ export default function ChartPage() {
     } catch {
       setReviewStatusMap({});
     }
-  }, [getReviewStorageKey, reviewStocks]);
+  }, [activeReviewStocks, getReviewStorageKey]);
 
   useEffect(() => {
     const storageKey = getReviewStorageKey();
@@ -725,6 +820,108 @@ export default function ChartPage() {
     fetchRecentListings();
   }, [activeView, recentListingStocks.length, supabase]);
 
+  useEffect(() => {
+    if (activeView !== 'fresh_demand' || !latestDate) return;
+
+    let cancelled = false;
+    const fetchFreshDemand = async () => {
+      setFreshDemandLoading(true);
+      setFreshDemandError(null);
+
+      const { data: rows, error } = await supabase.rpc('get_fresh_demand_candidates', {
+        p_target_date: latestDate,
+        p_limit: 120,
+      });
+
+      if (cancelled) return;
+      if (error) {
+        console.error('Fresh demand load failed:', error);
+        setFreshDemandStocks([]);
+        setFreshDemandError('신규 수급 신호를 불러오지 못했습니다. DB 마이그레이션 상태를 확인하세요.');
+      } else {
+        const normalized = ((rows || []) as unknown as FreshDemandCandidate[]).map((row) => ({
+          ...row,
+          close: Number(row.close),
+          market_cap: Number(row.market_cap) || 0,
+          rs_rating: Number(row.rs_rating) || 0,
+          rs_change_3d: Number(row.rs_change_3d) || 0,
+          ret_1d: Number(row.ret_1d) || 0,
+          ret_3d: Number(row.ret_3d) || 0,
+          relative_volume_20: Number(row.relative_volume_20) || 0,
+          trading_value: Number(row.trading_value) || 0,
+          distance_to_high_20: Number(row.distance_to_high_20) || 0,
+          signal_score: Number(row.signal_score) || 0,
+        }));
+        setFreshDemandStocks(normalized);
+      }
+      setFreshDemandLoading(false);
+    };
+
+    void fetchFreshDemand();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, latestDate, supabase]);
+
+  useEffect(() => {
+    if (activeView !== 'theme_relay' || !latestDate) return;
+
+    let cancelled = false;
+    const fetchThemeRelay = async () => {
+      setThemeRelayLoading(true);
+      setThemeRelayError(null);
+
+      const { data: rows, error } = await supabase.rpc('get_theme_relay_candidates', {
+        p_target_date: latestDate,
+        p_limit: 120,
+      });
+
+      if (cancelled) return;
+      if (error) {
+        console.error('Theme relay load failed:', error);
+        setThemeRelayStocks([]);
+        setThemeRelayError('테마 릴레이 후보를 불러오지 못했습니다. 테마 지수 갱신 상태를 확인하세요.');
+      } else {
+        const normalized = ((rows || []) as unknown as ThemeRelayCandidate[]).map((row) => ({
+          ...row,
+          theme_ret_1d: Number(row.theme_ret_1d) || 0,
+          theme_ret_5d: Number(row.theme_ret_5d) || 0,
+          theme_rank_1d: Number(row.theme_rank_1d) || 0,
+          theme_rank_5d: Number(row.theme_rank_5d) || 0,
+          leader_ret_5d: Number(row.leader_ret_5d) || 0,
+          close: Number(row.close),
+          market_cap: Number(row.market_cap) || 0,
+          rs_rating: Number(row.rs_rating) || 0,
+          rank_amount_60: row.rank_amount_60 === null ? null : Number(row.rank_amount_60),
+          ret_1d: Number(row.ret_1d) || 0,
+          ret_5d: Number(row.ret_5d) || 0,
+          relative_volume_20: Number(row.relative_volume_20) || 0,
+          trading_value: Number(row.trading_value) || 0,
+          distance_to_high_20: Number(row.distance_to_high_20) || 0,
+          distance_to_ma_20: Number(row.distance_to_ma_20) || 0,
+          relay_score: Number(row.relay_score) || 0,
+        }));
+        setThemeRelayStocks(normalized);
+      }
+      setThemeRelayLoading(false);
+    };
+
+    void fetchThemeRelay();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView, latestDate, supabase]);
+
+  useEffect(() => {
+    if (activeView !== 'fresh_demand' && activeView !== 'theme_relay') return;
+    if (activeReviewStocks.length === 0) return;
+    if (activeReviewStocks.some((stock) => stock.code === currentCompany.code)) return;
+
+    const first = activeReviewStocks[0];
+    setCurrentCompany({ code: first.code, name: first.name });
+    setInputCompany(first.name);
+  }, [activeReviewStocks, activeView, currentCompany.code]);
+
   const cacheChartBundle = useCallback((code: string, bundle: ChartBundle) => {
     const cache = chartCacheRef.current;
     cache.delete(code);
@@ -897,8 +1094,8 @@ export default function ChartPage() {
     if (currentReviewIndex < 0) return;
 
     const nearbyCodes = [
-      reviewStocks[currentReviewIndex - 1]?.code,
-      reviewStocks[currentReviewIndex + 1]?.code,
+      activeReviewStocks[currentReviewIndex - 1]?.code,
+      activeReviewStocks[currentReviewIndex + 1]?.code,
     ].filter((code): code is string => Boolean(code));
 
     nearbyCodes.forEach((code) => {
@@ -911,7 +1108,7 @@ export default function ChartPage() {
         console.error(`Error prefetching chart data for ${code}:`, error);
       });
     });
-  }, [currentReviewIndex, fetchChartBundle, reviewStocks]);
+  }, [activeReviewStocks, currentReviewIndex, fetchChartBundle]);
 
   const handleStockClick = (stock: TableStock) => {
     setCurrentCompany({ name: stock.name, code: stock.code });
@@ -1000,18 +1197,18 @@ export default function ChartPage() {
   }, []);
 
   const moveReview = useCallback((direction: -1 | 1) => {
-    if (reviewStocks.length === 0) return;
+    if (activeReviewStocks.length === 0) return;
 
     if (currentReviewIndex < 0) {
-      const targetIndex = direction > 0 ? 0 : reviewStocks.length - 1;
+      const targetIndex = direction > 0 ? 0 : activeReviewStocks.length - 1;
       selectReviewStockByIndex(targetIndex);
       return;
     }
 
     const nextIndex = currentReviewIndex + direction;
-    if (nextIndex < 0 || nextIndex >= reviewStocks.length) return;
+    if (nextIndex < 0 || nextIndex >= activeReviewStocks.length) return;
     selectReviewStockByIndex(nextIndex);
-  }, [currentReviewIndex, reviewStocks.length, selectReviewStockByIndex]);
+  }, [activeReviewStocks.length, currentReviewIndex, selectReviewStockByIndex]);
 
   const handleArrowAction = useCallback((key: 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown') => {
     if (!currentReviewStock) return;
@@ -1073,7 +1270,7 @@ export default function ChartPage() {
   }, [handleArrowAction, handleTimeframeShortcut]);
 
   const saveReviewCandidates = async () => {
-    const candidateStocks = reviewStocks.filter((stock) => reviewStatusMap[stock.code] === 'candidate');
+    const candidateStocks = activeReviewStocks.filter((stock) => reviewStatusMap[stock.code] === 'candidate');
 
     if (candidateStocks.length === 0) {
       alert('후보 편입된 종목이 없습니다.');
@@ -1191,6 +1388,8 @@ export default function ChartPage() {
   };
 
   const isFavorite = favorites.some((fav) => fav.code === currentCompany.code && fav.group === targetGroup);
+  const formatSignalPct = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+  const formatTradingValueEok = (value: number) => `${(value / 100000000).toFixed(value >= 1000000000 ? 0 : 1)}억`;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -1207,36 +1406,54 @@ export default function ChartPage() {
                     </span>
                   )}
                   <div className="flex rounded-lg border border-[var(--border)] bg-white p-[2px] text-[10px]">
-                    {(['list', 'recent_listing', 'cup_handle', 'vcp', 'rs_momentum'] as const).map((v) => (
+                    {([
+                      { key: 'list', label: '목록' },
+                      { key: 'recent_listing', label: '신규' },
+                      { key: 'cup_handle', label: 'C&H' },
+                      { key: 'vcp', label: 'VCP' },
+                      { key: 'rs_momentum', label: 'RS↑' },
+                      { key: 'fresh_demand', label: '수급' },
+                      { key: 'theme_relay', label: '릴레이' },
+                    ] as Array<{ key: DiscoveryView; label: string }>).map(({ key, label }) => (
                       <button
-                        key={v}
-                        onClick={() => setActiveView(v)}
-                        className={`rounded-md px-2 py-0.5 font-bold transition-colors ${activeView === v ? 'bg-amber-500 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                        key={key}
+                        onClick={() => setActiveView(key)}
+                        className={`rounded-md px-1.5 py-0.5 font-bold transition-colors ${
+                          activeView === key
+                            ? key === 'fresh_demand'
+                              ? 'bg-orange-500 text-white'
+                              : key === 'theme_relay'
+                                ? 'bg-teal-600 text-white'
+                                : 'bg-amber-500 text-white'
+                            : 'text-gray-500 hover:bg-gray-50'
+                        }`}
                       >
-                        {v === 'list' ? '목록' : v === 'recent_listing' ? '신규' : v === 'cup_handle' ? 'C&H' : v === 'vcp' ? 'VCP' : 'RS↑'}
+                        {label}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
-                  <span>{activeView === 'recent_listing' ? recentListingStocks.length : reviewStocks.length}개</span>
+                  <span>{activeView === 'recent_listing' ? recentListingStocks.length : activeReviewStocks.length}개</span>
                   <span>후보 {candidateCount}</span>
                   <span>제외 {excludedCount}</span>
-                  <label className="flex items-center gap-1 font-semibold">
-                    RS
-                    <input
-                      type="number"
-                      min="0"
-                      max="99"
-                      value={minRS}
-                      onChange={(e) => {
-                        setMinRS(Number(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="w-12 rounded-xl border border-[var(--border)] bg-white p-1 text-center outline-none focus:border-[var(--primary)]"
-                    />
-                    이상
-                  </label>
+                  {activeView !== 'fresh_demand' && activeView !== 'theme_relay' && (
+                    <label className="flex items-center gap-1 font-semibold">
+                      RS
+                      <input
+                        type="number"
+                        min="0"
+                        max="99"
+                        value={minRS}
+                        onChange={(e) => {
+                          setMinRS(Number(e.target.value));
+                          setCurrentPage(1);
+                        }}
+                        className="w-12 rounded-xl border border-[var(--border)] bg-white p-1 text-center outline-none focus:border-[var(--primary)]"
+                      />
+                      이상
+                    </label>
+                  )}
                   <span>그룹</span>
                   <select
                     value={checkGroup}
@@ -1350,6 +1567,162 @@ export default function ChartPage() {
                   })}
                 </tbody>
               </table>
+            ) : activeView === 'fresh_demand' ? (
+              <div className="flex h-full flex-col bg-[linear-gradient(180deg,rgba(255,247,237,0.82),rgba(255,255,255,0)_180px)]">
+                <div className="border-b border-orange-100 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-bold text-orange-800">NEW DEMAND PULSE</div>
+                      <div className="mt-0.5 text-[10px] leading-relaxed text-orange-700/80">
+                        1·3일 수익률 × 20일 상대거래량 × 거래대금 × RS 가속
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-orange-200 bg-white px-2 py-1 text-[9px] font-bold text-orange-700">
+                      {freshDemandStocks[0]?.target_date || latestDate || '-'}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex gap-1.5 text-[9px]">
+                    <span className="rounded bg-rose-100 px-1.5 py-0.5 font-bold text-rose-700">확인: 10억↑ · RVOL 2×↑</span>
+                    <span className="rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-700">탐색: 초기 수급 관찰</span>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {freshDemandLoading ? (
+                    <div className="flex h-40 items-center justify-center text-xs font-semibold text-orange-600 animate-pulse">신규 수급 계산 중...</div>
+                  ) : freshDemandError ? (
+                    <div className="m-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-relaxed text-rose-700">{freshDemandError}</div>
+                  ) : freshDemandStocks.length === 0 ? (
+                    <div className="flex h-40 items-center justify-center text-xs text-gray-400">조건에 맞는 신규 수급이 없습니다.</div>
+                  ) : (
+                    <div className="divide-y divide-orange-100/70">
+                      {freshDemandStocks.map((stock, index) => {
+                        const reviewStock = freshDemandReviewStocks[index];
+                        return (
+                          <button
+                            type="button"
+                            key={stock.code}
+                            onClick={() => handleStockClick(reviewStock)}
+                            className={`group w-full px-3 py-2.5 text-left transition hover:bg-orange-50/80 ${getRowClassName(reviewStock)}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className={`rounded px-1.5 py-0.5 text-[9px] font-extrabold ${
+                                    stock.signal_stage === '확인'
+                                      ? 'bg-rose-500 text-white'
+                                      : 'bg-amber-400 text-amber-950'
+                                  }`}>
+                                    {stock.signal_stage}
+                                  </span>
+                                  <span className="truncate text-xs font-bold text-slate-900">{stock.name}</span>
+                                  {stock.is_breakout_20 && (
+                                    <span className="rounded bg-slate-900 px-1.5 py-0.5 text-[8px] font-bold text-white">20D BO</span>
+                                  )}
+                                </div>
+                                <div className="mt-0.5 text-[9px] text-gray-400">{stock.code} · 신호 {stock.signal_score.toFixed(0)}</div>
+                              </div>
+                              {renderReviewBadge(stock.code)}
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-1.5 text-[9px] tabular-nums">
+                              <div className="rounded-lg border border-orange-100 bg-white/80 px-2 py-1">
+                                <div className="text-gray-400">1D / 3D</div>
+                                <div className="mt-0.5 font-bold text-rose-600">{formatSignalPct(stock.ret_1d)} <span className="font-medium text-orange-600">{formatSignalPct(stock.ret_3d)}</span></div>
+                              </div>
+                              <div className="rounded-lg border border-orange-100 bg-white/80 px-2 py-1">
+                                <div className="text-gray-400">RVOL / 거래</div>
+                                <div className="mt-0.5 font-bold text-slate-700">{stock.relative_volume_20.toFixed(1)}× <span className="font-medium text-gray-500">{formatTradingValueEok(stock.trading_value)}</span></div>
+                              </div>
+                              <div className="rounded-lg border border-orange-100 bg-white/80 px-2 py-1">
+                                <div className="text-gray-400">RS / 3D Δ</div>
+                                <div className="mt-0.5 font-bold text-blue-600">{stock.rs_rating} <span className={stock.rs_change_3d >= 0 ? 'text-emerald-600' : 'text-rose-600'}>{stock.rs_change_3d >= 0 ? '+' : ''}{stock.rs_change_3d}</span></div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : activeView === 'theme_relay' ? (
+              <div className="flex h-full flex-col bg-[linear-gradient(180deg,rgba(240,253,250,0.9),rgba(255,255,255,0)_190px)]">
+                <div className="border-b border-teal-100 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] font-bold text-teal-800">THEME RELAY RADAR</div>
+                      <div className="mt-0.5 text-[10px] leading-relaxed text-teal-700/80">
+                        강한 테마의 선행주 뒤에서 피벗에 접근하는 후발주
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-teal-200 bg-white px-2 py-1 text-[9px] font-bold text-teal-700">
+                      {themeRelayStocks[0]?.target_date || latestDate || '-'}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-[9px] text-teal-700">
+                    테마 1D 상위 30 또는 5D 상위 15 · RS 50–85 · 20일 고점 -10~+3%
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {themeRelayLoading ? (
+                    <div className="flex h-40 items-center justify-center text-xs font-semibold text-teal-600 animate-pulse">테마 릴레이 계산 중...</div>
+                  ) : themeRelayError ? (
+                    <div className="m-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs leading-relaxed text-rose-700">{themeRelayError}</div>
+                  ) : themeRelayStocks.length === 0 ? (
+                    <div className="flex h-40 items-center justify-center text-xs text-gray-400">조건에 맞는 후발주가 없습니다.</div>
+                  ) : (
+                    <div className="divide-y divide-teal-100/80">
+                      {themeRelayStocks.map((stock, index) => {
+                        const reviewStock = themeRelayReviewStocks[index];
+                        return (
+                          <button
+                            type="button"
+                            key={stock.code}
+                            onClick={() => handleStockClick(reviewStock)}
+                            className={`w-full px-3 py-2.5 text-left transition hover:bg-teal-50/80 ${getRowClassName(reviewStock)}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="rounded-full bg-teal-600 px-2 py-0.5 text-[9px] font-bold text-white">{stock.theme_name}</span>
+                                  <span className="truncate text-xs font-bold text-slate-900">{stock.name}</span>
+                                </div>
+                                <div className="mt-1 flex flex-wrap items-center gap-1 text-[9px] text-gray-500">
+                                  <span>{stock.code}</span>
+                                  <span>·</span>
+                                  <span className="font-semibold text-teal-700">선행 {stock.leader_name} {formatSignalPct(stock.leader_ret_5d)}</span>
+                                </div>
+                              </div>
+                              {renderReviewBadge(stock.code)}
+                            </div>
+                            <div className="mt-2 flex items-center justify-between rounded-lg border border-teal-100 bg-white/80 px-2 py-1.5 text-[9px] tabular-nums">
+                              <div>
+                                <span className="text-gray-400">테마</span>
+                                <span className="ml-1 font-bold text-teal-700">1D #{stock.theme_rank_1d}</span>
+                                <span className="ml-1 font-bold text-cyan-700">5D #{stock.theme_rank_5d}</span>
+                              </div>
+                              <div className="font-semibold text-gray-600">{formatSignalPct(stock.theme_ret_5d)}</div>
+                            </div>
+                            <div className="mt-1.5 grid grid-cols-3 gap-1.5 text-[9px] tabular-nums">
+                              <div className="rounded-lg bg-teal-50 px-2 py-1">
+                                <div className="text-teal-600/70">후발 5D / RS</div>
+                                <div className="mt-0.5 font-bold text-slate-800">{formatSignalPct(stock.ret_5d)} <span className="text-blue-600">{stock.rs_rating}</span></div>
+                              </div>
+                              <div className="rounded-lg bg-teal-50 px-2 py-1">
+                                <div className="text-teal-600/70">20D 고점 / MA20</div>
+                                <div className="mt-0.5 font-bold text-slate-800">{formatSignalPct(stock.distance_to_high_20)} <span className="text-gray-500">{formatSignalPct(stock.distance_to_ma_20)}</span></div>
+                              </div>
+                              <div className="rounded-lg bg-teal-50 px-2 py-1">
+                                <div className="text-teal-600/70">RVOL / 거래</div>
+                                <div className="mt-0.5 font-bold text-slate-800">{stock.relative_volume_20.toFixed(1)}× <span className="text-gray-500">{formatTradingValueEok(stock.trading_value)}</span></div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : activeView === 'recent_listing' ? (
               <div className="flex h-full flex-col">
                 <div className="border-b border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[10px] leading-relaxed text-emerald-800">
@@ -1622,7 +1995,7 @@ export default function ChartPage() {
                       </span>
                     ))}
                     <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
-                      {currentReviewIndex >= 0 ? `${currentReviewIndex + 1}/${reviewStocks.length}` : `${reviewStocks.length}개`}
+                      {currentReviewIndex >= 0 ? `${currentReviewIndex + 1}/${activeReviewStocks.length}` : `${activeReviewStocks.length}개`}
                     </span>
                     <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
                       {latestDate || '-'}
@@ -1768,7 +2141,7 @@ export default function ChartPage() {
                     </button>
                     <button
                       onClick={() => handleArrowAction('ArrowDown')}
-                      disabled={currentReviewIndex < 0 || currentReviewIndex >= reviewStocks.length - 1}
+                      disabled={currentReviewIndex < 0 || currentReviewIndex >= activeReviewStocks.length - 1}
                       className="rounded-lg border bg-white px-2.5 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       ↓
