@@ -114,6 +114,8 @@ type RsMomentumData = {
   change5d: number;        // 5일 변화량
   change20d: number;       // 20일 변화량
   streak: number;          // 연속 상승일 수
+  currentClose: number;    // 최신 종가
+  ma150: number;           // 150일 단순이동평균
 };
 
 type PatternScanEntry = {
@@ -401,21 +403,32 @@ export default function ChartPage() {
       const results = await Promise.all(
         chunk.map(async (stock) => {
           try {
-            // RS 상승세 모드: RS 시계열 데이터만 조회
+            // RS 상승세 모드: RS 시계열과 150일 이동평균을 조회
             if (isRsMomentumMode) {
-              const { data: rsData } = await supabase
-                .from('rs_rankings_v2')
-                .select('date, score_weighted')
-                .eq('code', stock.code)
-                .order('date', { ascending: false })
-                .limit(30);
+              const [{ data: rsData }, { data: priceData }] = await Promise.all([
+                supabase
+                  .from('rs_rankings_v2')
+                  .select('date, score_weighted')
+                  .eq('code', stock.code)
+                  .order('date', { ascending: false })
+                  .limit(30),
+                supabase
+                  .from('daily_prices_v2')
+                  .select('close')
+                  .eq('code', stock.code)
+                  .order('date', { ascending: false })
+                  .limit(150),
+              ]);
 
               let rsMomentum: RsMomentumData | null = null;
-              if (rsData && rsData.length >= 5) {
+              if (rsData && rsData.length >= 21 && priceData && priceData.length >= 150) {
                 const scores = rsData.map((r) => Number(r.score_weighted));
                 const currentRs = scores[0];
-                const rs5dAgo = scores.length >= 6 ? scores[5] : scores[scores.length - 1];
-                const rs20dAgo = scores.length >= 21 ? scores[20] : scores[scores.length - 1];
+                const rs5dAgo = scores[5];
+                const rs20dAgo = scores[20];
+                const closes = priceData.map((p) => Number(p.close));
+                const currentClose = closes[0];
+                const ma150 = closes.reduce((sum, close) => sum + close, 0) / 150;
 
                 // 연속 상승일 계산: 최근부터 이전 일자 대비 RS가 상승한 연속 일수
                 let streak = 0;
@@ -431,6 +444,8 @@ export default function ChartPage() {
                   change5d: currentRs - rs5dAgo,
                   change20d: currentRs - rs20dAgo,
                   streak,
+                  currentClose,
+                  ma150,
                 };
               }
 
@@ -1804,7 +1819,12 @@ export default function ChartPage() {
                   const patternId = activeView;
                   const matched = patternScanEntries.filter((e) =>
                     activeView === 'rs_momentum'
-                      ? (e.rsMomentum != null && e.rsMomentum.currentRs >= 0 && (e.rsMomentum.change5d > 0 || e.rsMomentum.change20d > 0))
+                      ? (e.rsMomentum != null
+                        && e.rsMomentum.currentRs >= 0
+                        && e.rsMomentum.change5d > 0
+                        && e.rsMomentum.change20d > 0
+                        && e.rsMomentum.streak >= 3
+                        && e.rsMomentum.currentClose > e.rsMomentum.ma150)
                       : e.patterns.some((p) => p.id === patternId && p.detected)
                   ).sort((a, b) => {
                     if (activeView === 'rs_momentum') {
@@ -1942,6 +1962,10 @@ export default function ChartPage() {
                                           <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${m.change20d > 0 ? 'bg-emerald-50 text-emerald-700' : m.change20d === 0 ? 'bg-gray-50 text-gray-600' : 'bg-rose-50 text-rose-700'}`}
                                             title="20일 전 대비 RS 변화">
                                             20일 {fmtChange(m.change20d)}
+                                          </span>
+                                          <span className="rounded bg-violet-50 px-1.5 py-0.5 text-[9px] font-medium text-violet-700"
+                                            title="최신 종가가 150일 단순이동평균 위에 있음">
+                                            종가 &gt; MA150
                                           </span>
                                           {m.streak > 0 && (
                                             <span className={`rounded px-1.5 py-0.5 text-[9px] font-medium ${m.streak >= 5 ? 'bg-amber-100 text-amber-700' : m.streak >= 3 ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-600'}`}
