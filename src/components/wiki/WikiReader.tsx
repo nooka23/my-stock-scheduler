@@ -28,7 +28,7 @@ function renderNode(node: Node, key: string, documentId?: string, tickerCode?: s
     const Tag = `h${level}` as keyof React.JSX.IntrinsicElements;
     const id = typeof node.attrs?.id === 'string' ? node.attrs.id : undefined;
     const title = (node.content ?? []).map((child) => child.text ?? '').join('');
-    const panel = tickerCode && level === 2 && title === '4. 실적' ? <WikiFinancialPanel tickerCode={tickerCode} /> : tickerCode && level === 2 && title === '5. 차트' ? <WikiPriceChart tickerCode={tickerCode} /> : null;
+    const panel = tickerCode && level === 2 && (title === '실적' || title === '4. 실적') ? <WikiFinancialPanel tickerCode={tickerCode} /> : tickerCode && level === 2 && (title === '차트' || title === '5. 차트') ? <WikiPriceChart tickerCode={tickerCode} /> : null;
     return <Fragment key={key}><Tag id={id}>{content}{documentId && id ? <a className="wiki-section-edit" href={`/wiki/d/${documentId}/edit?section=${encodeURIComponent(id)}`}>[편집]</a> : null}</Tag>{panel}</Fragment>;
   }
   if (node.type === 'bulletList') return <ul key={key}>{content}</ul>;
