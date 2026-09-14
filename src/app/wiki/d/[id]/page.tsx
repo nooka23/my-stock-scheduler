@@ -16,6 +16,6 @@ export default function WikiDocumentPage() {
     <header className="wiki-document-head"><div><h1>{document.title}</h1><p className="wiki-meta">최근 수정 시각: {new Date(document.updated_at).toLocaleString('ko-KR')}</p></div><div className="wiki-tools"><Link className="wiki-tool" href={`/wiki/d/${document.id}/edit`}>편집</Link><Link className="wiki-tool" href={`/wiki/d/${document.id}/history`}>역사</Link></div></header>
     {document.categories.length > 0 && <div className="wiki-categories"><strong>분류:</strong>{document.categories.map((category) => <a href={`/wiki/search?q=${encodeURIComponent(category)}`} key={category}>{category}</a>)}</div>}
     {headings.length > 0 && <details open className="wiki-toc"><summary>목차</summary>{headings.map((heading, index) => <a key={heading.id} data-level={heading.level} href={`#${heading.id}`}>{index + 1}. {heading.text}</a>)}</details>}
-    <WikiReader content={document.content} documentId={document.id} />
+    <WikiReader content={document.content} documentId={document.id} tickerCode={document.ticker_code} />
   </>}</article></main><aside className="wiki-sidebar"><div className="wiki-side-card"><h2>문서 도구</h2><ul><li><Link href={`/wiki/d/${id}/edit`}>전체 편집</Link></li><li><Link href={`/wiki/d/${id}/history`}>수정 이력</Link></li></ul></div></aside></div></WikiFrame>;
 }

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import Image from 'next/image';
 import type { WikiContent } from '@/lib/wiki/types';
+import { WikiFinancialPanel, WikiPriceChart } from '@/components/wiki/WikiStockData';
 
 type Node = { type?: string; text?: string; attrs?: Record<string, unknown>; marks?: { type?: string; attrs?: Record<string, unknown> }[]; content?: Node[] };
 
@@ -16,17 +17,19 @@ function renderInline(node: Node, key: string): ReactNode {
   return value;
 }
 
-function children(node: Node, prefix: string, documentId?: string): ReactNode[] { return (node.content ?? []).map((item, index) => renderNode(item, `${prefix}-${index}`, documentId)); }
+function children(node: Node, prefix: string, documentId?: string, tickerCode?: string): ReactNode[] { return (node.content ?? []).map((item, index) => renderNode(item, `${prefix}-${index}`, documentId, tickerCode)); }
 
-function renderNode(node: Node, key: string, documentId?: string): ReactNode {
+function renderNode(node: Node, key: string, documentId?: string, tickerCode?: string): ReactNode {
   if (node.type === 'text') return renderInline(node, key);
-  const content = children(node, key, documentId);
+  const content = children(node, key, documentId, tickerCode);
   if (node.type === 'paragraph') return <p key={key}>{content}</p>;
   if (node.type === 'heading') {
     const level = Math.min(Math.max(Number(node.attrs?.level ?? 2), 1), 6);
     const Tag = `h${level}` as keyof React.JSX.IntrinsicElements;
     const id = typeof node.attrs?.id === 'string' ? node.attrs.id : undefined;
-    return <Tag key={key} id={id}>{content}{documentId && id ? <a className="wiki-section-edit" href={`/wiki/d/${documentId}/edit?section=${encodeURIComponent(id)}`}>[편집]</a> : null}</Tag>;
+    const title = (node.content ?? []).map((child) => child.text ?? '').join('');
+    const panel = tickerCode && level === 2 && title === '4. 실적' ? <WikiFinancialPanel tickerCode={tickerCode} /> : tickerCode && level === 2 && title === '5. 차트' ? <WikiPriceChart tickerCode={tickerCode} /> : null;
+    return <Fragment key={key}><Tag id={id}>{content}{documentId && id ? <a className="wiki-section-edit" href={`/wiki/d/${documentId}/edit?section=${encodeURIComponent(id)}`}>[편집]</a> : null}</Tag>{panel}</Fragment>;
   }
   if (node.type === 'bulletList') return <ul key={key}>{content}</ul>;
   if (node.type === 'orderedList') return <ol key={key}>{content}</ol>;
@@ -44,8 +47,8 @@ function renderNode(node: Node, key: string, documentId?: string): ReactNode {
   return <>{content}</>;
 }
 
-export default function WikiReader({ content, documentId }: { content: WikiContent; documentId?: string }) {
-  return <div className="wiki-prose">{children(content as Node, 'root', documentId)}</div>;
+export default function WikiReader({ content, documentId, tickerCode }: { content: WikiContent; documentId?: string; tickerCode?: string | null }) {
+  return <div className="wiki-prose">{children(content as Node, 'root', documentId, tickerCode ?? undefined)}</div>;
 }
 
 export function headingsFromContent(content: WikiContent) {
