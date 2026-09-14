@@ -1,0 +1,2269 @@
+{
+  "description": "User-provided archive: selected CSS declarations for static analysis only, not computed styles or executable app assets.",
+  "selection_notes": "Rule IDs are local analysis labels, not cascade ordering or source line numbers. URL-valued declarations omitted; root variables selected for this report. Full raw sources are ignored local files.",
+  "source_manifest": {
+    "archive_bytes": 5079394,
+    "archive_sha256": "0846f81091585cf752bcb04b5590e5850a1c29c37b038884d9479de145eec1f6",
+    "main_html_bytes": 334604,
+    "main_subresources": 57,
+    "top_subframes": 6,
+    "main_mime_counts": {
+      "text/javascript": 8,
+      "text/css": 3,
+      "font/woff2": 1,
+      "image/svg+xml": 27,
+      "image/png": 7,
+      "application/javascript": 5,
+      "image/webp": 5,
+      "image/jpeg": 1
+    },
+    "css": [
+      {
+        "file": "style-1.css.txt",
+        "origin": "https://namu.wiki/skins/espejo/81.9957bf2eeaa2e705c668.css",
+        "bytes": 50986,
+        "sha256": "1f74d9a3f56167abb23b409f06098ed75b69ff105f03ca390b0c05f874abbba3"
+      },
+      {
+        "file": "style-2.css.txt",
+        "origin": "https://namu.wiki/skins/espejo/eyfwrldz.ed1dd26b70f4c3ea75d0.css",
+        "bytes": 305652,
+        "sha256": "b4e0e899a8a5ee234ccc357d9dfafa77202b5261d77ed2f3cfcc2c6313c8f4ca"
+      },
+      {
+        "file": "style-3.css.txt",
+        "origin": "https://namu.wiki/skins/espejo/12.f0d1a522aadeccc8aa80.css",
+        "bytes": 6135,
+        "sha256": "17585cee2b7a95cf5a3d820b67739e940782392f9f58fe1fb12aace2acfacccd"
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": 981,
+      "file": "style-2.css.txt",
+      "selector": ".ufCWIosK[data-v-df978ce4]",
+      "context": [],
+      "decls": [
+        [
+          "background-color",
+          "#fff",
+          false
+        ],
+        [
+          "background-color",
+          "var(--article-background-color,var(--light-article-background-color,#fff))",
+          false
+        ],
+        [
+          "border",
+          "1px solid #dfe1e2",
+          false
+        ],
+        [
+          "border-radius",
+          "4px",
+          false
+        ],
+        [
+          "font-size",
+          ".9rem",
+          false
+        ],
+        [
+          "margin",
+          "0 0 1em",
+          false
+        ],
+        [
+          "padding",
+          ".2rem .5rem",
+          false
+        ],
+        [
+          "position",
+          "relative",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 983,
+      "file": "style-2.css.txt",
+      "selector": ".zaNSZg0q[data-v-df978ce4]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "-webkit-box",
+          false
+        ],
+        [
+          "overflow",
+          "hidden",
+          false
+        ],
+        [
+          "-webkit-box-orient",
+          "vertical",
+          false
+        ],
+        [
+          "-webkit-line-clamp",
+          "1",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 986,
+      "file": "style-2.css.txt",
+      "selector": ".zJ5GpLy5[data-v-df978ce4]",
+      "context": [],
+      "decls": [
+        [
+          "margin",
+          "0",
+          false
+        ],
+        [
+          "padding",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 987,
+      "file": "style-2.css.txt",
+      "selector": ".EqdBcgTg[data-v-df978ce4],.zJ5GpLy5[data-v-df978ce4]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "inline",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 988,
+      "file": "style-2.css.txt",
+      "selector": ".EqdBcgTg[data-v-df978ce4]:after",
+      "context": [],
+      "decls": [
+        [
+          "border-left",
+          "1px solid #888",
+          false
+        ],
+        [
+          "content",
+          "\"\"",
+          false
+        ],
+        [
+          "display",
+          "inline-block",
+          false
+        ],
+        [
+          "height",
+          ".8rem",
+          false
+        ],
+        [
+          "margin",
+          "0 .4rem -.1rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 989,
+      "file": "style-2.css.txt",
+      "selector": ".EqdBcgTg[data-v-df978ce4]:last-child:after",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "none",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1005,
+      "file": "style-2.css.txt",
+      "selector": ".qVHfHbiR[data-v-f8db158d]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "block",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1006,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d]",
+      "context": [],
+      "decls": [
+        [
+          "overflow",
+          "hidden",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1007,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] p",
+      "context": [],
+      "decls": [
+        [
+          "margin-top",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1010,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h1.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h1.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "2em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1011,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h2.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h2.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "1.8em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1012,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h3.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h3.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "1.6em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1013,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h4.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h4.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "1.4em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1014,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h5.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h5.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "1.2em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1015,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h6.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h6.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "1em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1016,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] h1.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h1.wiki-heading,.kvWqPZ8i[data-v-f8db158d] h2.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h2.wiki-heading,.kvWqPZ8i[data-v-f8db158d] h3.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h3.wiki-heading,.kvWqPZ8i[data-v-f8db158d] h4.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h4.wiki-heading,.kvWqPZ8i[data-v-f8db158d] h5.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h5.wiki-heading,.kvWqPZ8i[data-v-f8db158d] h6.kRvD9qya,.kvWqPZ8i[data-v-f8db158d] h6.wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "border-bottom",
+          "1px solid #ccc",
+          false
+        ],
+        [
+          "margin",
+          "1.2em 0 .8em",
+          false
+        ],
+        [
+          "padding-bottom",
+          "5px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1018,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .xJID15UV,.kvWqPZ8i[data-v-f8db158d] .wiki-paragraph",
+      "context": [],
+      "decls": [
+        [
+          "margin-bottom",
+          "1rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1019,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .h4G1oMrM.ghksJFRQ,.kvWqPZ8i[data-v-f8db158d] .wiki-heading-content.wiki-heading-content-folded",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "none",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1020,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .h4S0IkNZ,.kvWqPZ8i[data-v-f8db158d] .wiki-edit-section",
+      "context": [],
+      "decls": [
+        [
+          "float",
+          "right",
+          false
+        ],
+        [
+          "font-size",
+          ".8rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1047,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .k1eqwCC6,.kvWqPZ8i[data-v-f8db158d] .J6S83vle,.kvWqPZ8i[data-v-f8db158d] .wiki-link-external,.kvWqPZ8i[data-v-f8db158d] .wiki-link-external-image",
+      "context": [],
+      "decls": [
+        [
+          "color",
+          "#090",
+          true
+        ]
+      ]
+    },
+    {
+      "id": 1058,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .hI-2e7xn,.kvWqPZ8i[data-v-f8db158d] .wiki-fn-content",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          ".8em",
+          false
+        ],
+        [
+          "vertical-align",
+          "super",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1059,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .M2NB69U1,.kvWqPZ8i[data-v-f8db158d] .wiki-macro-footnote",
+      "context": [],
+      "decls": [
+        [
+          "border-top",
+          "1px solid #777",
+          false
+        ],
+        [
+          "margin",
+          "1.5em 0",
+          false
+        ],
+        [
+          "padding",
+          ".5em 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1061,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] ._1AU5oK\\+e,.kvWqPZ8i[data-v-f8db158d] .footnote-list",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "block",
+          false
+        ],
+        [
+          "line-height",
+          "1.75",
+          false
+        ],
+        [
+          "margin-bottom",
+          ".5em",
+          false
+        ],
+        [
+          "word-break",
+          "break-all",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1066,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] hr",
+      "context": [],
+      "decls": [
+        [
+          "border",
+          "0",
+          false
+        ],
+        [
+          "border-top",
+          ".0625rem solid #ccc",
+          false
+        ],
+        [
+          "box-sizing",
+          "content-box",
+          false
+        ],
+        [
+          "height",
+          "0",
+          false
+        ],
+        [
+          "margin",
+          ".5em 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1068,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .Ynvs4808,.kvWqPZ8i[data-v-f8db158d] .wiki-macro-toc",
+      "context": [],
+      "decls": [
+        [
+          "border",
+          "1px solid #ccc",
+          false
+        ],
+        [
+          "display",
+          "inline-block",
+          false
+        ],
+        [
+          "margin-left",
+          "5px",
+          false
+        ],
+        [
+          "padding",
+          "12px 20px 12px 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1069,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .Ynvs4808 details summary,.kvWqPZ8i[data-v-f8db158d] .wiki-macro-toc details summary",
+      "context": [],
+      "decls": [
+        [
+          "background-position",
+          "100%",
+          false
+        ],
+        [
+          "background-repeat",
+          "no-repeat",
+          false
+        ],
+        [
+          "background-size",
+          "auto 14px",
+          false
+        ],
+        [
+          "cursor",
+          "pointer",
+          false
+        ],
+        [
+          "font-size",
+          "1.25em",
+          false
+        ],
+        [
+          "list-style",
+          "none",
+          false
+        ],
+        [
+          "margin-left",
+          "14px",
+          false
+        ],
+        [
+          "min-width",
+          "60px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1071,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .Ynvs4808 details summary:before,.kvWqPZ8i[data-v-f8db158d] .wiki-macro-toc details summary:before",
+      "context": [],
+      "decls": [
+        [
+          "content",
+          "\"목차\"",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1072,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .Ynvs4808 details[open],.kvWqPZ8i[data-v-f8db158d] .wiki-macro-toc details[open]",
+      "context": [],
+      "decls": [
+        [
+          "padding-bottom",
+          "4px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1073,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .Ynvs4808 details[open] summary,.kvWqPZ8i[data-v-f8db158d] .wiki-macro-toc details[open] summary",
+      "context": [],
+      "decls": [
+        [
+          "margin-bottom",
+          "12px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1075,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .Vm7BGTq9,.kvWqPZ8i[data-v-f8db158d] .toc-indent",
+      "context": [],
+      "decls": [
+        [
+          "padding-left",
+          "20px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1077,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .i\\+F2I6fI,.kvWqPZ8i[data-v-f8db158d] .toc-item",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "block",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1082,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] ._8lxywtrO,.kvWqPZ8i[data-v-f8db158d] .wiki-table-wrap",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "block",
+          false
+        ],
+        [
+          "margin",
+          "10px 0",
+          false
+        ],
+        [
+          "max-width",
+          "100%",
+          false
+        ],
+        [
+          "overflow-x",
+          "auto",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1083,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] ._8lxywtrO.hIgCPFm2,.kvWqPZ8i[data-v-f8db158d] .wiki-table-wrap.table-center",
+      "context": [],
+      "decls": [
+        [
+          "margin",
+          "10px auto",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1084,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .z5qzRM3s,.kvWqPZ8i[data-v-f8db158d] .wiki-table",
+      "context": [],
+      "decls": [
+        [
+          "background-color",
+          "#f5f5f5",
+          false
+        ],
+        [
+          "border-collapse",
+          "collapse",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1087,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .FaQfXP2N,.kvWqPZ8i[data-v-f8db158d] .table-right",
+      "context": [],
+      "decls": [
+        [
+          "float",
+          "right",
+          false
+        ],
+        [
+          "margin-bottom",
+          "20px",
+          false
+        ],
+        [
+          "margin-left",
+          "20px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1088,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .FaQfXP2N,.kvWqPZ8i[data-v-f8db158d] .table-right",
+      "context": [
+        "@media screen and (max-width:420px)"
+      ],
+      "decls": [
+        [
+          "float",
+          "none",
+          false
+        ],
+        [
+          "margin",
+          "10px 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1089,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .z5qzRM3s td,.kvWqPZ8i[data-v-f8db158d] .z5qzRM3s th,.kvWqPZ8i[data-v-f8db158d] .wiki-table td,.kvWqPZ8i[data-v-f8db158d] .wiki-table th",
+      "context": [],
+      "decls": [
+        [
+          "border",
+          "1px solid #ddd",
+          false
+        ],
+        [
+          "padding",
+          "5px 10px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1090,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .z5qzRM3s td.w7JolEgd,.kvWqPZ8i[data-v-f8db158d] .z5qzRM3s th.w7JolEgd,.kvWqPZ8i[data-v-f8db158d] .wiki-table td.wiki-table-nopadding,.kvWqPZ8i[data-v-f8db158d] .wiki-table th.wiki-table-nopadding",
+      "context": [],
+      "decls": [
+        [
+          "padding",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1100,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .z5qzRM3s td .xJID15UV,.kvWqPZ8i[data-v-f8db158d] .z5qzRM3s th .xJID15UV,.kvWqPZ8i[data-v-f8db158d] .wiki-table td .wiki-paragraph,.kvWqPZ8i[data-v-f8db158d] .wiki-table th .wiki-paragraph",
+      "context": [],
+      "decls": [
+        [
+          "margin-bottom",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1135,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .GVxD-xSw,.kvWqPZ8i[data-v-f8db158d] .wiki-image-align-left",
+      "context": [],
+      "decls": [
+        [
+          "float",
+          "left",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1136,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] ._82bAuQoc,.kvWqPZ8i[data-v-f8db158d] .wiki-image-align-right",
+      "context": [],
+      "decls": [
+        [
+          "float",
+          "right",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1140,
+      "file": "style-2.css.txt",
+      "selector": ".Rt3yuU7l.kvWqPZ8i[data-v-f8db158d] .J6S83vle:before,.Rt3yuU7l.kvWqPZ8i[data-v-f8db158d] .wiki-link-external-image:before,.kvWqPZ8i[data-v-f8db158d] .k1eqwCC6:before,.kvWqPZ8i[data-v-f8db158d] .wiki-link-external:before",
+      "context": [],
+      "decls": [
+        [
+          "background",
+          "green",
+          false
+        ],
+        [
+          "color",
+          "#fff",
+          false
+        ],
+        [
+          "content",
+          "\"\"",
+          false
+        ],
+        [
+          "font-family",
+          "\"Ionicons\"",
+          true
+        ],
+        [
+          "font-size",
+          ".9rem",
+          true
+        ],
+        [
+          "margin-right",
+          ".1rem",
+          false
+        ],
+        [
+          "padding",
+          "0 .15em",
+          false
+        ],
+        [
+          "position",
+          "relative",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1141,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .kRvD9qya:before,.kvWqPZ8i[data-v-f8db158d] .wiki-heading:before",
+      "context": [],
+      "decls": [
+        [
+          "color",
+          "#666",
+          false
+        ],
+        [
+          "content",
+          "\"\"",
+          false
+        ],
+        [
+          "float",
+          "left",
+          false
+        ],
+        [
+          "font-family",
+          "\"Ionicons\"",
+          false
+        ],
+        [
+          "font-size",
+          ".8em",
+          false
+        ],
+        [
+          "font-weight",
+          "400",
+          false
+        ],
+        [
+          "line-height",
+          "1.8em",
+          false
+        ],
+        [
+          "margin",
+          "0 .5rem 0 .2rem",
+          false
+        ],
+        [
+          "text-align",
+          "center",
+          false
+        ],
+        [
+          "width",
+          ".9em",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1142,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .kRvD9qya,.kvWqPZ8i[data-v-f8db158d] .wiki-heading",
+      "context": [],
+      "decls": [
+        [
+          "cursor",
+          "pointer",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1143,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .kRvD9qya.dfhOWwXz,.kvWqPZ8i[data-v-f8db158d] .wiki-heading.wiki-heading-folded",
+      "context": [],
+      "decls": [
+        [
+          "opacity",
+          ".5",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1144,
+      "file": "style-2.css.txt",
+      "selector": ".kvWqPZ8i[data-v-f8db158d] .kRvD9qya.dfhOWwXz:before,.kvWqPZ8i[data-v-f8db158d] .wiki-heading.wiki-heading-folded:before",
+      "context": [],
+      "decls": [
+        [
+          "content",
+          "\"\"",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1431,
+      "file": "style-2.css.txt",
+      "selector": ".Tfgc5Vnw[data-v-6d5c592c]",
+      "context": [],
+      "decls": [
+        [
+          "--espejo-container-max-width",
+          "none",
+          false
+        ],
+        [
+          "margin",
+          "0 auto",
+          false
+        ],
+        [
+          "max-width",
+          "none",
+          false
+        ],
+        [
+          "max-width",
+          "var(--espejo-container-max-width)",
+          false
+        ],
+        [
+          "padding-left",
+          "var(--espejo-layout-gutter-var)",
+          false
+        ],
+        [
+          "padding-right",
+          "var(--espejo-layout-gutter-var)",
+          false
+        ],
+        [
+          "width",
+          "100%",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1432,
+      "file": "style-2.css.txt",
+      "selector": ".Tfgc5Vnw[data-v-6d5c592c]",
+      "context": [
+        "@media screen and (min-width:1200px)"
+      ],
+      "decls": [
+        [
+          "--espejo-container-max-width",
+          "1280px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1433,
+      "file": "style-2.css.txt",
+      "selector": ".Tfgc5Vnw[data-v-6d5c592c]",
+      "context": [
+        "@media screen and (min-width:1400px)"
+      ],
+      "decls": [
+        [
+          "--espejo-container-max-width",
+          "1600px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1435,
+      "file": "style-2.css.txt",
+      "selector": "._741hynzd[data-v-6d5c592c]",
+      "context": [
+        "@media screen and (min-width:1200px)"
+      ],
+      "decls": [
+        [
+          "--espejo-container-max-width",
+          "1280px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1436,
+      "file": "style-2.css.txt",
+      "selector": "._741hynzd[data-v-6d5c592c]",
+      "context": [
+        "@media screen and (min-width:1400px)"
+      ],
+      "decls": [
+        [
+          "--espejo-container-max-width",
+          "1400px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1758,
+      "file": "style-2.css.txt",
+      "selector": ".WRCoBfHv[data-v-69f9148b]",
+      "context": [],
+      "decls": [
+        [
+          "align-items",
+          "flex-start",
+          false
+        ],
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "flex-direction",
+          "row-reverse",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1759,
+      "file": "style-2.css.txt",
+      "selector": ".WRCoBfHv[data-v-69f9148b]",
+      "context": [
+        "@media screen and (max-width:1199.98px)"
+      ],
+      "decls": [
+        [
+          "align-items",
+          "normal",
+          false
+        ],
+        [
+          "flex-direction",
+          "column",
+          false
+        ],
+        [
+          "gap",
+          ".5rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1760,
+      "file": "style-2.css.txt",
+      "selector": ".WRCoBfHv[data-v-69f9148b]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "justify-content",
+          "flex-end",
+          false
+        ],
+        [
+          "margin",
+          ".75rem 0 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1762,
+      "file": "style-2.css.txt",
+      "selector": ".NvAJasTi[data-v-69f9148b]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "justify-content",
+          "flex-end",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1773,
+      "file": "style-2.css.txt",
+      "selector": ".p5gzOVUq[data-v-69f9148b]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "margin",
+          "0 0 0 .5rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1783,
+      "file": "style-2.css.txt",
+      "selector": ".dJDOnDvs[data-v-40b3a7e3]",
+      "context": [],
+      "decls": [
+        [
+          "font-size",
+          "2.25rem",
+          false
+        ],
+        [
+          "font-weight",
+          "700",
+          false
+        ],
+        [
+          "line-height",
+          "1",
+          false
+        ],
+        [
+          "margin",
+          "0",
+          false
+        ],
+        [
+          "word-break",
+          "break-all",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1784,
+      "file": "style-2.css.txt",
+      "selector": ".dJDOnDvs[data-v-40b3a7e3]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "font-size",
+          "2rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1785,
+      "file": "style-2.css.txt",
+      "selector": ".dJDOnDvs[data-v-40b3a7e3]",
+      "context": [
+        "@media screen and (max-width:319.98px)"
+      ],
+      "decls": [
+        [
+          "font-size",
+          "1.75rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1805,
+      "file": "style-2.css.txt",
+      "selector": ".OhvhenGF[data-v-e2cdd491]",
+      "context": [],
+      "decls": [
+        [
+          "background-color",
+          "var(--espejo-card-background-color)",
+          false
+        ],
+        [
+          "border-color",
+          "var(--espejo-card-border-color)",
+          false
+        ],
+        [
+          "border-radius",
+          "var(--espejo-card-border-radius-var)",
+          false
+        ],
+        [
+          "border-style",
+          "solid",
+          false
+        ],
+        [
+          "border-width",
+          "var(--espejo-card-border-width-var)",
+          false
+        ],
+        [
+          "margin",
+          "0",
+          false
+        ],
+        [
+          "min-height",
+          "var(--espejo-article-min-height-var)",
+          false
+        ],
+        [
+          "padding",
+          "var(--espejo-card-gutter-var)",
+          false
+        ],
+        [
+          "padding-left",
+          "max(env(safe-area-inset-left,0),var(--espejo-card-gutter-var))",
+          false
+        ],
+        [
+          "padding-right",
+          "max(env(safe-area-inset-right,0),var(--espejo-card-gutter-var))",
+          false
+        ],
+        [
+          "transition",
+          "background-color .05s ease-in",
+          false
+        ],
+        [
+          "word-break",
+          "break-all",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1806,
+      "file": "style-2.css.txt",
+      "selector": ".OhvhenGF[data-v-e2cdd491]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "border-radius",
+          "0",
+          false
+        ],
+        [
+          "border-width",
+          "var(--espejo-card-border-width-var) 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1807,
+      "file": "style-2.css.txt",
+      "selector": ".OhvhenGF[data-v-e2cdd491]",
+      "context": [],
+      "decls": [
+        [
+          "padding",
+          "var(--espejo-article-gutter-y-var) var(--espejo-article-gutter-right-var) var(--espejo-article-gutter-y-var) var(--espejo-article-gutter-left-var)",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1809,
+      "file": "style-2.css.txt",
+      "selector": ".OhvhenGF[data-v-e2cdd491]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "border-bottom",
+          "0",
+          false
+        ],
+        [
+          "border-top",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1824,
+      "file": "style-2.css.txt",
+      "selector": ".vp43mCM\\+[data-v-e2cdd491]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "margin",
+          "0 0 var(--espejo-article-title-gutter-bottom-var) 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1826,
+      "file": "style-2.css.txt",
+      "selector": ".vp43mCM\\+[data-v-e2cdd491]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "flex-direction",
+          "column",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1827,
+      "file": "style-2.css.txt",
+      "selector": ".cfc1kizy[data-v-e2cdd491]",
+      "context": [],
+      "decls": [
+        [
+          "margin",
+          "0 0 var(--espejo-article-wiki-title-gutter-bottom-var) 0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1828,
+      "file": "style-2.css.txt",
+      "selector": ".c5HYF9ZL[data-v-e2cdd491]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "flex",
+          "1",
+          false
+        ],
+        [
+          "flex-direction",
+          "column",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 1829,
+      "file": "style-2.css.txt",
+      "selector": "._7mWxIehT[data-v-e2cdd491]",
+      "context": [],
+      "decls": [
+        [
+          "color",
+          "var(--espejo-text-secondary-color)",
+          false
+        ],
+        [
+          "font-size",
+          ".9rem",
+          false
+        ],
+        [
+          "margin",
+          ".5rem 0 0",
+          false
+        ],
+        [
+          "transition",
+          "color .05s ease-in",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2028,
+      "file": "style-2.css.txt",
+      "selector": "*,:after,:before",
+      "context": [],
+      "decls": [
+        [
+          "box-sizing",
+          "border-box",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2029,
+      "file": "style-2.css.txt",
+      "selector": "html",
+      "context": [],
+      "decls": [
+        [
+          "font-family",
+          "system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif,\"Segoe UI\",Helvetica,Arial,\"Apple Color Emoji\",\"Segoe UI Emoji\"",
+          false
+        ],
+        [
+          "line-height",
+          "1.15",
+          false
+        ],
+        [
+          "-webkit-text-size-adjust",
+          "100%",
+          false
+        ],
+        [
+          "-moz-tab-size",
+          "4",
+          false
+        ],
+        [
+          "-o-tab-size",
+          "4",
+          false
+        ],
+        [
+          "tab-size",
+          "4",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2030,
+      "file": "style-2.css.txt",
+      "selector": "body",
+      "context": [],
+      "decls": [
+        [
+          "margin",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2053,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [],
+      "decls": [
+        [
+          "--espejo-page-font-size-var",
+          "15px",
+          false
+        ],
+        [
+          "--espejo-page-font-family-var",
+          "\"Pretendard JP\",Pretendard,-apple-system,BlinkMacSystemFont,\"Apple SD Gothic Neo\",\"Noto Sans KR\",\"Noto Sans CJK KR\",\"NanumBarunGothic\",Roboto,\"Segoe UI\",\"Malgun Gothic\",\"Apple Color Emoji\",\"Segoe UI Emoji\",\"Segoe UI Symbol\",sans-serif,emoji",
+          false
+        ],
+        [
+          "--espejo-page-font-weight-var",
+          "400",
+          false
+        ],
+        [
+          "--espejo-layout-gutter-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-content-gutter-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-card-border-width-var",
+          "1px",
+          false
+        ],
+        [
+          "--espejo-card-border-radius-var",
+          "6px",
+          false
+        ],
+        [
+          "--espejo-nav-bar-height-var",
+          "3.5rem",
+          false
+        ],
+        [
+          "--espejo-search-box-height-var",
+          "2.5rem",
+          false
+        ],
+        [
+          "--espejo-sidebar-width-var",
+          "320px",
+          false
+        ],
+        [
+          "--espejo-article-gutter-left-var",
+          "1.5rem",
+          false
+        ],
+        [
+          "--espejo-article-gutter-right-var",
+          "1.5rem",
+          false
+        ],
+        [
+          "--espejo-article-gutter-y-var",
+          "1.5rem",
+          false
+        ],
+        [
+          "--espejo-article-title-gutter-bottom-var",
+          "1.5rem",
+          false
+        ],
+        [
+          "--espejo-article-wiki-title-gutter-bottom-var",
+          "1.5rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2054,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [
+        "@media screen and (max-width:1199.98px)"
+      ],
+      "decls": [
+        [
+          "--espejo-sidebar-width-var",
+          "280px",
+          false
+        ],
+        [
+          "--espejo-nav-control-toc-popup-width-var",
+          "280px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2055,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "--espejo-layout-gutter-var",
+          "0",
+          false
+        ],
+        [
+          "--espejo-card-gutter-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-content-gutter-var",
+          "0",
+          false
+        ],
+        [
+          "--espejo-nav-bar-height-var",
+          "3rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-brand-gap-var",
+          "0.5rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-menu-item-gap-var",
+          "0",
+          false
+        ],
+        [
+          "--espejo-nav-bar-image-height-var",
+          "2rem",
+          false
+        ],
+        [
+          "--espejo-search-box-gap-var",
+          "0",
+          false
+        ],
+        [
+          "--espejo-search-box-gutter-left-var",
+          "env(safe-area-inset-left,0)",
+          false
+        ],
+        [
+          "--espejo-search-box-gutter-right-var",
+          "env(safe-area-inset-right,0)",
+          false
+        ],
+        [
+          "--espejo-search-box-button-width-var",
+          "2rem",
+          false
+        ],
+        [
+          "--espejo-search-box-left-button-width-var",
+          "2.25rem",
+          false
+        ],
+        [
+          "--espejo-search-box-suggest-gutter-left-var",
+          "max(env(safe-area-inset-left,0),0.25rem)",
+          false
+        ],
+        [
+          "--espejo-search-box-suggest-gutter-right-var",
+          "max(env(safe-area-inset-right,0),0.25rem)",
+          false
+        ],
+        [
+          "--espejo-site-notice-gap-left-var",
+          "env(safe-area-inset-left,0)",
+          false
+        ],
+        [
+          "--espejo-site-notice-gap-right-var",
+          "env(safe-area-inset-right,0)",
+          false
+        ],
+        [
+          "--espejo-sidebar-item-gutter-left-var",
+          "calc(env(safe-area-inset-left, 0) + 1rem)",
+          false
+        ],
+        [
+          "--espejo-sidebar-item-gutter-right-var",
+          "calc(env(safe-area-inset-right, 0) + 1rem)",
+          false
+        ],
+        [
+          "--espejo-article-gutter-left-var",
+          "calc(env(safe-area-inset-left, 0) + 1rem)",
+          false
+        ],
+        [
+          "--espejo-article-gutter-right-var",
+          "calc(env(safe-area-inset-right, 0) + 1rem)",
+          false
+        ],
+        [
+          "--espejo-article-gutter-y-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-article-title-gutter-bottom-var",
+          "1.25rem",
+          false
+        ],
+        [
+          "--espejo-article-wiki-title-gutter-bottom-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-nav-control-gutter-x-var",
+          "1.5rem",
+          false
+        ],
+        [
+          "--espejo-nav-control-gutter-y-var",
+          "1.5rem",
+          false
+        ],
+        [
+          "--espejo-nav-control-gap-var",
+          "0.5rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2056,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [
+        "@media screen and (max-width:727.98px)"
+      ],
+      "decls": [
+        [
+          "--espejo-card-gutter-var",
+          "0.75rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-gutter-left-var",
+          "max(env(safe-area-inset-left,0),0.5rem)",
+          false
+        ],
+        [
+          "--espejo-nav-bar-gutter-right-var",
+          "max(env(safe-area-inset-right,0),0.5rem)",
+          false
+        ],
+        [
+          "--espejo-article-min-height-var",
+          "35rem",
+          false
+        ],
+        [
+          "--espejo-article-gutter-left-var",
+          "calc(env(safe-area-inset-left, 0) + 0.75rem)",
+          false
+        ],
+        [
+          "--espejo-article-gutter-right-var",
+          "calc(env(safe-area-inset-right, 0) + 0.75rem)",
+          false
+        ],
+        [
+          "--espejo-article-gutter-y-var",
+          "0.75rem",
+          false
+        ],
+        [
+          "--espejo-article-title-gutter-bottom-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-article-wiki-title-gutter-bottom-var",
+          "0.75rem",
+          false
+        ],
+        [
+          "--espejo-nav-control-toc-popup-width-var",
+          "16rem",
+          false
+        ],
+        [
+          "--espejo-nav-control-toc-popup-max-height-var",
+          "32rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2057,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [
+        "@media screen and (max-width:371.98px)"
+      ],
+      "decls": [
+        [
+          "--espejo-nav-control-toc-popup-width-var",
+          "14rem",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2058,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [
+        "@media screen and (max-width:319.98px)"
+      ],
+      "decls": [
+        [
+          "--espejo-button-border-width-var",
+          "1px",
+          false
+        ],
+        [
+          "--espejo-button-border-radius-var",
+          "0.3rem",
+          false
+        ],
+        [
+          "--espejo-button-gutter-x-var",
+          "0.5rem",
+          false
+        ],
+        [
+          "--espejo-button-gutter-y-var",
+          "0.15rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-height-var",
+          "2.5rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-gutter-left-var",
+          "max(env(safe-area-inset-left,0),0.25rem)",
+          false
+        ],
+        [
+          "--espejo-nav-bar-gutter-right-var",
+          "max(env(safe-area-inset-right,0),0.25rem)",
+          false
+        ],
+        [
+          "--espejo-nav-bar-brand-gap-var",
+          "0.25rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-menu-item-gutter-var",
+          "0.5rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-menu-item-gap-var",
+          "0",
+          false
+        ],
+        [
+          "--espejo-nav-bar-menu-icon-size-var",
+          "0.85rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-menu-icon-size-large-var",
+          "1rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-menu-icon-gap-var",
+          "0.5rem",
+          false
+        ],
+        [
+          "--espejo-nav-bar-image-height-var",
+          "1.75rem",
+          false
+        ],
+        [
+          "--espejo-search-box-height-var",
+          "2rem",
+          false
+        ],
+        [
+          "--espejo-search-box-button-width-var",
+          "1.75rem",
+          false
+        ],
+        [
+          "--espejo-search-box-left-button-width-var",
+          "2rem",
+          false
+        ],
+        [
+          "--espejo-article-min-height-var",
+          "none",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2066,
+      "file": "style-2.css.txt",
+      "selector": ":root",
+      "context": [],
+      "decls": [
+        [
+          "--espejo-background-color",
+          "#f5f5f5",
+          false
+        ],
+        [
+          "--espejo-text-color",
+          "#212529",
+          false
+        ],
+        [
+          "--espejo-text-secondary-color",
+          "rgba(33,37,41,.749)",
+          false
+        ],
+        [
+          "--espejo-link-color",
+          "#0275d8",
+          false
+        ],
+        [
+          "--espejo-card-background-color",
+          "#fff",
+          false
+        ],
+        [
+          "--espejo-card-border-color",
+          "#ccc",
+          false
+        ],
+        [
+          "--espejo-nav-bar-background-color",
+          "linear-gradient(90deg,#00a69c,#00a69c,#28b472)",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2073,
+      "file": "style-2.css.txt",
+      "selector": "body",
+      "context": [],
+      "decls": [
+        [
+          "--brand-color-1",
+          "var(--espejo-brand1-color)",
+          false
+        ],
+        [
+          "--brand-color-2",
+          "var(--espejo-brand2-color)",
+          false
+        ],
+        [
+          "--brand-bright-color-1",
+          "var(--espejo-brand-bright1-color)",
+          false
+        ],
+        [
+          "--brand-bright-color-2",
+          "var(--espejo-brand-bright2-color)",
+          false
+        ],
+        [
+          "--light-text-color",
+          "#212529",
+          false
+        ],
+        [
+          "--dark-text-color",
+          "#e0e0e0",
+          false
+        ],
+        [
+          "--text-color",
+          "var(--espejo-text-color)",
+          false
+        ],
+        [
+          "--light-text-secondary-color",
+          "rgba(33,37,41,.749)",
+          false
+        ],
+        [
+          "--dark-text-secondary-color",
+          "hsla(0,0%,88%,.749)",
+          false
+        ],
+        [
+          "--text-secondary-color",
+          "var(--espejo-text-secondary-color)",
+          false
+        ],
+        [
+          "--light-link-color",
+          "#0275d8",
+          false
+        ],
+        [
+          "--dark-link-color",
+          "#ec9f19",
+          false
+        ],
+        [
+          "--link-color",
+          "var(--espejo-link-color)",
+          false
+        ],
+        [
+          "--light-article-background-color",
+          "#fff",
+          false
+        ],
+        [
+          "--dark-article-background-color",
+          "#1c1d1f",
+          false
+        ],
+        [
+          "--article-background-color",
+          "var(--espejo-card-background-color)",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2076,
+      "file": "style-2.css.txt",
+      "selector": "body",
+      "context": [],
+      "decls": [
+        [
+          "background-color",
+          "#f5f5f5",
+          false
+        ],
+        [
+          "background-color",
+          "var(--espejo-background-color)",
+          false
+        ],
+        [
+          "color",
+          "#212529",
+          false
+        ],
+        [
+          "color",
+          "var(--espejo-text-color)",
+          false
+        ],
+        [
+          "font-display",
+          "swap",
+          false
+        ],
+        [
+          "font-family",
+          "\"Pretendard JP\",Pretendard,-apple-system,BlinkMacSystemFont,\"Apple SD Gothic Neo\",\"Noto Sans KR\",\"Noto Sans CJK KR\",\"NanumBarunGothic\",Roboto,\"Segoe UI\",\"Malgun Gothic\",\"Apple Color Emoji\",\"Segoe UI Emoji\",\"Segoe UI Symbol\",sans-serif,emoji",
+          false
+        ],
+        [
+          "font-family",
+          "var(--espejo-page-font-family-var)",
+          false
+        ],
+        [
+          "font-size",
+          "15px",
+          false
+        ],
+        [
+          "font-size",
+          "var(--espejo-page-font-size-var)",
+          false
+        ],
+        [
+          "font-weight",
+          "400",
+          false
+        ],
+        [
+          "font-weight",
+          "var(--espejo-page-font-weight-var)",
+          false
+        ],
+        [
+          "line-height",
+          "1.5",
+          false
+        ],
+        [
+          "min-width",
+          "240px",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2093,
+      "file": "style-2.css.txt",
+      "selector": ".CY1C18CH[data-v-d23ef680]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "flex-direction",
+          "row",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2095,
+      "file": "style-2.css.txt",
+      "selector": ".CY1C18CH[data-v-d23ef680]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "flex-direction",
+          "column",
+          false
+        ],
+        [
+          "padding-top",
+          "var(--espejo-search-box-height-var)",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2102,
+      "file": "style-2.css.txt",
+      "selector": ".bx2dx5XL[data-v-d23ef680]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "flex",
+          false
+        ],
+        [
+          "flex",
+          "1",
+          false
+        ],
+        [
+          "flex-direction",
+          "column",
+          false
+        ],
+        [
+          "gap",
+          "var(--espejo-layout-gutter-var)",
+          false
+        ],
+        [
+          "min-width",
+          "0",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2104,
+      "file": "style-2.css.txt",
+      "selector": ".BxsWiRol[data-v-d23ef680]",
+      "context": [],
+      "decls": [
+        [
+          "margin-left",
+          "var(--espejo-content-gutter-var)",
+          false
+        ],
+        [
+          "width",
+          "var(--espejo-sidebar-width-var)",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2105,
+      "file": "style-2.css.txt",
+      "selector": ".BxsWiRol[data-v-d23ef680]",
+      "context": [
+        "@media screen and (max-width:1023.98px)"
+      ],
+      "decls": [
+        [
+          "margin-left",
+          "0",
+          false
+        ],
+        [
+          "width",
+          "100%",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2106,
+      "file": "style-2.css.txt",
+      "selector": ".BxsWiRol[data-v-d23ef680]",
+      "context": [
+        "@media print"
+      ],
+      "decls": [
+        [
+          "display",
+          "none",
+          false
+        ]
+      ]
+    },
+    {
+      "id": 2107,
+      "file": "style-2.css.txt",
+      "selector": "body.theseed-maximize-content .BxsWiRol[data-v-d23ef680]",
+      "context": [],
+      "decls": [
+        [
+          "display",
+          "none",
+          false
+        ]
+      ]
+    }
+  ]
+}

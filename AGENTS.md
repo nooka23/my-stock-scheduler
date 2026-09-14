@@ -17,3 +17,12 @@ Recent history favors short, task-focused commit subjects, often with a `YYMMDD`
 
 ## Security & Configuration Tips
 Secrets live in `.env.local` and GitHub Actions secrets; never commit API keys or Supabase service-role values. Review scripts carefully before running production data updates because many write directly to Supabase.
+
+## Personal Stock Wiki — Plan and Progress
+
+For any personal stock wiki work, read [docs/wiki/progress.md](docs/wiki/progress.md) first, then [docs/wiki/plan.md](docs/wiki/plan.md). User-provided desktop/Galaxy S25 screenshots and the HTML/CSS source analysis are indexed in [docs/wiki/references/README.md](docs/wiki/references/README.md).
+
+- Use the latest user request and the progress document to determine the current scope. Documentation is not authorization to implement or deploy. A later explicit implementation request supersedes an earlier planning-only state; update the record and proceed within that request.
+- The wiki is for the designated owner only. Other site users, including other site administrators, must not be able to use or read it. Preserve the Galaxy S25-first and faithful NamuWiki reading-layout requirements.
+- At the end of each wiki-related work session, update the current status, stage table, verification evidence, next steps, and append a work-log entry in `docs/wiki/progress.md`. If requirements or design decisions change, also update `docs/wiki/plan.md` and record the reason.
+- Distinguish user decisions, recommendations, observed facts, implementation, and verified results. Do not mark planning or untested work as implemented or complete. Preserve unrelated existing changes and do not record secrets.

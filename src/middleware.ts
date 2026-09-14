@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
+  const isWikiRoute = req.nextUrl.pathname === '/wiki' || req.nextUrl.pathname.startsWith('/wiki/');
   // 미들웨어가 쿠키를 관리하도록 설정
   const supabase = createMiddlewareClient({ req, res });
 
@@ -28,7 +29,7 @@ export async function middleware(req: NextRequest) {
   if (error?.code === 'refresh_token_not_found' || error?.message?.includes('Refresh Token Not Found')) {
     clearSupabaseCookies();
 
-    if (req.nextUrl.pathname === '/') {
+    if (req.nextUrl.pathname === '/' || isWikiRoute) {
       return NextResponse.redirect(new URL('/login', req.url), {
         headers: res.headers,
       });
@@ -38,7 +39,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // 로그인 안 한 사람이 메인('/') 접근 시 -> 로그인 페이지로
-  if (!session && req.nextUrl.pathname === '/') {
+  if (!session && (req.nextUrl.pathname === '/' || isWikiRoute)) {
     return NextResponse.redirect(new URL('/login', req.url));
   }
 
@@ -51,5 +52,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/login'],
+  matcher: ['/', '/login', '/wiki/:path*'],
 };

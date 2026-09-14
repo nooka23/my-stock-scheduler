@@ -106,6 +106,7 @@ export default function Sidebar() {
 
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [isWikiOwner, setIsWikiOwner] = useState(false);
 
   const authPaths = ['/login', '/forgot-password', '/update-password'];
   const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
@@ -122,6 +123,8 @@ export default function Sidebar() {
           .eq('id', session.user.id)
           .single();
         if (data) setProfile(data as MyProfile);
+        const { data: wikiOwner } = await supabase.rpc('wiki_is_owner');
+        setIsWikiOwner(wikiOwner === true);
       }
     };
     getUser();
@@ -130,6 +133,7 @@ export default function Sidebar() {
       setUser(session?.user ?? null);
       if (!session?.user) {
         setProfile(null);
+        setIsWikiOwner(false);
       }
     });
 
@@ -148,9 +152,13 @@ export default function Sidebar() {
 
   const visibleAdminItems = useMemo(() => (profile?.is_admin ? adminItems : []), [profile?.is_admin]);
 
+  const visibleNavItems = useMemo(() => (
+    isWikiOwner ? [...navItems, { name: '개인 위키', href: '/wiki', icon: 'star' as const }] : navItems
+  ), [isWikiOwner]);
+
   const activeItem = useMemo(() => {
-    return [...navItems, ...visibleAdminItems].find((item) => isItemActive(pathname, item)) ?? null;
-  }, [pathname, visibleAdminItems]);
+    return [...visibleNavItems, ...visibleAdminItems].find((item) => isItemActive(pathname, item)) ?? null;
+  }, [pathname, visibleAdminItems, visibleNavItems]);
 
   if (isAuthPage || isMobileOnlyPage) {
     return null;
@@ -168,7 +176,7 @@ export default function Sidebar() {
 
         <nav className="min-w-0 flex-1 overflow-x-auto">
           <ul className="flex min-w-max items-center gap-2">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive = isItemActive(pathname, item);
               return (
                 <li key={item.href}>
