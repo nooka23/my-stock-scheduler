@@ -50,17 +50,3 @@ function renderNode(node: Node, key: string, documentId?: string, tickerCode?: s
 export default function WikiReader({ content, documentId, tickerCode }: { content: WikiContent; documentId?: string; tickerCode?: string | null }) {
   return <div className="wiki-prose">{children(content as Node, 'root', documentId, tickerCode ?? undefined)}</div>;
 }
-
-export function headingsFromContent(content: WikiContent) {
-  const items: { id: string; level: number; text: string }[] = [];
-  const walk = (node: Node) => {
-    if (node.type === 'heading') {
-      const text = (node.content ?? []).map((child) => child.text ?? '').join('');
-      const id = typeof node.attrs?.id === 'string' ? node.attrs.id : `heading-${items.length + 1}`;
-      items.push({ id, level: Number(node.attrs?.level ?? 2), text });
-    }
-    node.content?.forEach(walk);
-  };
-  walk(content as Node);
-  return items;
-}

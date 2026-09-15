@@ -33,7 +33,7 @@ export default function WikiEditor({ content, onChange }: Props) {
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] } }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }),
       Image.configure({ inline: false, allowBase64: false }),
@@ -101,6 +101,10 @@ export default function WikiEditor({ content, onChange }: Props) {
       <Button label="링크" active={editor.isActive('link')} onClick={addLink} />
       <Button label="문서 링크" onClick={addInternalLink} />
       <Button label="H2" active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} />
+      <Button label="H3" active={editor.isActive('heading', { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} />
+      <Button label="H4" active={editor.isActive('heading', { level: 4 })} onClick={() => editor.chain().focus().toggleHeading({ level: 4 }).run()} />
+      <Button label="H5" active={editor.isActive('heading', { level: 5 })} onClick={() => editor.chain().focus().toggleHeading({ level: 5 }).run()} />
+      <Button label="H6" active={editor.isActive('heading', { level: 6 })} onClick={() => editor.chain().focus().toggleHeading({ level: 6 }).run()} />
       <Button label="목록" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} />
       <Button label="표" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} />
       <Button label={uploading ? '업로드 중' : '이미지'} onClick={() => inputRef.current?.click()} />
