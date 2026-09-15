@@ -18,7 +18,7 @@ export default function WikiHomePage() {
   })(); }, [supabase]);
   const shown = useMemo(() => documents.filter((document) => `${document.title} ${document.content_text}`.toLowerCase().includes(query.toLowerCase())), [documents, query]);
   return <WikiFrame><div className="wiki-shell"><main className="wiki-main"><article className="wiki-article">
-    <div className="wiki-home-head"><div><h1>문서</h1><p className="wiki-meta">내가 작성한 투자 기록입니다.</p></div><Link className="wiki-primary" href="/wiki/new">새 문서</Link></div>
+    <div className="wiki-home-head"><div><h1>문서</h1><p className="wiki-meta">내가 작성한 투자 기록입니다.</p><Link className="wiki-tool" href="/wiki/categories">분류별로 보기</Link></div><Link className="wiki-primary" href="/wiki/new">새 문서</Link></div>
     <input className="wiki-home-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="제목과 본문에서 찾기" aria-label="문서 검색" />
     {shown.length ? <ul className="wiki-document-list">{shown.map((document) => <li key={document.id}><Link href={`/wiki/d/${document.id}`}>{document.title}</Link><p>{document.content_text.slice(0, 140) || '내용 없음'} · {new Date(document.updated_at).toLocaleString('ko-KR')}</p></li>)}</ul> : <p className="wiki-empty">{message}</p>}
   </article></main><aside className="wiki-sidebar"><div className="wiki-side-card"><h2>최근 수정</h2><ul>{documents.slice(0, 8).map((document) => <li key={document.id}><Link href={`/wiki/d/${document.id}`}>{document.title}</Link></li>)}</ul></div></aside></div></WikiFrame>;
