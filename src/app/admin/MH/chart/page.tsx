@@ -14,9 +14,12 @@ import {
 } from '@/utils/indicators';
 import { runDetectors, type PatternResult } from '@/utils/patternDetectors';
 
+type Market = 'KR' | 'US';
+
 type Company = {
   code: string;
   name: string;
+  market: Market;
 };
 
 type ChartData = {
@@ -208,6 +211,10 @@ const REVIEW_LIMIT = 700;
 const CHART_CACHE_TTL_MS = 5 * 60 * 1000;
 const CHART_CACHE_LIMIT = 24;
 
+function getCompanyCacheKey(company: Company) {
+  return `${company.market}:${company.code}`;
+}
+
 function convertToWeekly(dailyData: ChartData[]): ChartData[] {
   if (dailyData.length === 0) return [];
 
@@ -289,7 +296,7 @@ export default function ChartPage() {
   const chartRef = useRef<StockChartHandle | null>(null);
 
   const [rawDailyData, setRawDailyData] = useState<ChartData[]>([]);
-  const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930' });
+  const [currentCompany, setCurrentCompany] = useState<Company>({ name: '삼성전자', code: '005930', market: 'KR' });
   const [chartLoading, setChartLoading] = useState(false);
 
   const [tableData, setTableData] = useState<TableStock[]>([]);
@@ -306,6 +313,7 @@ export default function ChartPage() {
   const [inputCompany, setInputCompany] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+  const usSearchRequestRef = useRef<AbortController | null>(null);
 
   const [favorites, setFavorites] = useState<FavItem[]>([]);
   const [favGroups, setFavGroups] = useState<string[]>(['기본 그룹']);
@@ -326,6 +334,10 @@ export default function ChartPage() {
     volume: true,
     rs: true,
   });
+  const chartVisibleIndicators = useMemo(
+    () => currentCompany.market === 'KR' ? visibleIndicators : { ...visibleIndicators, rs: false },
+    [currentCompany.market, visibleIndicators],
+  );
 
   const [activeView, setActiveView] = useState<DiscoveryView>('list');
   const [patternScanEntries, setPatternScanEntries] = useState<PatternScanEntry[]>([]);
@@ -524,7 +536,7 @@ export default function ChartPage() {
   const selectReviewStockByIndex = useCallback((index: number) => {
     const stock = activeReviewStocks[index];
     if (!stock) return;
-    setCurrentCompany({ code: stock.code, name: stock.name });
+    setCurrentCompany({ code: stock.code, name: stock.name, market: 'KR' });
     setInputCompany(stock.name);
     if (activeView === 'list') {
       setCurrentPage(Math.floor(index / ITEMS_PER_PAGE) + 1);
@@ -691,7 +703,9 @@ export default function ChartPage() {
         .select('code, name')
         .range(0, 9999);
 
-      if (allCompanies) setCompanyList(allCompanies);
+      if (allCompanies) {
+        setCompanyList(allCompanies.map((company) => ({ ...company, market: 'KR' as const })));
+      }
 
       const { data: dateData } = await supabase
         .from('rs_rankings_with_volume')
@@ -790,7 +804,7 @@ export default function ChartPage() {
             return prev;
           }
 
-          const nextCompany = { code: formattedReview[0].code, name: formattedReview[0].name };
+          const nextCompany = { code: formattedReview[0].code, name: formattedReview[0].name, market: 'KR' as const };
           setInputCompany(nextCompany.name);
           return nextCompany;
         });
@@ -933,14 +947,15 @@ export default function ChartPage() {
     if (activeReviewStocks.some((stock) => stock.code === currentCompany.code)) return;
 
     const first = activeReviewStocks[0];
-    setCurrentCompany({ code: first.code, name: first.name });
+    setCurrentCompany({ code: first.code, name: first.name, market: 'KR' });
     setInputCompany(first.name);
   }, [activeReviewStocks, activeView, currentCompany.code]);
 
-  const cacheChartBundle = useCallback((code: string, bundle: ChartBundle) => {
+  const cacheChartBundle = useCallback((company: Company, bundle: ChartBundle) => {
     const cache = chartCacheRef.current;
-    cache.delete(code);
-    cache.set(code, bundle);
+    const cacheKey = getCompanyCacheKey(company);
+    cache.delete(cacheKey);
+    cache.set(cacheKey, bundle);
 
     while (cache.size > CHART_CACHE_LIMIT) {
       const oldestCode = cache.keys().next().value;
@@ -949,101 +964,142 @@ export default function ChartPage() {
     }
   }, []);
 
-  const fetchChartBundle = useCallback((code: string) => {
-    const pendingRequest = chartRequestRef.current.get(code);
+  const fetchChartBundle = useCallback((company: Company) => {
+    const cacheKey = getCompanyCacheKey(company);
+    const pendingRequest = chartRequestRef.current.get(cacheKey);
     if (pendingRequest) {
       return pendingRequest;
     }
 
     const request = (async (): Promise<ChartBundle> => {
-      const [dbRes, rsRes, industryRes, themeRes] = await Promise.all([
-        supabase
-          .from('daily_prices_v2')
-          .select('date, open, high, low, close, volume')
-          .eq('code', code)
-          .order('date', { ascending: false })
-          .limit(1000),
-        supabase
-          .from('rs_rankings_v2')
-          .select('date, score_weighted')
-          .eq('code', code)
-          .order('date', { ascending: false })
-          .limit(1000),
-        supabase
-          .from('company_industries')
-          .select('industry_id, industries(name)')
-          .eq('company_code', code),
-        supabase
-          .from('company_themes')
-          .select('theme_id, themes(name)')
-          .eq('company_code', code),
-      ]);
-
-      if (dbRes.error) throw dbRes.error;
-      if (rsRes.error) throw rsRes.error;
-      if (industryRes.error) throw industryRes.error;
-      if (themeRes.error) throw themeRes.error;
-
       const dataMap = new Map<string, ChartData>();
+      let industries: string[] = [];
+      let themes: string[] = [];
 
-      dbRes.data?.forEach((row) => {
-        if (!row.date) return;
+      if (company.market === 'US') {
+        const response = await fetch(`/api/us-equities/chart?ticker=${encodeURIComponent(company.code)}&limit=1000`);
+        const payload = await response.json() as {
+          rows?: Array<{
+            trade_date: string;
+            open: number | string | null;
+            high: number | string | null;
+            low: number | string | null;
+            close: number | string | null;
+            volume: number | string | null;
+          }>;
+          error?: string;
+        };
 
-        let open = Number(row.open);
-        let high = Number(row.high);
-        let low = Number(row.low);
-        const close = Number(row.close);
-
-        if (open === 0 && high === 0 && low === 0) {
-          open = close;
-          high = close;
-          low = close;
+        if (!response.ok) {
+          throw new Error(payload.error || '미국 주식 차트 데이터를 불러오지 못했습니다.');
         }
 
-        dataMap.set(row.date, {
-          time: row.date,
-          open,
-          high,
-          low,
-          close,
-          volume: Number(row.volume),
+        payload.rows?.forEach((row) => {
+          if (!row.trade_date) return;
+          const close = Number(row.close) || 0;
+          const open = Number(row.open) || close;
+          const high = Number(row.high) || close;
+          const low = Number(row.low) || close;
+          dataMap.set(row.trade_date, {
+            time: row.trade_date,
+            open,
+            high,
+            low,
+            close,
+            volume: Number(row.volume) || 0,
+          });
         });
-      });
+      } else {
+        const [dbRes, rsRes, industryRes, themeRes] = await Promise.all([
+          supabase
+            .from('daily_prices_v2')
+            .select('date, open, high, low, close, volume')
+            .eq('code', company.code)
+            .order('date', { ascending: false })
+            .limit(1000),
+          supabase
+            .from('rs_rankings_v2')
+            .select('date, score_weighted')
+            .eq('code', company.code)
+            .order('date', { ascending: false })
+            .limit(1000),
+          supabase
+            .from('company_industries')
+            .select('industry_id, industries(name)')
+            .eq('company_code', company.code),
+          supabase
+            .from('company_themes')
+            .select('theme_id, themes(name)')
+            .eq('company_code', company.code),
+        ]);
 
-      rsRes.data?.forEach((row) => {
-        if (!row.date) return;
-        const existing = dataMap.get(row.date);
-        if (!existing) return;
-        dataMap.set(row.date, { ...existing, rs: Number(row.score_weighted) });
-      });
+        if (dbRes.error) throw dbRes.error;
+        if (rsRes.error) throw rsRes.error;
+        if (industryRes.error) throw industryRes.error;
+        if (themeRes.error) throw themeRes.error;
+
+        dbRes.data?.forEach((row) => {
+          if (!row.date) return;
+
+          let open = Number(row.open);
+          let high = Number(row.high);
+          let low = Number(row.low);
+          const close = Number(row.close);
+
+          if (open === 0 && high === 0 && low === 0) {
+            open = close;
+            high = close;
+            low = close;
+          }
+
+          dataMap.set(row.date, {
+            time: row.date,
+            open,
+            high,
+            low,
+            close,
+            volume: Number(row.volume),
+          });
+        });
+
+        rsRes.data?.forEach((row) => {
+          if (!row.date) return;
+          const existing = dataMap.get(row.date);
+          if (!existing) return;
+          dataMap.set(row.date, { ...existing, rs: Number(row.score_weighted) });
+        });
+
+        industries = industryRes.data
+          ? (industryRes.data as IndustryRelationRow[]).map((item) => item.industries?.name).filter((name): name is string => Boolean(name))
+          : [];
+        themes = themeRes.data
+          ? (themeRes.data as ThemeRelationRow[]).map((item) => item.themes?.name).filter((name): name is string => Boolean(name))
+          : [];
+      }
 
       const bundle: ChartBundle = {
         rawDailyData: Array.from(dataMap.values()).sort(
           (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
         ),
-        industries: industryRes.data
-          ? (industryRes.data as IndustryRelationRow[]).map((item) => item.industries?.name).filter((name): name is string => Boolean(name))
-          : [],
-        themes: themeRes.data
-          ? (themeRes.data as ThemeRelationRow[]).map((item) => item.themes?.name).filter((name): name is string => Boolean(name))
-          : [],
+        industries,
+        themes,
         fetchedAt: Date.now(),
       };
 
-      cacheChartBundle(code, bundle);
+      cacheChartBundle(company, bundle);
       return bundle;
     })();
 
-    chartRequestRef.current.set(code, request);
+    chartRequestRef.current.set(cacheKey, request);
     void request.then(
       () => {
-        if (chartRequestRef.current.get(code) === request) {
-          chartRequestRef.current.delete(code);
+        if (chartRequestRef.current.get(cacheKey) === request) {
+          chartRequestRef.current.delete(cacheKey);
         }
       },
       () => {
-        if (chartRequestRef.current.get(code) === request) {
-          chartRequestRef.current.delete(code);
+        if (chartRequestRef.current.get(cacheKey) === request) {
+          chartRequestRef.current.delete(cacheKey);
         }
       },
     );
@@ -1053,8 +1109,7 @@ export default function ChartPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const code = currentCompany.code;
-    const cachedBundle = chartCacheRef.current.get(code);
+    const cachedBundle = chartCacheRef.current.get(getCompanyCacheKey(currentCompany));
 
     const applyBundle = (bundle: ChartBundle) => {
       if (cancelled) return;
@@ -1079,7 +1134,7 @@ export default function ChartPage() {
       setLegendData(undefined);
     }
 
-    void fetchChartBundle(code)
+    void fetchChartBundle(currentCompany)
       .then(applyBundle)
       .catch((error) => {
         if (cancelled) return;
@@ -1099,7 +1154,7 @@ export default function ChartPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentCompany.code, fetchChartBundle]);
+  }, [currentCompany, fetchChartBundle]);
 
   useEffect(() => {
     setLegendData(data[data.length - 1]);
@@ -1114,19 +1169,19 @@ export default function ChartPage() {
     ].filter((code): code is string => Boolean(code));
 
     nearbyCodes.forEach((code) => {
-      const cachedBundle = chartCacheRef.current.get(code);
+      const cachedBundle = chartCacheRef.current.get(getCompanyCacheKey({ code, name: code, market: 'KR' }));
       if (cachedBundle && Date.now() - cachedBundle.fetchedAt < CHART_CACHE_TTL_MS) {
         return;
       }
 
-      void fetchChartBundle(code).catch((error) => {
+      void fetchChartBundle({ code, name: activeReviewStocks.find((stock) => stock.code === code)?.name || code, market: 'KR' }).catch((error) => {
         console.error(`Error prefetching chart data for ${code}:`, error);
       });
     });
   }, [activeReviewStocks, currentReviewIndex, fetchChartBundle]);
 
   const handleStockClick = (stock: TableStock) => {
-    setCurrentCompany({ name: stock.name, code: stock.code });
+    setCurrentCompany({ name: stock.name, code: stock.code, market: 'KR' });
     setInputCompany(stock.name);
   };
 
@@ -1136,14 +1191,42 @@ export default function ChartPage() {
 
     if (!value.trim()) {
       setShowDropdown(false);
+      usSearchRequestRef.current?.abort();
       return;
     }
 
-    const filtered = companyList.filter((company) => (
-      company.name.includes(value) || company.code.includes(value)
-    ));
-    setFilteredCompanies(filtered);
+    const normalizedValue = value.toLocaleLowerCase();
+    const filteredKorean = companyList.filter((company) => (
+      company.name.toLocaleLowerCase().includes(normalizedValue)
+      || company.code.toLocaleLowerCase().includes(normalizedValue)
+    )).slice(0, 20);
+    setFilteredCompanies(filteredKorean);
     setShowDropdown(true);
+
+    usSearchRequestRef.current?.abort();
+    const controller = new AbortController();
+    usSearchRequestRef.current = controller;
+
+    void fetch(`/api/us-equities/search?q=${encodeURIComponent(value)}&limit=20`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return { rows: [] as Company[] };
+        return await response.json() as { rows?: Company[] };
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        const merged = new Map<string, Company>();
+        [...filteredKorean, ...(payload.rows || [])].forEach((company) => {
+          merged.set(`${company.market}:${company.code}`, company);
+        });
+        setFilteredCompanies(Array.from(merged.values()).slice(0, 30));
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          console.error('Error searching US equities:', error);
+        }
+      });
   };
 
   const selectCompany = (company: Company) => {
@@ -1493,12 +1576,17 @@ export default function ChartPage() {
                     <ul className="absolute z-30 mt-2 max-h-60 w-full overflow-y-auto rounded-2xl border border-[var(--border)] bg-white shadow-[var(--shadow-md)]">
                       {filteredCompanies.map((company) => (
                         <li
-                          key={company.code}
+                          key={`${company.market}:${company.code}`}
                           onClick={() => selectCompany(company)}
                           className="flex cursor-pointer justify-between border-b border-[var(--border)] p-2 text-sm last:border-none hover:bg-[var(--surface-muted)]"
                         >
-                          <span className="font-bold text-gray-700">{company.name}</span>
-                          <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-400">{company.code}</span>
+                          <span className="flex min-w-0 items-center gap-2 font-bold text-gray-700">
+                            <span className={`rounded px-1.5 py-0.5 text-[10px] ${company.market === 'US' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {company.market === 'US' ? '미국' : '한국'}
+                            </span>
+                            <span className="truncate">{company.name}</span>
+                          </span>
+                          <span className="ml-2 rounded bg-gray-100 px-2 py-1 text-xs text-gray-400">{company.code}</span>
                         </li>
                       ))}
                     </ul>
@@ -2006,8 +2094,16 @@ export default function ChartPage() {
               <div className="pointer-events-none absolute left-3 top-3 right-24 z-10 flex flex-wrap items-start gap-2">
                 <div className="pointer-events-auto rounded-2xl bg-white/92 px-3 py-2 shadow-[var(--shadow-sm)] backdrop-blur">
                   <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${currentCompany.market === 'US' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {currentCompany.market === 'US' ? '미국' : '한국'}
+                    </span>
                     <span className="text-base font-semibold text-slate-950">{currentCompany.name}</span>
                     <span className="text-xs font-medium text-[var(--text-muted)]">{currentCompany.code}</span>
+                    {currentCompany.market === 'US' && (
+                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                        별도 유니버스 · RS 준비 중
+                      </span>
+                    )}
                     {currentReviewStock && renderReviewBadge(currentReviewStock.code)}
                     {currentPatterns.filter((p) => p.detected).map((p) => (
                       <span
@@ -2022,7 +2118,7 @@ export default function ChartPage() {
                       {currentReviewIndex >= 0 ? `${currentReviewIndex + 1}/${activeReviewStocks.length}` : `${activeReviewStocks.length}개`}
                     </span>
                     <span className="rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
-                      {latestDate || '-'}
+                      {currentCompany.market === 'US' ? (data[data.length - 1]?.time || '-') : (latestDate || '-')}
                     </span>
                     <div className="ml-1 flex items-center gap-1 rounded-[8px] border border-slate-200 bg-white px-1 py-1">
                       <button
@@ -2118,7 +2214,7 @@ export default function ChartPage() {
                       </button>
                     </div>
                     <div className="flex flex-wrap items-center gap-1 rounded-xl border border-[var(--border)] bg-white px-1.5 py-1">
-                      {INDICATOR_TOGGLES.map((indicator) => (
+                      {INDICATOR_TOGGLES.filter((indicator) => indicator.key !== 'rs' || currentCompany.market === 'KR').map((indicator) => (
                         <button
                           key={indicator.key}
                           type="button"
@@ -2248,7 +2344,7 @@ export default function ChartPage() {
                             <span>{legendDisplay.volume}</span>
                           </div>
                         )}
-                        {visibleIndicators.rs && (
+                        {currentCompany.market === 'KR' && visibleIndicators.rs && (
                           <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
                             <span className="font-bold text-purple-600">RS:</span>
                             <span>{legendDisplay.rs}</span>
@@ -2265,7 +2361,7 @@ export default function ChartPage() {
                     ref={chartRef}
                     data={data}
                     showLegend={false}
-                    visibleIndicators={visibleIndicators}
+                    visibleIndicators={chartVisibleIndicators}
                     onLegendChange={setLegendData}
                   />
                 ) : (

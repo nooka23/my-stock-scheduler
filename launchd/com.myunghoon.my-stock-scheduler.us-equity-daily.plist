@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.myunghoon.my-stock-scheduler.us-equity-daily</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/myunghoon/my-stock-scheduler/scripts/run_us_equity_daily_local.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/myunghoon/my-stock-scheduler</string>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <!-- Tuesday through Saturday in Korean local time (Weekday 0/7=Sunday). -->
+    <dict>
+      <key>Weekday</key>
+      <integer>2</integer>
+      <key>Hour</key>
+      <integer>6</integer>
+      <key>Minute</key>
+      <integer>10</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>3</integer>
+      <key>Hour</key>
+      <integer>6</integer>
+      <key>Minute</key>
+      <integer>10</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>4</integer>
+      <key>Hour</key>
+      <integer>6</integer>
+      <key>Minute</key>
+      <integer>10</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>5</integer>
+      <key>Hour</key>
+      <integer>6</integer>
+      <key>Minute</key>
+      <integer>10</integer>
+    </dict>
+    <dict>
+      <key>Weekday</key>
+      <integer>6</integer>
+      <key>Hour</key>
+      <integer>6</integer>
+      <key>Minute</key>
+      <integer>10</integer>
+    </dict>
+  </array>
+
+  <key>StandardOutPath</key>
+  <string>/Users/myunghoon/Library/Logs/my-stock-scheduler/us-equity-daily.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/myunghoon/Library/Logs/my-stock-scheduler/us-equity-daily.err.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

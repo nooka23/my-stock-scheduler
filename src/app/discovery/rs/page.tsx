@@ -43,7 +43,7 @@ export default function RsDiscoveryPage() {
   const [fallingPeriod, setFallingPeriod] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
 
   const [excludeHighRise, setExcludeHighRise] = useState(false); 
-  const [minRs50, setMinRs50] = useState(false);
+  const [positiveRsOnly, setPositiveRsOnly] = useState(false);
 
   const [allRankedStocks, setAllRankedStocks] = useState<DailyPrice[]>([]);
   const [displayedStocks, setDisplayedStocks] = useState<DailyPrice[]>([]);
@@ -194,7 +194,7 @@ export default function RsDiscoveryPage() {
         .from('rs_rankings_v2')
         .select('*') 
         .eq('date', latestDate)
-        .order('rank_weighted', { ascending: false });
+        .order('score_weighted', { ascending: false });
 
       if (rankError) throw rankError;
 
@@ -205,7 +205,7 @@ export default function RsDiscoveryPage() {
         const mergedData = rankData.map((r: any) => ({
             date_str: r.date,
             code: r.code,
-            rs_rating: r.rank_weighted,
+            rs_rating: r.score_weighted,
             rank_3m: r.rank_3m,
             rank_6m: r.rank_6m,
             rank_12m: r.rank_12m,
@@ -259,18 +259,18 @@ export default function RsDiscoveryPage() {
 
       const { data: currData } = await supabase
         .from('rs_rankings_v2')
-        .select('code, rank_weighted')
+        .select('code, score_weighted')
         .eq('date', latestDate);
 
       const { data: pastData } = await supabase
         .from('rs_rankings_v2')
-        .select('code, rank_weighted')
+        .select('code, score_weighted')
         .eq('date', pastDate);
 
       if (!currData || !pastData) throw new Error('랭킹 조회 실패');
 
       const pastMap = new Map();
-      pastData.forEach((p: any) => pastMap.set(p.code, p.rank_weighted));
+      pastData.forEach((p: any) => pastMap.set(p.code, p.score_weighted));
 
       let risingList: any[] = [];
       const codes: string[] = [];
@@ -278,12 +278,12 @@ export default function RsDiscoveryPage() {
       currData.forEach((curr: any) => {
           const prevRank = pastMap.get(curr.code);
           if (prevRank !== undefined && prevRank !== null) {
-              const diff = curr.rank_weighted - prevRank;
+              const diff = curr.score_weighted - prevRank;
               if (diff > 0) { 
                   risingList.push({
                       date_str: latestDate,
                       code: curr.code,
-                      rs_rating: curr.rank_weighted,
+                      rs_rating: curr.score_weighted,
                       prev_rs: prevRank,
                       rs_diff: diff,
                       companies: null
@@ -361,18 +361,18 @@ export default function RsDiscoveryPage() {
 
       const { data: currData } = await supabase
         .from('rs_rankings_v2')
-        .select('code, rank_weighted')
+        .select('code, score_weighted')
         .eq('date', latestDate);
 
       const { data: pastData } = await supabase
         .from('rs_rankings_v2')
-        .select('code, rank_weighted')
+        .select('code, score_weighted')
         .eq('date', pastDate);
 
       if (!currData || !pastData) throw new Error('랭킹 조회 실패');
 
       const pastMap = new Map();
-      pastData.forEach((p: any) => pastMap.set(p.code, p.rank_weighted));
+      pastData.forEach((p: any) => pastMap.set(p.code, p.score_weighted));
 
       let fallingList: any[] = [];
       const codes: string[] = [];
@@ -380,12 +380,12 @@ export default function RsDiscoveryPage() {
       currData.forEach((curr: any) => {
           const prevRank = pastMap.get(curr.code);
           if (prevRank !== undefined && prevRank !== null) {
-              const diff = curr.rank_weighted - prevRank;
+              const diff = curr.score_weighted - prevRank;
               if (diff < 0) {  // 하락한 종목만
                   fallingList.push({
                       date_str: latestDate,
                       code: curr.code,
-                      rs_rating: curr.rank_weighted,
+                      rs_rating: curr.score_weighted,
                       prev_rs: prevRank,
                       rs_diff: diff,
                       companies: null
@@ -433,58 +433,28 @@ export default function RsDiscoveryPage() {
   const fetchChartData = async (code: string) => {
     setIsChartLoading(true);
     try {
-        const jsonPromise = supabase.storage
-            .from('stocks')
-            .download(`${code}.json?t=${Date.now()}`);
-
         const dbPromise = supabase
             .from('daily_prices_v2')
             .select('date, open, high, low, close, volume')
             .eq('code', code)
             .order('date', { ascending: false })
-            .limit(100);
+            .limit(1000);
 
         const rsPromise = supabase
             .from('rs_rankings_v2')
-            .select('date, rank_weighted')
+            .select('date, score_weighted')
             .eq('code', code)
             .order('date', { ascending: false })
-            .limit(100);
+            .limit(1000);
 
-        const [jsonResult, dbResult, rsResult] = await Promise.all([jsonPromise, dbPromise, rsPromise]);
-
-        let resultData: any[] = [];
-
-        if (jsonResult.data) {
-            const textData = await jsonResult.data.text();
-            resultData = JSON.parse(textData);
-        }
-
-        const dataMap = new Map();
-        
-        resultData.forEach(item => {
-            if (item.time) {
-                let o = Number(item.open);
-                let h = Number(item.high);
-                let l = Number(item.low);
-                const c = Number(item.close);
-                if (o === 0 && h === 0 && l === 0) { o = c; h = c; l = c; } 
-
-                dataMap.set(item.time, {
-                    ...item,
-                    open: o, high: h, low: l, close: c,
-                    volume: Number(item.volume),
-                    rs: item.rs !== null ? Number(item.rs) : undefined
-                });
-            }
-        });
+        const [dbResult, rsResult] = await Promise.all([dbPromise, rsPromise]);
+        const dataMap = new Map<string, ChartData>();
 
         if (dbResult.data) {
             dbResult.data.forEach(row => {
                 const time = row.date;
                 if (!time) return;
-                const existing = dataMap.get(time) || {};
-                
+
                 let o = Number(row.open);
                 let h = Number(row.high);
                 let l = Number(row.low);
@@ -492,7 +462,7 @@ export default function RsDiscoveryPage() {
                 if (o === 0 && h === 0 && l === 0) { o = c; h = c; l = c; }
 
                 dataMap.set(time, {
-                    ...existing, time,
+                    time,
                     open: o, high: h, low: l, close: c,
                     volume: Number(row.volume)
                 });
@@ -505,7 +475,7 @@ export default function RsDiscoveryPage() {
                 if (!time) return;
                 const existing = dataMap.get(time);
                 if (existing) {
-                    existing.rs = row.rank_weighted;
+                    existing.rs = row.score_weighted;
                     dataMap.set(time, existing);
                 }
             });
@@ -573,17 +543,17 @@ export default function RsDiscoveryPage() {
     }
   };
 
-  useEffect(() => { setCurrentPage(1); setInputPage('1'); }, [currentTab, risingPeriod, fallingPeriod, excludeHighRise, minRs50]);
+  useEffect(() => { setCurrentPage(1); setInputPage('1'); }, [currentTab, risingPeriod, fallingPeriod, excludeHighRise, positiveRsOnly]);
   useEffect(() => {
     let filtered = allRankedStocks;
-    if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
-    if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
-    if (excludeHighRise && currentTab === 'FALLING') filtered = filtered.filter(s => (s.rs_diff || 0) > -90);
+    if (positiveRsOnly) filtered = filtered.filter(s => (s.rs_rating || 0) > 0);
+    if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 0.9);
+    if (excludeHighRise && currentTab === 'FALLING') filtered = filtered.filter(s => (s.rs_diff || 0) > -0.9);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     setDisplayedStocks(filtered.slice(startIndex, endIndex));
     setInputPage(currentPage.toString());
-  }, [allRankedStocks, currentPage, excludeHighRise, minRs50, currentTab]);
+  }, [allRankedStocks, currentPage, excludeHighRise, positiveRsOnly, currentTab]);
 
   useEffect(() => {
     if (currentTab === 'TOP') fetchRankedStocks();
@@ -593,9 +563,9 @@ export default function RsDiscoveryPage() {
 
   const getFilteredCount = () => {
       let filtered = allRankedStocks;
-      if (minRs50) filtered = filtered.filter(s => (s.rs_rating || 0) >= 50);
-      if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 90);
-      if (excludeHighRise && currentTab === 'FALLING') filtered = filtered.filter(s => (s.rs_diff || 0) > -90);
+      if (positiveRsOnly) filtered = filtered.filter(s => (s.rs_rating || 0) > 0);
+      if (excludeHighRise && currentTab === 'RISING') filtered = filtered.filter(s => (s.rs_diff || 0) < 0.9);
+      if (excludeHighRise && currentTab === 'FALLING') filtered = filtered.filter(s => (s.rs_diff || 0) > -0.9);
       return filtered.length;
   };
   const totalPages = Math.ceil(getFilteredCount() / ITEMS_PER_PAGE);
@@ -625,12 +595,12 @@ export default function RsDiscoveryPage() {
                     </div>
                     <div className="flex flex-col gap-1 items-end">
                         {currentTab === 'RISING' && (
-                            <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-red-500"/> 90점↑ 제외</label>
+                            <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-red-500"/> 0.9↑ 제외</label>
                         )}
                         {currentTab === 'FALLING' && (
-                            <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-blue-800"/> 90점↓ 제외</label>
+                            <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={excludeHighRise} onChange={(e) => setExcludeHighRise(e.target.checked)} className="accent-blue-800"/> 0.9↓ 제외</label>
                         )}
-                        <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={minRs50} onChange={(e) => setMinRs50(e.target.checked)} className="accent-blue-500"/> RS 50↑</label>
+                        <label className="flex items-center gap-1 text-[10px] font-semibold text-[var(--text-muted)] cursor-pointer"><input type="checkbox" checked={positiveRsOnly} onChange={(e) => setPositiveRsOnly(e.target.checked)} className="accent-blue-500"/> RS 양수</label>
                     </div>
                 </div>
 
@@ -684,11 +654,11 @@ export default function RsDiscoveryPage() {
                                     <div className="text-[9px] text-[var(--text-subtle)] font-normal">{stock.code}</div>
                                 </td>
                                 {currentTab === 'TOP' ? (
-                                    <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_rating}</td>
+                                    <td className="px-2 py-2 text-right font-bold text-blue-600">{stock.rs_rating.toFixed(2)}</td>
                                 ) : currentTab === 'RISING' ? (
-                                    <td className="px-2 py-2 text-right font-bold text-red-500">+{stock.rs_diff}</td>
+                                    <td className="px-2 py-2 text-right font-bold text-red-500">+{stock.rs_diff?.toFixed(2)}</td>
                                 ) : (
-                                    <td className="px-2 py-2 text-right font-bold text-blue-800">{stock.rs_diff}</td>
+                                    <td className="px-2 py-2 text-right font-bold text-blue-800">{stock.rs_diff?.toFixed(2)}</td>
                                 )}
                                 <td className="px-2 py-2 text-right text-[var(--text-muted)]">
                                     {stock.marcap ? Math.round(stock.marcap / 100000000).toLocaleString() : '-'}

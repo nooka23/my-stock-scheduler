@@ -23,6 +23,7 @@ type ChartData = {
   low: number;
   close: number;
   volume: number;
+  rs?: number;
   ema20?: number;
   wma150?: number;
   keltner?: { upper: number; lower: number; middle: number };
@@ -305,42 +306,35 @@ export default function VolumeDiscoveryPage() {
   const fetchChartData = async (code: string) => {
     setIsChartLoading(true);
     try {
-        const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
-        const dbPromise = supabase.from('daily_prices_v2').select('date, open, high, low, close, volume').eq('code', code).order('date', { ascending: false }).limit(100);
+        const dbPromise = supabase.from('daily_prices_v2').select('date, open, high, low, close, volume').eq('code', code).order('date', { ascending: false }).limit(1000);
         
         // 60일 거래량 순위 지수 데이터 로드
         const volumeRankPromise = supabase.from('trading_value_rankings')
             .select('date, rank_amount_60')
             .eq('code', code)
             .order('date', { ascending: false })
-            .limit(100);
+            .limit(1000);
+        const rsPromise = supabase.from('rs_rankings_v2')
+            .select('date, score_weighted')
+            .eq('code', code)
+            .order('date', { ascending: false })
+            .limit(1000);
 
-        const [jsonResult, dbResult, volumeRankResult] = await Promise.all([jsonPromise, dbPromise, volumeRankPromise]);
+        const [dbResult, volumeRankResult, rsResult] = await Promise.all([
+            dbPromise,
+            volumeRankPromise,
+            rsPromise,
+        ]);
 
-        let resultData: any[] = [];
-        if (jsonResult.data) {
-            const textData = await jsonResult.data.text();
-            resultData = JSON.parse(textData);
-        }
-
-        const dataMap = new Map<string, ChartData>(); 
-        
-        resultData.forEach(item => {
-            if (item.time) {
-                let o = Number(item.open), h = Number(item.high), l = Number(item.low), c = Number(item.close);
-                if (o===0 && h===0 && l===0) { o=c; h=c; l=c; }
-                dataMap.set(item.time, { ...item, open: o, high: h, low: l, close: c, volume: Number(item.volume) });
-            }
-        });
+        const dataMap = new Map<string, ChartData>();
 
         if (dbResult.data) {
             dbResult.data.forEach(row => {
                 const time = row.date;
                 if (!time) return;
-                const existing = dataMap.get(time) || {};
                 let o = Number(row.open), h = Number(row.high), l = Number(row.low), c = Number(row.close);
                 if (o===0 && h===0 && l===0) { o=c; h=c; l=c; }
-                dataMap.set(time, { ...existing, time, open: o, high: h, low: l, close: c, volume: Number(row.volume) });
+                dataMap.set(time, { time, open: o, high: h, low: l, close: c, volume: Number(row.volume) });
             });
         }
 
@@ -351,6 +345,17 @@ export default function VolumeDiscoveryPage() {
                 const existing = dataMap.get(time);
                 if (existing) {
                     dataMap.set(time, { ...existing, volumeRank60: row.rank_amount_60 });
+                }
+            });
+        }
+
+        if (rsResult.data) {
+            rsResult.data.forEach(row => {
+                const time = row.date;
+                if (!time) return;
+                const existing = dataMap.get(time);
+                if (existing) {
+                    dataMap.set(time, { ...existing, rs: row.score_weighted });
                 }
             });
         }

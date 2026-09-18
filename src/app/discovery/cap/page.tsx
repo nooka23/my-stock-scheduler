@@ -39,7 +39,7 @@ type CompanyRow = {
 
 type RsRow = {
   code: string;
-  rank_weighted: number | null;
+  score_weighted: number | null;
 };
 
 type VolumeRow = {
@@ -50,16 +50,6 @@ type VolumeRow = {
 type MarketCapRow = {
   code: string;
   market_cap: number | string | null;
-};
-
-type StoredChartRow = {
-  time?: string;
-  open?: number | string | null;
-  high?: number | string | null;
-  low?: number | string | null;
-  close?: number | string | null;
-  volume?: number | string | null;
-  rs?: number | string | null;
 };
 
 type IndustryThemeRelation = {
@@ -235,7 +225,7 @@ export default function CapDiscoveryPage() {
       const [{ data: rsData, error: rsError }, { data: volumeData, error: volumeError }] = await Promise.all([
         supabase
           .from('rs_rankings_v2')
-          .select('code, rank_weighted')
+          .select('code, score_weighted')
           .eq('date', latestDate)
           .in('code', codes),
         supabase
@@ -249,7 +239,7 @@ export default function CapDiscoveryPage() {
       if (volumeError) throw volumeError;
 
       const rsMap = new Map<string, number | null>();
-      (rsData as RsRow[] | null)?.forEach((item) => rsMap.set(item.code, item.rank_weighted));
+      (rsData as RsRow[] | null)?.forEach((item) => rsMap.set(item.code, item.score_weighted));
 
       const volumeMap = new Map<string, number | null>();
       (volumeData as VolumeRow[] | null)?.forEach((item) => volumeMap.set(item.code, item.volume));
@@ -276,60 +266,26 @@ export default function CapDiscoveryPage() {
   const fetchChartData = async (code: string) => {
     setIsChartLoading(true);
     try {
-      const jsonPromise = supabase.storage.from('stocks').download(`${code}.json?t=${Date.now()}`);
       const dbPromise = supabase
         .from('daily_prices_v2')
         .select('date, open, high, low, close, volume')
         .eq('code', code)
         .order('date', { ascending: false })
-        .limit(100);
+        .limit(1000);
       const rsPromise = supabase
         .from('rs_rankings_v2')
-        .select('date, rank_weighted')
+        .select('date, score_weighted')
         .eq('code', code)
         .order('date', { ascending: false })
-        .limit(100);
+        .limit(1000);
 
-      const [jsonResult, dbResult, rsResult] = await Promise.all([jsonPromise, dbPromise, rsPromise]);
-
-      let resultData: StoredChartRow[] = [];
-      if (jsonResult.data) {
-        const textData = await jsonResult.data.text();
-        resultData = JSON.parse(textData) as StoredChartRow[];
-      }
-
+      const [dbResult, rsResult] = await Promise.all([dbPromise, rsPromise]);
       const dataMap = new Map<string, ChartData>();
-
-      resultData.forEach((item) => {
-        if (!item.time) return;
-
-        let open = Number(item.open);
-        let high = Number(item.high);
-        let low = Number(item.low);
-        const close = Number(item.close);
-
-        if (open === 0 && high === 0 && low === 0) {
-          open = close;
-          high = close;
-          low = close;
-        }
-
-        dataMap.set(item.time, {
-          ...item,
-          open,
-          high,
-          low,
-          close,
-          volume: Number(item.volume),
-          rs: item.rs !== null ? Number(item.rs) : undefined,
-        });
-      });
 
       dbResult.data?.forEach((row) => {
         const time = row.date;
         if (!time) return;
 
-        const existing = dataMap.get(time) || ({} as Partial<ChartData>);
         let open = Number(row.open);
         let high = Number(row.high);
         let low = Number(row.low);
@@ -342,7 +298,6 @@ export default function CapDiscoveryPage() {
         }
 
         dataMap.set(time, {
-          ...existing,
           time,
           open,
           high,
@@ -361,7 +316,7 @@ export default function CapDiscoveryPage() {
 
         dataMap.set(time, {
           ...existing,
-          rs: row.rank_weighted,
+          rs: row.score_weighted,
         });
       });
 
@@ -561,7 +516,7 @@ export default function CapDiscoveryPage() {
                         <div className="text-[9px] text-[var(--text-subtle)] font-normal">{stock.code}</div>
                       </td>
                       <td className="px-2 py-2 text-right font-semibold text-[var(--primary)]">
-                        {stock.rsRating ?? '-'}
+                        {stock.rsRating === null || stock.rsRating === undefined ? '-' : stock.rsRating.toFixed(2)}
                       </td>
                       <td className="px-2 py-2 text-right text-[var(--text-muted)] whitespace-nowrap">
                         {formatMarcap(stock.marcap)}

@@ -93,6 +93,16 @@
 
 이 순서는 `scripts/run_daily_stock_local.sh`와 `launchd/com.myunghoon.my-stock-scheduler.daily-stock.plist`에 반영되어 있다.
 
+미국 보통주 일봉 수집은 한국 파이프라인과 분리된 로컬 LaunchAgent로 실행한다.
+
+- 실행 스크립트: `scripts/run_us_equity_daily_local.sh`
+- LaunchAgent: `launchd/com.myunghoon.my-stock-scheduler.us-equity-daily.plist`
+- 실행 시각: 화~토 06:10 (머신 로컬 시간)
+- 초기 백필: `scripts/collect_us_equity_massive.py --lookback-days 365`
+- 정기 수집: 최근 3일 재조회
+- 저장 위치: `market_data.us_equity_universe`, `market_data.us_daily_prices`
+- 한국 RS 계산에는 포함하지 않는다.
+
 ### 5-3. 스케줄링
 
 macOS `launchd` 기준 `StartCalendarInterval`의 `Weekday 1~5`, `15:35`에 위 배치가 실행되도록 구성되어 있다.
