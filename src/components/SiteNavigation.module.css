@@ -1,0 +1,154 @@
+.header {
+  --nav-ink: #243a32;
+  --nav-green: #176958;
+  --nav-line: #e3e9e3;
+  position: relative;
+  z-index: 30;
+  flex-shrink: 0;
+  width: 100%;
+  background: #fff;
+  border-bottom: 1px solid var(--nav-line);
+  color: var(--nav-ink);
+  container: site-nav / inline-size;
+}
+
+.mobilePreview {
+  max-width: 430px;
+  margin-inline: auto;
+}
+
+.topRow {
+  max-width: 1560px;
+  min-height: 72px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.brandMark {
+  width: 34px;
+  height: 38px;
+  border-radius: 7px;
+  background: var(--nav-ink);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.brandMark svg { width: 25px; height: 25px; }
+.brand strong { display: block; font-size: 18px; letter-spacing: -.6px; font-weight: 650; }
+.brand small { display: block; margin-top: 3px; font-size: 8px; letter-spacing: .11em; color: #829087; }
+
+.desktopNav { display: flex; align-self: stretch; align-items: stretch; gap: 3px; margin-inline: auto; }
+.desktopNav a {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  border-bottom: 3px solid transparent;
+  border-top: 3px solid transparent;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #718076;
+  text-decoration: none;
+}
+.desktopNav a:hover { color: var(--nav-green); background: #f8faf7; }
+.desktopNav a[aria-current=page] { color: var(--nav-green); font-weight: 700; border-bottom-color: var(--nav-green); }
+.desktopActions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.login { font-size: 12px; color: var(--nav-green); padding: 9px 13px; border: 1px solid var(--nav-line); border-radius: 5px; white-space: nowrap; }
+.dropdown { position: relative; }
+.dropdown summary { display: flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; min-height: 40px; padding: 4px 6px; font-size: 12px; color: #758478; }
+.dropdown summary::-webkit-details-marker { display: none; }
+.dropdown[open] summary, .dropdown summary:hover, .dropdown summary.adminActive { color: var(--nav-green); }
+.chevron { font-size: 14px; color: #8c988e; }
+.avatar { width: 30px; height: 30px; border: 1px solid #dbe5dc; display: grid; place-items: center; border-radius: 50%; background: #eef3ea; color: #486349; font-size: 12px; font-weight: 600; }
+.dropdownPanel { position: absolute; right: 0; top: calc(100% + 10px); width: 230px; max-height: calc(100dvh - 100px); overflow: auto; background: #fff; border: 1px solid var(--nav-line); border-radius: 9px; box-shadow: 0 12px 40px #1f35251a; padding: 10px; }
+.dropdownPanel p { margin: 8px 10px 12px; font-family: var(--font-geist-mono), monospace; letter-spacing: .08em; color: #95a090; font-size: 9px; }
+.dropdownPanel a, .dropdownPanel button { display: flex; align-items: center; gap: 10px; text-align: left; width: 100%; padding: 11px 10px; border: 0; background: transparent; border-radius: 4px; font-size: 12px; color: #536852; cursor: pointer; }
+.dropdownPanel a:hover, .dropdownPanel button:hover, .dropdownPanel a[aria-current=page] { background: #eff5ec; color: var(--nav-green); }
+.dropdownPanel a.subLink { padding-left: 36px; font-size: 11px; color: #798770; }
+.accountInfo { display: flex; flex-direction: column; gap: 5px; padding: 12px 10px 16px; margin-bottom: 4px; border-bottom: 1px solid var(--nav-line); overflow-wrap: anywhere; }
+.accountInfo strong { font-size: 13px; }
+.accountInfo small { font-size: 10px; color: #84907b; }
+.subNav { min-height: 43px; display: flex; align-items: center; justify-content: center; gap: 7px; padding: 7px 20px; border-top: 1px solid #f0f3ee; background: #fafbf8; flex-wrap: wrap; }
+.subNav>span { color: #94a089; font-size: 10px; margin-right: 10px; }
+.subNav a { padding: 6px 10px; font-size: 12px; color: #79886d; border-radius: 4px; }
+.subNav a[aria-current=page] { color: var(--nav-green); background: #e9f0e4; font-weight: 600; }
+.mobileNav, .mobilePageName { display: none; }
+
+.menuDialog {
+  position: fixed;
+  inset: 0;
+  width: min(460px, calc(100% - 24px));
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #dbe5d6;
+  border-radius: 14px;
+  background: #fff;
+  color: #243a32;
+  box-shadow: 0 24px 80px #14261d33;
+}
+.menuDialog::backdrop { background: #192a2366; backdrop-filter: blur(3px); }
+.mobilePreview .menuDialog { width: min(406px, calc(100% - 24px)); }
+.menuBody { padding: 26px 22px 18px; }
+.menuHeading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.menuHeading small { font-family: var(--font-geist-mono), monospace; color: #7f927b; letter-spacing: .1em; font-size: 9px; }
+.menuHeading h2 { margin: 6px 0 0; font-size: 24px; letter-spacing: -.8px; font-weight: 600; }
+.menuHeading button { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #e1e8dc; background: #f7f9f3; cursor: pointer; }
+.menuGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.menuGrid a { display: flex; align-items: center; gap: 9px; min-height: 63px; padding: 13px; border: 1px solid #e2e9dc; border-radius: 7px; font-size: 13px; color: #5d7455; }
+.menuGrid a>span:last-child { margin-left: auto; color: #a0ae94; font-size: 11px; }
+.menuGrid a[aria-current=page] { background: #eef5e9; border-color: #b7cbb0; color: #176958; font-weight: 600; }
+.discoveryLinks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 20px 0; }
+.discoveryLinks span { width: 100%; font-size: 10px; color: #8b9a7e; margin-bottom: 3px; }
+.discoveryLinks a { font-size: 12px; color: #657e5b; background: #f3f6ee; padding: 8px 10px; border-radius: 4px; }
+.mobileAdmin { border-top: 1px solid #e3e9dd; padding-top: 18px; margin-bottom: 18px; }
+.mobileAdmin h3 { font-size: 11px; color: #9c967b; font-weight: 500; margin-bottom: 10px; }
+.mobileAdmin>div>a { display: block; font-size: 13px; padding: 12px 0; }
+.mobileAdmin>div>div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #f8f9f3; padding: 6px; border-radius: 5px; }
+.mobileAdmin>div>div a { font-size: 11px; padding: 10px; color: #738268; }
+.mobileAccount { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #e3e9dd; padding-top: 18px; flex-wrap: wrap; }
+.mobileAccount span { font-size: 11px; color: #8a977d; }
+.mobileAccount a, .mobileAccount button { padding: 8px 0; font-size: 12px; color: #176958; border: 0; background: transparent; cursor: pointer; }
+.header a:focus-visible, .header button:focus-visible, .header summary:focus-visible { outline: 2px solid #176958; outline-offset: 3px; }
+
+@container site-nav (max-width: 1250px) {
+  .topRow { padding-inline: 22px; gap: 18px; }
+  .desktopNav a { padding-inline: 10px; font-size: 12px; }
+  .brand small { font-size: 7px; }
+}
+
+@container site-nav (max-width: 1050px) {
+  .topRow { min-height: 59px; padding: 0 20px; justify-content: space-between; }
+  .brand { gap: 9px; }
+  .brandMark { width: 28px; height: 31px; border-radius: 5px; }
+  .brandMark svg { width: 21px; height: 21px; }
+  .brand strong { font-size: 16px; }
+  .brand small { display: none; }
+  .desktopNav, .desktopActions { display: none; }
+  .mobilePageName { display: block; font-size: 11px; color: #758572; }
+  .mobileNav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 12px; gap: 5px; }
+  .mobileNav a, .mobileNav button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 6px 2px 9px; border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 12px; color: #89947e; cursor: pointer; }
+  .mobileNav svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .mobileNav a[aria-current=page], .mobileNav button.moreActive { color: #176958; border-bottom-color: #176958; font-weight: 700; }
+  .subNav { padding: 7px 12px; gap: 3px; }
+  .subNav>span { display: none; }
+  .subNav a { font-size: 11px; padding: 7px 9px; }
+}
+
+@container site-nav (max-width: 370px) {
+  .mobileNav { gap: 0; padding-inline: 8px; }
+  .mobileNav a, .mobileNav button { gap: 4px; font-size: 11px; }
+}

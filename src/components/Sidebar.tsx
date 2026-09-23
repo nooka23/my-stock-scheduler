@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@/lib/supabase-browser';
 import { User } from '@supabase/supabase-js';
+import styles from './SiteNavigation.module.css';
 
 type MyProfile = {
   nickname: string;
@@ -64,6 +65,7 @@ const iconMap = {
 
 const navItems: NavItem[] = [
   { name: '스케줄러', href: '/', icon: 'calendar' },
+  { name: '데일리 리뷰', href: '/daily-review', icon: 'trend' },
   { name: '기업 분석', href: '/chart', icon: 'chart' },
   {
     name: '종목 발굴',
@@ -97,190 +99,168 @@ const adminItems: NavItem[] = [
 ];
 
 const isItemActive = (pathname: string, item: NavItem) =>
-  pathname === item.href || (item.subItems ? pathname.startsWith(item.href) : false);
+  pathname === item.href || (item.href !== '/' && pathname.startsWith(`${item.href}/`));
+
+const destination = (item: NavItem) => item.subItems?.[0].href ?? item.href;
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClientComponentClient();
-
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [isWikiOwner, setIsWikiOwner] = useState(false);
-
-  const authPaths = ['/login', '/forgot-password', '/update-password'];
-  const isAuthPage = authPaths.some((path) => pathname.startsWith(path));
+  const menuRef = useRef<HTMLDialogElement>(null);
+  const adminRef = useRef<HTMLDetailsElement>(null);
+  const accountRef = useRef<HTMLDetailsElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isMobilePreview = pathname === '/daily-review/mobile';
+  const isAuthPage = ['/login', '/forgot-password', '/update-password'].some(path => pathname.startsWith(path));
   const isMobileOnlyPage = pathname === '/m' || pathname.startsWith('/m/');
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        const { data } = await supabase
-          .from('profiles')
-          .select('nickname, is_admin')
-          .eq('id', session.user.id)
-          .single();
-        if (data) setProfile(data as MyProfile);
-        const { data: wikiOwner } = await supabase.rpc('wiki_is_owner');
-        setIsWikiOwner(wikiOwner === true);
-      }
-    };
-    getUser();
-
+    let cancelled = false;
+    let generation = 0;
+    async function loadProfile(currentUser: User | null) {
+      const request = ++generation;
+      setUser(currentUser);
+      setProfile(null);
+      setIsWikiOwner(false);
+      if (!currentUser) return;
+      const [profileResult, ownerResult] = await Promise.all([
+        supabase.from('profiles').select('nickname, is_admin').eq('id', currentUser.id).single(),
+        supabase.rpc('wiki_is_owner'),
+      ]);
+      if (cancelled || generation !== request) return;
+      setProfile(profileResult.data as MyProfile | null);
+      setIsWikiOwner(ownerResult.data === true);
+    }
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        setProfile(null);
-        setIsWikiOwner(false);
-      }
+      // Defer Supabase queries until the auth callback has released its lock.
+      window.setTimeout(() => { if (!cancelled) void loadProfile(session?.user ?? null); }, 0);
     });
-
-    return () => subscription.unsubscribe();
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, [supabase]);
 
-  const handleLogout = async () => {
+  useEffect(() => {
+    function dismiss(event: MouseEvent | KeyboardEvent) {
+      for (const ref of [adminRef, accountRef]) {
+        if (event instanceof KeyboardEvent) {
+          if (event.key === 'Escape' && ref.current?.open) {
+            ref.current.open = false;
+            ref.current.querySelector('summary')?.focus();
+          }
+        } else if (event.target instanceof Node && !ref.current?.contains(event.target) && ref.current) {
+          ref.current.open = false;
+        }
+      }
+    }
+    document.addEventListener('click', dismiss);
+    document.addEventListener('keydown', dismiss);
+    return () => { document.removeEventListener('click', dismiss); document.removeEventListener('keydown', dismiss); };
+  }, []);
+
+  function closeMenus() {
+    menuRef.current?.close();
+    setMenuOpen(false);
+    if (adminRef.current) adminRef.current.open = false;
+    if (accountRef.current) accountRef.current.open = false;
+  }
+
+  function openMenu() {
+    menuRef.current?.showModal();
+    setMenuOpen(true);
+  }
+
+  async function handleLogout() {
+    closeMenus();
     await supabase.auth.signOut();
-    document.cookie.split(';').forEach((c) => {
+    document.cookie.split(';').forEach(c => {
       document.cookie = c.replace(/^ +/, '').replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
     });
     localStorage.clear();
     sessionStorage.clear();
     router.push(`/login?t=${Date.now()}`);
-  };
-
-  const visibleAdminItems = useMemo(() => (profile?.is_admin ? adminItems : []), [profile?.is_admin]);
-
-  const visibleNavItems = useMemo(() => (
-    isWikiOwner ? [...navItems, { name: '개인 위키', href: '/wiki', icon: 'star' as const }] : navItems
-  ), [isWikiOwner]);
-
-  const activeItem = useMemo(() => {
-    return [...visibleNavItems, ...visibleAdminItems].find((item) => isItemActive(pathname, item)) ?? null;
-  }, [pathname, visibleAdminItems, visibleNavItems]);
-
-  if (isAuthPage || isMobileOnlyPage) {
-    return null;
   }
 
+  const visibleNavItems = useMemo(() => isWikiOwner
+    ? [...navItems, { name: '개인 위키', href: '/wiki', icon: 'star' as const }]
+    : navItems, [isWikiOwner]);
+  const visibleAdminItems = profile?.is_admin ? adminItems : [];
+  const activeItem = [...visibleNavItems, ...visibleAdminItems]
+    .sort((a, b) => b.href.length - a.href.length)
+    .find(item => isItemActive(pathname, item));
+  const isAdminSection = pathname.startsWith('/admin');
+  const displayName = profile?.nickname || user?.email?.split('@')[0] || '내 계정';
+
+  if (isAuthPage || isMobileOnlyPage) return null;
+
   return (
-    <header className="border-b border-[var(--border)] bg-[rgba(255,255,255,0.9)] backdrop-blur-md">
-      <div className="flex items-center gap-4 px-4 py-3 lg:px-8">
-        <Link href="/" className="shrink-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">
-            Research OS
-          </p>
-          <div className="mt-1 text-lg font-semibold text-slate-950">My Stock Scheduler</div>
+    <header className={`${styles.header} ${isMobilePreview ? styles.mobilePreview : ''}`}>
+      <div className={styles.topRow}>
+        <Link href="/" className={styles.brand} onClick={closeMenus} aria-label="My Stock Scheduler 홈">
+          <span className={styles.brandMark} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 16V9m7 7V5m7 11v-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M4 20h16" stroke="currentColor" strokeOpacity=".4" /></svg></span>
+          <span><strong>My Stock</strong><small>RESEARCH WORKSPACE</small></span>
         </Link>
 
-        <nav className="min-w-0 flex-1 overflow-x-auto">
-          <ul className="flex min-w-max items-center gap-2">
-            {visibleNavItems.map((item) => {
-              const isActive = isItemActive(pathname, item);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.subItems ? item.subItems[0].href : item.href}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'border-[var(--primary-soft)] bg-[var(--surface-accent)] text-[var(--primary-strong)]'
-                        : 'border-transparent text-[var(--text-muted)] hover:border-[var(--border)] hover:bg-[var(--surface-muted)] hover:text-slate-900'
-                    }`}
-                  >
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                      isActive ? 'bg-white text-[var(--primary-strong)]' : 'bg-[var(--surface-muted)] text-[var(--text-muted)]'
-                    }`}>
-                      {iconMap[item.icon]}
-                    </span>
-                    <span>{item.name}</span>
-                  </Link>
-                </li>
-              );
-            })}
-
-            {visibleAdminItems.length > 0 && (
-              <>
-                <li className="mx-2 h-5 w-px bg-[var(--border)]" />
-                {visibleAdminItems.map((item) => {
-                  const isActive = isItemActive(pathname, item);
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.subItems ? item.subItems[0].href : item.href}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'border-amber-200 bg-amber-50 text-amber-900'
-                            : 'border-transparent text-[var(--text-muted)] hover:border-[var(--border)] hover:bg-[var(--surface-muted)] hover:text-slate-900'
-                        }`}
-                      >
-                        <span className={`flex h-7 w-7 items-center justify-center rounded-full ${
-                          isActive ? 'bg-white text-amber-700' : 'bg-[var(--surface-muted)] text-[var(--text-muted)]'
-                        }`}>
-                          {iconMap[item.icon]}
-                        </span>
-                        <span>{item.name}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </>
-            )}
-          </ul>
+        <nav className={styles.desktopNav} aria-label="주 메뉴">
+          {visibleNavItems.map(item => (
+            <Link key={item.href} href={destination(item)} onClick={closeMenus} aria-current={isItemActive(pathname, item) ? 'page' : undefined}>
+              {item.name}
+            </Link>
+          ))}
         </nav>
 
-        {user && (
-          <div className="hidden shrink-0 items-center gap-3 lg:flex">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
-              {profile?.nickname?.[0] || user.email?.[0]?.toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">
-                {profile?.nickname || user.email?.split('@')[0]}
-              </p>
-              <p className="truncate text-xs text-[var(--text-muted)]">{user.email}</p>
-            </div>
-            <button
-              onClick={() => router.push('/update-password')}
-              className="rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-muted)] transition-colors hover:border-[var(--primary-soft)] hover:bg-[var(--surface-accent)] hover:text-[var(--primary-strong)]"
-            >
-              비밀번호 변경
-            </button>
-            <button
-              onClick={handleLogout}
-              className="rounded-full border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--text-muted)] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-            >
-              로그아웃
-            </button>
-          </div>
-        )}
+        <div className={styles.desktopActions}>
+          {visibleAdminItems.length > 0 && (
+            <details ref={adminRef} className={styles.dropdown}>
+              <summary className={isAdminSection ? styles.adminActive : ''}>{iconMap.settings}<span>관리</span><span className={styles.chevron}>⌄</span></summary>
+              <nav className={styles.dropdownPanel} aria-label="관리자 메뉴">
+                <p>ADMIN WORKSPACE</p>
+                {visibleAdminItems.map(item => (
+                  <div key={item.href}>
+                    <Link href={destination(item)} onClick={closeMenus} aria-current={isItemActive(pathname, item) ? 'page' : undefined}>{iconMap[item.icon]}{item.name}</Link>
+                    {item.subItems?.map(sub => <Link key={sub.href} className={styles.subLink} href={sub.href} onClick={closeMenus} aria-current={pathname === sub.href ? 'page' : undefined}>{sub.name}</Link>)}
+                  </div>
+                ))}
+              </nav>
+            </details>
+          )}
+          {user ? (
+            <details ref={accountRef} className={styles.dropdown}>
+              <summary aria-label="내 계정 메뉴"><span className={styles.avatar}>{displayName[0].toUpperCase()}</span><span className={styles.chevron}>⌄</span></summary>
+              <div className={styles.dropdownPanel}>
+                <div className={styles.accountInfo}><strong>{displayName}</strong><small>{user.email}</small></div>
+                <Link href="/update-password" onClick={closeMenus}>비밀번호 변경</Link>
+                <button type="button" onClick={handleLogout}>로그아웃</button>
+              </div>
+            </details>
+          ) : <Link href="/login" className={styles.login}>로그인 ↗</Link>}
+        </div>
+        <span className={styles.mobilePageName}>{activeItem?.name ?? 'My Stock'}</span>
       </div>
 
-      {activeItem?.subItems && (
-        <div className="border-t border-[var(--border)] bg-[rgba(248,250,252,0.92)] px-4 py-2 lg:px-8">
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-subtle)]">
-              {activeItem.name}
-            </span>
-            {activeItem.subItems.map((sub) => {
-              const isSubActive = pathname === sub.href;
-              return (
-                <Link
-                  key={sub.href}
-                  href={sub.href}
-                  className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    isSubActive
-                      ? 'bg-white text-[var(--primary-strong)] shadow-[var(--shadow-sm)]'
-                      : 'text-[var(--text-muted)] hover:bg-white hover:text-slate-900'
-                  }`}
-                >
-                  {sub.name}
-                </Link>
-              );
-            })}
-          </div>
+      <nav className={styles.mobileNav} aria-label="모바일 주 메뉴">
+        {navItems.slice(0, 3).map(item => <Link key={item.href} href={destination(item)} onClick={closeMenus} aria-current={isItemActive(pathname, item) ? 'page' : undefined}>{iconMap[item.icon]}<span>{item.name}</span></Link>)}
+        <button type="button" ref={menuButtonRef} aria-haspopup="dialog" aria-controls="site-navigation-menu" aria-expanded={menuOpen} onClick={openMenu} className={activeItem && !navItems.slice(0, 3).includes(activeItem) ? styles.moreActive : ''}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14" /></svg><span>전체 메뉴</span>
+        </button>
+      </nav>
+
+      {activeItem?.subItems && <nav className={styles.subNav} aria-label={`${activeItem.name} 하위 메뉴`}><span>{activeItem.name}</span>{activeItem.subItems.map(sub => <Link key={sub.href} href={sub.href} aria-current={pathname === sub.href ? 'page' : undefined} onClick={closeMenus}>{sub.name}</Link>)}</nav>}
+
+      <dialog ref={menuRef} id="site-navigation-menu" className={styles.menuDialog} aria-labelledby="site-menu-title" onClose={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }} onClick={event => { if (event.target === event.currentTarget) closeMenus(); }}>
+        <div className={styles.menuBody}>
+          <div className={styles.menuHeading}><div><small>MY STOCK WORKSPACE</small><h2 id="site-menu-title">전체 메뉴</h2></div><button type="button" aria-label="전체 메뉴 닫기" onClick={closeMenus}>✕</button></div>
+          <nav className={styles.menuGrid} aria-label="전체 서비스">
+            {visibleNavItems.map(item => <Link key={item.href} href={destination(item)} onClick={closeMenus} aria-current={isItemActive(pathname, item) ? 'page' : undefined}>{iconMap[item.icon]}<span>{item.name}</span><span aria-hidden="true">↗</span></Link>)}
+          </nav>
+          <div className={styles.discoveryLinks}><span>종목 발굴</span>{navItems.find(item => item.href === '/discovery')?.subItems?.map(sub => <Link key={sub.href} href={sub.href} onClick={closeMenus}>{sub.name}</Link>)}</div>
+          {visibleAdminItems.length > 0 && <nav className={styles.mobileAdmin} aria-label="모바일 관리자 메뉴"><h3>관리자 작업공간</h3>{visibleAdminItems.map(item => <div key={item.href}><Link href={destination(item)} onClick={closeMenus}>{item.name} ↗</Link>{item.subItems && <div>{item.subItems.map(sub => <Link key={sub.href} href={sub.href} onClick={closeMenus}>{sub.name}</Link>)}</div>}</div>)}</nav>}
+          <div className={styles.mobileAccount}>{user ? <><span>{displayName}</span><Link href="/update-password" onClick={closeMenus}>비밀번호 변경</Link><button type="button" onClick={handleLogout}>로그아웃</button></> : <><span>계정으로 이어서 사용하세요</span><Link href="/login" onClick={closeMenus}>로그인 ↗</Link></>}</div>
         </div>
-      )}
+      </dialog>
     </header>
   );
 }

@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} app-shell antialiased flex h-screen flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]`}
+        className={`${geistSans.variable} ${geistMono.variable} app-shell antialiased flex h-dvh flex-col overflow-hidden bg-[var(--background)] text-[var(--foreground)]`}
       >
         <Sidebar />
         <div className="relative flex flex-1 flex-col overflow-hidden">

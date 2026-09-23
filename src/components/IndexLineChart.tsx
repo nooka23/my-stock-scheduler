@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { createChart, ColorType, LineSeries } from 'lightweight-charts';
+import { createChart, ColorType, LineSeries, type ISeriesApi, type Time } from 'lightweight-charts';
 
 type ChartPoint = {
   time: string;
@@ -11,6 +11,7 @@ type ChartPoint = {
 type Props = {
   data: ChartPoint[];
   wmaPeriod?: number;
+  pricePrecision?: number;
 };
 
 const buildWma = (data: ChartPoint[], period: number) => {
@@ -31,11 +32,11 @@ const buildWma = (data: ChartPoint[], period: number) => {
   return result;
 };
 
-export default function IndexLineChart({ data, wmaPeriod = 150 }: Props) {
+export default function IndexLineChart({ data, wmaPeriod = 150, pricePrecision }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
-  const seriesRef = useRef<any>(null);
-  const wmaRef = useRef<any>(null);
+  const seriesRef = useRef<ISeriesApi<'Line', Time> | null>(null);
+  const wmaRef = useRef<ISeriesApi<'Line', Time> | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -90,9 +91,14 @@ export default function IndexLineChart({ data, wmaPeriod = 150 }: Props) {
 
   useEffect(() => {
     if (!seriesRef.current || !chartRef.current) return;
+    if (pricePrecision !== undefined) {
+      seriesRef.current.applyOptions({
+        priceFormat: { type: 'price', precision: pricePrecision, minMove: 10 ** -pricePrecision },
+      });
+    }
     seriesRef.current.setData(
       data.map(item => ({
-        time: item.time as any,
+        time: item.time as Time,
         value: Number(item.value)
       }))
     );
@@ -101,14 +107,14 @@ export default function IndexLineChart({ data, wmaPeriod = 150 }: Props) {
       const wmaData = buildWma(data, wmaPeriod);
       wmaRef.current.setData(
         wmaData.map(item => ({
-          time: item.time as any,
+          time: item.time as Time,
           value: Number(item.value)
         }))
       );
     }
 
     chartRef.current.timeScale().fitContent();
-  }, [data, wmaPeriod]);
+  }, [data, wmaPeriod, pricePrecision]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
