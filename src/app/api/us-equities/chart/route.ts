@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       .from('us_daily_prices')
       .select('trade_date, open, high, low, close, volume, vwap, change, change_pct')
       .eq('ticker', ticker)
-      .eq('source', 'MASSIVE_GROUPED_DAILY')
+      .eq('source', 'KIS_OVERSEAS_DAILYPRICE')
       .order('trade_date', { ascending: false })
       .limit(limit);
 

@@ -34,6 +34,10 @@ if [[ ! -f "$PROJECT_DIR/.env.local" ]]; then
 fi
 
 log "Job started"
-log "Collecting the active US common-stock universe and the latest 3 calendar days"
-"$PYTHON_BIN" scripts/collect_us_equity_massive.py --lookback-days 3
+# At 06:10 KST the prior Korean calendar date is the intended US session date
+# in both EDT and EST. KIS supplies the latest available rows on holidays.
+log "Collecting the latest closed US session via KIS"
+"$PYTHON_BIN" scripts/collect_us_equity_kis.py
+log "Calculating separate US RS rankings"
+"$PYTHON_BIN" scripts/calculate_us_rs.py
 log "Job completed"

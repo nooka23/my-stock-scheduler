@@ -6,7 +6,7 @@ runs should use a short lookback such as 3 days to repair weekends, holidays,
 and late corrections without reloading the whole year.
 
 Examples:
-    python scripts/collect_us_equity_massive.py --dry-run --lookback-days 3
+    python scripts/collect_us_equity_massive.py --dry-run --lookback-days 7
     python scripts/collect_us_equity_massive.py --lookback-days 365
 """
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -39,6 +40,10 @@ SOURCE = "MASSIVE_GROUPED_DAILY"
 PIPELINE_KEY = "us_equity_daily_prices"
 PROVIDER = "MASSIVE"
 ALLOWED_EXCHANGES = {"XNAS", "XNYS", "XASE"}
+NON_COMMON_SECURITY_NAME_RE = re.compile(
+    r"\b(?:NOTES?|RIGHTS?|WARRANTS?|UNITS?|PREFERRED|DEPOSITARY|DEBENTURES?)\b",
+    re.IGNORECASE,
+)
 
 CONNECT_TIMEOUT_SECONDS = 5
 READ_TIMEOUT_SECONDS = 30
@@ -144,8 +149,25 @@ def as_number(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def is_likely_common_stock(item: dict[str, Any]) -> bool:
+    """Keep equity shares while excluding debt, rights, units, and preferreds.
+
+    Massive's ``type=CS`` is broader than the common-stock universe needed by
+    this project and can include notes or rights. The name heuristic is a
+    defensive second filter; class A/B ordinary shares remain eligible.
+    """
+
+    name = str(item.get("name") or "").strip()
+    return not NON_COMMON_SECURITY_NAME_RE.search(name)
+
+
 def current_us_date() -> date:
     return datetime.now(ZoneInfo("America/New_York")).date()
+
+
+def latest_completed_us_date() -> date:
+    """Return a date that is no longer the current US calendar date."""
+    return current_us_date() - timedelta(days=1)
 
 
 def normalize_next_url(next_url: str, api_key: str) -> tuple[str, dict[str, str]]:
@@ -186,6 +208,7 @@ def fetch_common_stock_universe(client: MassiveClient) -> list[dict[str, Any]]:
                 and market == "stocks"
                 and security_type == "CS"
                 and exchange in ALLOWED_EXCHANGES
+                and is_likely_common_stock(item)
             ):
                 collected[ticker] = item
 
@@ -384,8 +407,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--end-date",
         type=lambda value: datetime.strptime(value, "%Y-%m-%d").date(),
-        default=current_us_date(),
-        help="US trade date to finish at, YYYY-MM-DD.",
+        default=latest_completed_us_date(),
+        help="Completed US calendar date to finish at, YYYY-MM-DD. Defaults to yesterday in New York.",
     )
     parser.add_argument("--dry-run", action="store_true")
     return parser

@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import time
 from datetime import datetime, timedelta
 
@@ -15,6 +14,7 @@ if SCRIPT_DIR not in sys.path:
     sys.path.append(SCRIPT_DIR)
 
 import kis_master_loader  # noqa: E402
+from kis_token_cache import KisTokenManager  # noqa: E402
 
 
 load_dotenv(".env.local")
@@ -36,10 +36,20 @@ if not APP_KEY or not APP_SECRET:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 KIS_BASE_URL = "https://openapi.koreainvestment.com:9443"
-TOKEN_MIN_INTERVAL_SEC = 300
 API_MIN_INTERVAL_SEC = 0.11
+API_CONNECT_TIMEOUT_SEC = 5
+API_READ_TIMEOUT_SEC = 20
+API_MAX_ATTEMPTS = 3
 
 TOKEN_ERROR_CODES = {"EGW00123", "EGW00124", "EGW00125"}
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+ADJUSTMENT_DIFF_THRESHOLD = 0.01
+ADJUSTMENT_CHECK_LOOKBACK_DAYS = (60, 120, 252, 504, 756)
+ADJUSTMENT_CHECK_WINDOW_DAYS = 5
+RUN_HISTORICAL_ADJUSTMENT_CHECK = (
+    os.environ.get("RUN_HISTORICAL_ADJUSTMENT_CHECK", "").strip().lower()
+    in {"1", "true", "yes"}
+)
 
 
 class RateLimiter:
@@ -55,70 +65,60 @@ class RateLimiter:
         self._last_call = time.monotonic()
 
 
-class TokenManager:
-    def __init__(self):
-        self._token = None
-        self._issued_at = 0.0
-
-    def get_token(self) -> str:
-        if self._token:
-            return self._token
-        return self._issue_token()
-
-    def refresh_token(self) -> str:
-        return self._issue_token()
-
-    def _issue_token(self) -> str:
-        now = time.monotonic()
-        elapsed = now - self._issued_at
-        if self._issued_at and elapsed < TOKEN_MIN_INTERVAL_SEC:
-            wait_for = TOKEN_MIN_INTERVAL_SEC - elapsed
-            print(f"Waiting {wait_for:.1f}s before requesting a new token...")
-            time.sleep(wait_for)
-
-        token_url = f"{KIS_BASE_URL}/oauth2/tokenP"
-        headers = {"content-type": "application/json"}
-        body = {
-            "grant_type": "client_credentials",
-            "appkey": APP_KEY,
-            "appsecret": APP_SECRET,
-        }
-
-        response = requests.post(token_url, headers=headers, data=json.dumps(body))
-        response.raise_for_status()
-        data = response.json()
-
-        token = data.get("access_token")
-        if not token:
-            raise RuntimeError(f"Failed to issue token: {data}")
-
-        self._token = token
-        self._issued_at = time.monotonic()
-        return token
-
-
 rate_limiter = RateLimiter(API_MIN_INTERVAL_SEC)
-token_manager = TokenManager()
+http_session = requests.Session()
+token_manager = KisTokenManager(
+    APP_KEY,
+    APP_SECRET,
+    session=http_session,
+    timeout=(API_CONNECT_TIMEOUT_SEC, API_READ_TIMEOUT_SEC),
+)
 
 
 def kis_request(method: str, path: str, headers: dict, params: dict | None = None) -> dict:
     url = f"{KIS_BASE_URL}{path}"
-    for attempt in range(2):
+    for attempt in range(API_MAX_ATTEMPTS):
         token = token_manager.get_token()
         req_headers = headers.copy()
         req_headers["authorization"] = f"Bearer {token}"
 
         rate_limiter.wait()
-        response = requests.request(method, url, headers=req_headers, params=params)
+        try:
+            response = http_session.request(
+                method,
+                url,
+                headers=req_headers,
+                params=params,
+                timeout=(API_CONNECT_TIMEOUT_SEC, API_READ_TIMEOUT_SEC),
+            )
+        except requests.RequestException as exc:
+            if attempt == API_MAX_ATTEMPTS - 1:
+                raise
+            wait_for = 2 ** attempt
+            print(f"  KIS request failed ({exc}); retrying in {wait_for}s...")
+            time.sleep(wait_for)
+            continue
 
         if response.status_code == 401:
             token_manager.refresh_token()
             continue
 
+        if response.status_code in RETRYABLE_STATUS_CODES:
+            if attempt == API_MAX_ATTEMPTS - 1:
+                response.raise_for_status()
+            wait_for = 2 ** attempt
+            print(
+                f"  KIS HTTP {response.status_code}; retrying in {wait_for}s..."
+            )
+            time.sleep(wait_for)
+            continue
+
+        response.raise_for_status()
+
         data = response.json()
         if data.get("rt_cd") != "0":
             msg_cd = data.get("msg_cd")
-            if msg_cd in TOKEN_ERROR_CODES and attempt == 0:
+            if msg_cd in TOKEN_ERROR_CODES and attempt < API_MAX_ATTEMPTS - 1:
                 token_manager.refresh_token()
                 continue
 
@@ -223,6 +223,76 @@ def fetch_kis_daily_series(code: str, start_date: str, end_date: str) -> dict:
     return results
 
 
+def kis_rows_by_date(rows: list[dict]) -> dict:
+    results = {}
+    for item in rows:
+        date_str = item.get("stck_bsop_date", "")
+        if not date_str:
+            continue
+
+        formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+        results[formatted_date] = item
+
+    return results
+
+
+def price_changed(db_close: float, kis_close: float) -> bool:
+    if not db_close:
+        return False
+    return abs(kis_close - db_close) / db_close > ADJUSTMENT_DIFF_THRESHOLD
+
+
+def fetch_adjustment_sample_rows(code: str, today_dt: datetime) -> tuple[dict, int]:
+    sample_rows = {}
+    fetched_ranges = set()
+
+    for lookback_days in ADJUSTMENT_CHECK_LOOKBACK_DAYS:
+        anchor = today_dt - timedelta(days=lookback_days)
+        start_dt = anchor - timedelta(days=ADJUSTMENT_CHECK_WINDOW_DAYS)
+        end_dt = min(anchor + timedelta(days=ADJUSTMENT_CHECK_WINDOW_DAYS), today_dt)
+        range_key = (start_dt.strftime("%Y%m%d"), end_dt.strftime("%Y%m%d"))
+
+        if range_key in fetched_ranges:
+            continue
+
+        fetched_ranges.add(range_key)
+        rows = get_kis_daily_ohlcv(code, range_key[0], range_key[1])
+        sample_rows.update(kis_rows_by_date(rows))
+
+    return sample_rows, len(fetched_ranges)
+
+
+def detect_historical_adjustment(code: str, name: str, today_dt: datetime) -> tuple[bool, int]:
+    sample_by_date, api_calls = fetch_adjustment_sample_rows(code, today_dt)
+    if not sample_by_date:
+        return False, api_calls
+
+    sample_dates = sorted(sample_by_date.keys())
+    res = (
+        supabase.table("daily_prices_v2")
+        .select("date, close")
+        .eq("code", code)
+        .in_("date", sample_dates)
+        .execute()
+    )
+
+    db_by_date = {row["date"]: float(row["close"]) for row in (res.data or [])}
+    for date_str, item in sample_by_date.items():
+        db_close = db_by_date.get(date_str)
+        if db_close is None:
+            continue
+
+        kis_close = float(item.get("stck_clpr", 0) or 0)
+        if price_changed(db_close, kis_close):
+            print(
+                f"  Historical adjustment detected for {name}({code}) "
+                f"on {date_str}: DB={db_close:g}, KIS={kis_close:g}"
+            )
+            return True, api_calls
+
+    return False, api_calls
+
+
 def normalize_kis_row(item: dict) -> dict:
     return {
         "open": int(item.get("stck_oprc", 0) or 0),
@@ -258,11 +328,11 @@ def with_market_cap(record: dict, market_cap: float | None) -> dict:
     return enriched
 
 
-def update_indices() -> None:
+def update_indices(as_of_dt: datetime) -> None:
     print("\nUpdating indices with KIS data...")
 
-    start_date = (datetime.now() - timedelta(days=730)).strftime("%Y%m%d")
-    end_date = datetime.now().strftime("%Y%m%d")
+    start_date = (as_of_dt - timedelta(days=730)).strftime("%Y%m%d")
+    end_date = as_of_dt.strftime("%Y%m%d")
 
     indices = [
         {"kis_code": "0001", "code": "KOSPI", "name": "KOSPI"},
@@ -317,10 +387,27 @@ def update_indices() -> None:
         print(f"    Uploaded {len(upload_list)} rows.")
 
 
-def main() -> None:
-    print("Starting update_today_v3 (KIS-only data)...")
+def parse_as_of_date() -> datetime:
+    value = os.environ.get("UPDATE_AS_OF_DATE", "").strip()
+    if not value:
+        return datetime.now()
 
-    update_indices()
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("UPDATE_AS_OF_DATE must use YYYY-MM-DD format") from exc
+
+
+def main() -> None:
+    as_of_dt = parse_as_of_date()
+    print("Starting update_today_v3 (KIS-only data)...")
+    print(f"As-of date: {as_of_dt.strftime('%Y-%m-%d')}")
+    print(
+        "Historical adjustment audit: "
+        f"{'enabled for RS-eligible stocks' if RUN_HISTORICAL_ADJUSTMENT_CHECK else 'disabled'}"
+    )
+
+    update_indices(as_of_dt)
 
     print("\nLoading stock master from KIS...")
     stocks_df = kis_master_loader.get_all_stocks()
@@ -349,13 +436,14 @@ def main() -> None:
         chunk = company_upload_list[i : i + 1000]
         supabase.table("companies").upsert(chunk).execute()
 
-    today = datetime.now().strftime("%Y%m%d")
-    check_start_date = (datetime.now() - timedelta(days=3)).strftime("%Y%m%d")
+    today = as_of_dt.strftime("%Y%m%d")
+    check_start_date = (as_of_dt - timedelta(days=7)).strftime("%Y%m%d")
     full_start_date = "20150101"
 
     success_count = 0
     updated_count = 0
     api_call_count = 0
+    started_at = time.monotonic()
 
     print("Fetching latest data snapshot from DB...")
     db_latest_data = {}
@@ -378,9 +466,15 @@ def main() -> None:
         fallback_market_cap = parse_market_cap(stock)
 
         if idx % 50 == 0:
+            elapsed = time.monotonic() - started_at
+            processed = max(idx, 1)
+            seconds_per_stock = elapsed / processed
+            eta_seconds = seconds_per_stock * (len(target_stocks) - idx)
             print(
                 f"[{idx + 1}/{len(target_stocks)}] {name}({code}) "
-                f"(API calls: {api_call_count})"
+                f"(API calls: {api_call_count}, "
+                f"avg: {seconds_per_stock:.2f}s/stock, "
+                f"ETA: {timedelta(seconds=int(eta_seconds))})"
             )
 
         try:
@@ -403,12 +497,7 @@ def main() -> None:
             if not recent_rows:
                 continue
 
-            recent_by_date = {}
-            for item in recent_rows:
-                date_str = item.get("stck_bsop_date", "")
-                if date_str:
-                    formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
-                    recent_by_date[formatted_date] = item
+            recent_by_date = kis_rows_by_date(recent_rows)
 
             need_full_reload = False
 
@@ -417,20 +506,34 @@ def main() -> None:
                 db_close = float(db_last_data["close"])
                 if db_date_str in recent_by_date:
                     kis_close = float(recent_by_date[db_date_str].get("stck_clpr", 0) or 0)
-                    if db_close and abs(kis_close - db_close) / db_close > 0.01:
+                    if price_changed(db_close, kis_close):
                         print(f"  Adjustment detected for {name}({code}), reloading full data.")
                         need_full_reload = True
             else:
                 need_full_reload = True
 
-            quote = get_kis_current_quote(code)
-            api_call_count += 1
-            current_market_cap = parse_current_market_cap(quote)
-            if current_market_cap is None:
-                current_market_cap = fallback_market_cap
+            if (
+                RUN_HISTORICAL_ADJUSTMENT_CHECK
+                and bool(stock["IsRsEligible"])
+                and db_last_data
+                and not need_full_reload
+            ):
+                need_full_reload, sample_api_calls = detect_historical_adjustment(
+                    code,
+                    name,
+                    as_of_dt,
+                )
+                api_call_count += sample_api_calls
+
+            current_market_cap = fallback_market_cap
 
             if need_full_reload:
                 updated_count += 1
+                if current_market_cap is None:
+                    quote = get_kis_current_quote(code)
+                    api_call_count += 1
+                    current_market_cap = parse_current_market_cap(quote)
+
                 full_series = fetch_kis_daily_series(code, full_start_date, today)
                 api_call_count += max(1, len(full_series) // 100)
 
@@ -477,6 +580,11 @@ def main() -> None:
 
                 if not new_rows:
                     continue
+
+                if current_market_cap is None:
+                    quote = get_kis_current_quote(code)
+                    api_call_count += 1
+                    current_market_cap = parse_current_market_cap(quote)
 
                 upload_list = []
                 for date_str, item in new_rows.items():

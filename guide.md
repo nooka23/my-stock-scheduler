@@ -97,9 +97,10 @@
 
 - 실행 스크립트: `scripts/run_us_equity_daily_local.sh`
 - LaunchAgent: `launchd/com.myunghoon.my-stock-scheduler.us-equity-daily.plist`
-- 실행 시각: 화~토 06:10 (머신 로컬 시간)
-- 초기 백필: `scripts/collect_us_equity_massive.py --lookback-days 365`
-- 정기 수집: 최근 3일 재조회
+- 실행 시각: 화~토 06:10 (한국시간으로 설정된 로컬 PC, 수집 시작 시각)
+- 초기 백필: `scripts/collect_us_equity_kis.py --lookback-days 730` (KIS 2년 페이지네이션)
+- 정기 수집: KIS로 한국 날짜의 전날 미국 보통주 일봉을 수집한다. 미국 서머타임 중에는 장 종료 후 약 70분, 겨울에는 장 종료 후 10분이므로 06:10은 연중 안전한 단일 시각이다.
+- KIS 토큰: 미국 06:10 작업과 한국 15:35 작업이 로컬 파일 캐시를 공유한다. 유효한 토큰이 있으면 토큰 발급 API를 다시 호출하지 않는다.
 - 저장 위치: `market_data.us_equity_universe`, `market_data.us_daily_prices`
 - 한국 RS 계산에는 포함하지 않는다.
 
