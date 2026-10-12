@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "timezone": "Asia/Seoul",
+  "collection_times": [
+    "06:00",
+    "16:00"
+  ],
+  "replay_days": 7,
+  "user_id": null,
+  "accounts": [
+    {
+      "alias": "namuh-general",
+      "label": "나무 일반",
+      "broker": "NAMUH",
+      "enabled": true,
+      "account_type": "GENERAL",
+      "markets": [
+        "KR",
+        "US"
+      ]
+    },
+    {
+      "alias": "namuh-isa",
+      "label": "나무 ISA",
+      "broker": "NAMUH",
+      "enabled": false,
+      "account_type": "ISA",
+      "markets": [
+        "KR"
+      ]
+    },
+    {
+      "alias": "kiwoom-main",
+      "label": "키움",
+      "broker": "KIWOOM",
+      "enabled": false,
+      "account_type": "UNCONFIRMED",
+      "markets": [
+        "KR",
+        "US"
+      ]
+    }
+  ]
+}
