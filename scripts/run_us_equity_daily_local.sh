@@ -40,4 +40,6 @@ log "Collecting the latest closed US session via KIS"
 "$PYTHON_BIN" scripts/collect_us_equity_kis.py
 log "Calculating separate US RS rankings"
 "$PYTHON_BIN" scripts/calculate_us_rs.py
+log "Collecting today's US market-cap snapshots via KIS"
+"$PYTHON_BIN" scripts/collect_us_market_caps.py
 log "Job completed"

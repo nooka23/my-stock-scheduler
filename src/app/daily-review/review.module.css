@@ -1275,3 +1275,26 @@
   .instrumentList button>span { white-space: normal; font-size: 11px; line-height: 1.6; }
   .checkLabel { min-height: 28px; }
 }
+
+/* Date selection for observed daily market data. */
+.dateControl input[type="date"] {
+  max-width: 100%;
+  border: 1px solid #d8e2dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #203c32;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.newsExplanation {
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #cbd8cc;
+  font-size: 13px;
+  line-height: 1.85;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.newsExplanation > strong { display: block; margin-bottom: 8px; }
+.newsExplanation p + p { margin-top: 10px; }

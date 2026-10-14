@@ -1,0 +1,426 @@
+[
+  {
+    "code": "CPIAUCSL",
+    "name": "CPI 계절조정",
+    "group": "물가",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "inflation"
+  },
+  {
+    "code": "CPIAUCNS",
+    "name": "CPI 비계절조정",
+    "group": "물가",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "inflation"
+  },
+  {
+    "code": "CPILFESL",
+    "name": "근원 CPI 계절조정",
+    "group": "물가",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "inflation"
+  },
+  {
+    "code": "CPILFENS",
+    "name": "근원 CPI 비계절조정",
+    "group": "물가",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "inflation"
+  },
+  {
+    "code": "PCEPI",
+    "name": "PCE 물가지수",
+    "group": "물가",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "inflation"
+  },
+  {
+    "code": "PCEPILFE",
+    "name": "근원 PCE 물가지수",
+    "group": "물가",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "inflation"
+  },
+  {
+    "code": "PAYEMS",
+    "name": "비농업 고용",
+    "group": "고용",
+    "frequency": "monthly",
+    "unit": "천 명",
+    "transform": "level"
+  },
+  {
+    "code": "UNRATE",
+    "name": "실업률",
+    "group": "고용",
+    "frequency": "monthly",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "CES0500000003",
+    "name": "민간 시간당 평균임금",
+    "group": "고용",
+    "frequency": "monthly",
+    "unit": "USD/시간",
+    "transform": "level"
+  },
+  {
+    "code": "JTSJOL",
+    "name": "구인 건수",
+    "group": "고용",
+    "frequency": "monthly",
+    "unit": "천 건",
+    "transform": "level"
+  },
+  {
+    "code": "JTSQUR",
+    "name": "자발적 퇴사율",
+    "group": "고용",
+    "frequency": "monthly",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "ICSA",
+    "name": "신규 실업수당",
+    "group": "고용",
+    "frequency": "weekly",
+    "unit": "명",
+    "transform": "level"
+  },
+  {
+    "code": "CCSA",
+    "name": "계속 실업수당",
+    "group": "고용",
+    "frequency": "weekly",
+    "unit": "명",
+    "transform": "level"
+  },
+  {
+    "code": "RSAFS",
+    "name": "소매판매",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "백만 USD",
+    "transform": "level"
+  },
+  {
+    "code": "PCECC96",
+    "name": "실질 개인소비지출",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "십억 연율 USD",
+    "transform": "level"
+  },
+  {
+    "code": "INDPRO",
+    "name": "산업생산",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "level"
+  },
+  {
+    "code": "TCU",
+    "name": "설비가동률",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "HOUST",
+    "name": "주택착공",
+    "group": "주택",
+    "frequency": "monthly",
+    "unit": "천 호 · 연율",
+    "transform": "level"
+  },
+  {
+    "code": "PERMIT",
+    "name": "건축허가",
+    "group": "주택",
+    "frequency": "monthly",
+    "unit": "천 호 · 연율",
+    "transform": "level"
+  },
+  {
+    "code": "MORTGAGE30US",
+    "name": "30년 고정 주택담보대출금리",
+    "group": "주택",
+    "frequency": "weekly",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "GDPC1",
+    "name": "실질 GDP",
+    "group": "경기·심리",
+    "frequency": "quarterly",
+    "unit": "십억 연율 USD",
+    "transform": "gdp"
+  },
+  {
+    "code": "GDP",
+    "name": "명목 GDP",
+    "group": "경기·심리",
+    "frequency": "quarterly",
+    "unit": "십억 연율 USD",
+    "transform": "level"
+  },
+  {
+    "code": "UMCSENT",
+    "name": "미시간대 소비자심리",
+    "group": "경기·심리",
+    "frequency": "monthly",
+    "unit": "지수",
+    "transform": "level"
+  },
+  {
+    "code": "MICH",
+    "name": "미시간대 1년 기대인플레이션",
+    "group": "경기·심리",
+    "frequency": "monthly",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS1MO",
+    "name": "미국 국채 1개월",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS3MO",
+    "name": "미국 국채 3개월",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS6MO",
+    "name": "미국 국채 6개월",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS1",
+    "name": "미국 국채 1년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS2",
+    "name": "미국 국채 2년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS3",
+    "name": "미국 국채 3년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS5",
+    "name": "미국 국채 5년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS7",
+    "name": "미국 국채 7년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS10",
+    "name": "미국 국채 10년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS20",
+    "name": "미국 국채 20년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DGS30",
+    "name": "미국 국채 30년",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "T10Y2Y",
+    "name": "10년–2년 금리차",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "T10Y3M",
+    "name": "10년–3개월 금리차",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DFII5",
+    "name": "5년 실질금리",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DFII10",
+    "name": "10년 실질금리",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "T5YIE",
+    "name": "5년 기대인플레이션",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "T10YIE",
+    "name": "10년 기대인플레이션",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DFF",
+    "name": "실효 연방기금금리",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "SOFR",
+    "name": "SOFR",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DFEDTARU",
+    "name": "연방기금 목표금리 상단",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "DFEDTARL",
+    "name": "연방기금 목표금리 하단",
+    "group": "금리",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "BAMLH0A0HYM2",
+    "name": "하이일드 신용 스프레드",
+    "group": "신용·유동성",
+    "frequency": "daily",
+    "unit": "%",
+    "transform": "level"
+  },
+  {
+    "code": "NFCI",
+    "name": "시카고 연은 금융여건지수",
+    "group": "신용·유동성",
+    "frequency": "weekly",
+    "unit": "지수",
+    "transform": "level"
+  },
+  {
+    "code": "WALCL",
+    "name": "연준 총자산",
+    "group": "신용·유동성",
+    "frequency": "weekly",
+    "unit": "백만 USD",
+    "transform": "level"
+  },
+  {
+    "code": "RRPONTSYD",
+    "name": "연준 익일 역레포",
+    "group": "신용·유동성",
+    "frequency": "daily",
+    "unit": "십억 USD",
+    "transform": "level"
+  },
+  {
+    "code": "WTREGEN",
+    "name": "재무부 일반계정 · 주간 평균",
+    "group": "신용·유동성",
+    "frequency": "weekly",
+    "unit": "백만 USD",
+    "transform": "level"
+  },
+  {
+    "code": "M2SL",
+    "name": "M2 통화량",
+    "group": "신용·유동성",
+    "frequency": "monthly",
+    "unit": "십억 USD",
+    "transform": "level"
+  },
+  {
+    "code": "DTWEXBGS",
+    "name": "광의 달러지수 · DXY와 구분",
+    "group": "시장 보조",
+    "frequency": "daily",
+    "unit": "지수",
+    "transform": "level"
+  },
+  {
+    "code": "DCOILWTICO",
+    "name": "WTI 쿠싱 현물 · 선물과 구분",
+    "group": "시장 보조",
+    "frequency": "daily",
+    "unit": "USD/bbl",
+    "transform": "level"
+  }
+]

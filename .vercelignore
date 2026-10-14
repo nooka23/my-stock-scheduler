@@ -1,0 +1,8 @@
+.next
+node_modules
+scripts/output
+dumps
+storage
+*.dump
+*.sql.gz
+*.log

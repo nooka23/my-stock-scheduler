@@ -1,3 +1,5 @@
+import { koreanDate } from '@/lib/daily-review-market';
+export const dynamic = 'force-dynamic';
 import type { Metadata } from 'next';
 import DailyReview from '../review';
 
@@ -7,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function MobileDailyReviewPage() {
-  return <DailyReview mobilePreview />;
+  return <DailyReview initialDate={koreanDate()} mobilePreview />;
 }

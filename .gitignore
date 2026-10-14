@@ -42,3 +42,6 @@ __pycache__/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Temporary RSS candidates and ChatGPT selection input
+scripts/output/daily-review-news/
