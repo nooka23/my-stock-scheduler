@@ -9,6 +9,7 @@ import io
 import json
 import sys
 import time
+from statistics import median
 from datetime import datetime,timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -17,6 +18,15 @@ from supabase import create_client
 from collect_fred_market_data import SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,require_environment
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def validate_frequency(values, frequency):
+    dates=sorted(datetime.strptime(day,'%Y-%m-%d') for day in values)
+    gaps=[(b-a).days for a,b in zip(dates[-13:],dates[-12:])] if len(dates)>=13 else [(b-a).days for a,b in zip(dates,dates[1:])]
+    if len(gaps)>=4 and frequency=='monthly' and median(gaps)>45:
+        raise ValueError('Monthly configuration received lower-frequency observations')
+    if len(gaps)>=4 and frequency=='quarterly' and not 60<=median(gaps)<=120:
+        raise ValueError('Quarterly configuration received incompatible observations')
 
 
 def fetch(session,code,start):
@@ -49,12 +59,16 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--dry-run',action='store_true')
     p.add_argument('--limit',type=int)
+    p.add_argument('--series',action='append',help='Collect only the named configured series; repeatable')
     p.add_argument('--start-date',default='2016-01-01')
     args=p.parse_args()
     datetime.strptime(args.start_date,'%Y-%m-%d')
     require_environment()
     db=create_client(SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY).schema('market_data')
     config=json.loads((ROOT/'config/daily_review_fred.json').read_text())
+    if args.series:
+        if set(args.series)-{i['code'] for i in config}: p.error('Unknown series code')
+        config=[i for i in config if i['code'] in args.series]
     if args.limit: config=config[:args.limit]
     session=requests.Session()
     failures=[];total=0;change_count=0
@@ -63,6 +77,7 @@ def main():
         review_date=datetime.now(ZoneInfo('Asia/Seoul')).date().isoformat()
         try:
             values=fetch(session,code,args.start_date)
+            validate_frequency(values,item['frequency'])
             if args.dry_run:
                 print(f'{code}: {len(values)} observations, latest {max(values)}',flush=True)
                 continue
@@ -75,6 +90,8 @@ def main():
                 old.update({r['observation_date']:r for r in batch})
                 if len(batch)<1000: break
                 offset+=1000
+            if old and max(values)<max(old):
+                raise ValueError('Source latest observation regressed; preserve stored checkpoint')
             rows=[];changes=[]
             for day,value in sorted(values.items()):
                 prev=old.get(day)

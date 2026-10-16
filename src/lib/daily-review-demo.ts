@@ -25,7 +25,7 @@ export const reviewSections: { id: ReviewSection; number: string; title: string;
   { id: 'news', number: '01', title: '시장 뉴스', subtitle: '오늘 새롭게 확인할 사건' },
   { id: 'economy', number: '02', title: '경제지표', subtitle: '새 발표와 이전 수치의 변화' },
   { id: 'macro', number: '03', title: '매크로 가격', subtitle: '금리 · 환율 · 원자재' },
-  { id: 'sentiment', number: '04', title: '위험 심리', subtitle: 'VIX · 금 · 비트코인' },
+  { id: 'sentiment', number: '04', title: '위험 심리', subtitle: 'VIX · VKOSPI · 금 · 비트코인' },
   { id: 'indices', number: '05', title: '주요 지수', subtitle: '시장의 방향과 확산' },
 ];
 
@@ -63,7 +63,8 @@ export const demoInstruments: ReviewInstrument[] = [
   { id: 'brent', name: '브렌트 선물', symbol: 'BRENT · ICE', unit: 'USD/bbl', group: '원자재', base: 0, slope: 0, precision: 2, kind: '오피넷 ICE 브렌트 선물 공표가 · 계약 교체 영향 가능' },
   { id: 'dubai', name: '두바이 현물', symbol: 'DUBAI · SPOT', unit: 'USD/bbl', group: '원자재', base: 0, slope: 0, precision: 2, kind: '오피넷 싱가포르 두바이 현물 가격 추정값 · 일별 관측' },
   { id: 'copper', name: '구리 선물', symbol: 'HG=F', unit: 'USD/lb', group: '원자재', base: 4.6, slope: 0.13, precision: 3, kind: 'Yahoo 구리 선물 · USD/lb · 계약 교체에 따른 가격 차이 가능' },
-  { id: 'vix', name: '변동성 지수', symbol: 'VIX', unit: 'pt', group: '위험 심리', base: 18.3, slope: -0.12, precision: 2, kind: '예상 변동성 지수' },
+  { id: 'vix', name: '미국 변동성 · VIX', symbol: 'VIX', unit: 'pt', group: '위험 심리', base: 18.3, slope: -0.12, precision: 2, kind: '예상 변동성 지수' },
+  { id: 'vkospi', name: '한국 변동성 · VKOSPI', symbol: 'VKOSPI', unit: 'pt', group: '위험 심리', base: 0, slope: 0, precision: 2, kind: 'KOSPI 200 옵션 기반 기대 변동성 · KRX 공식 지수 · KIS 일별 종가' },
   { id: 'gold', name: '금 선물', symbol: 'GC=F', unit: 'USD/oz', group: '위험 심리', base: 2650, slope: 0.2, precision: 2, kind: 'Yahoo 금 선물 · USD/트로이온스 · 계약 교체에 따른 가격 차이 가능' },
   { id: 'btc', name: '비트코인', symbol: 'BTC/USD', unit: 'USD', group: '위험 심리', base: 92000, slope: 0.27, precision: 2, kind: 'Coinbase 현물 · BTC/USD · UTC 일봉 · 개인용' },
   { id: 'spx', name: 'S&P 500', symbol: 'SPX', unit: 'pt', group: '지수', base: 5800, slope: 0.17, precision: 2, kind: '주가 지수' },

@@ -22,7 +22,6 @@ function ReviewDay({ date, setDate, mobilePreview }: { date: string; setDate: (d
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [saved, setSaved] = useState('');
   const [ready, setReady] = useState(false);
-  const [macroGroup, setMacroGroup] = useState('금리');
   const [active, setActive] = useState('news');
   const scrollRef = useRef<HTMLDivElement>(null);
   const storageKey = `daily-review-demo:v1:${date}`;
@@ -83,7 +82,7 @@ function ReviewDay({ date, setDate, mobilePreview }: { date: string; setDate: (d
         <div className={styles.dateControl}><label htmlFor="review-date">리뷰 날짜</label><input id="review-date" type="date" value={date} max={koreanDate()} onChange={e => { if (e.target.value && (saved !== '저장하지 않은 변경사항' || window.confirm('저장하지 않은 변경사항이 있습니다. 날짜를 바꾸시겠어요?'))) setDate(e.target.value); }} /><span>한국 시간 기준</span></div>
       </header>
 
-      <div className={styles.demoNotice}><div><span className={styles.demoBadge}>KIS 일봉 연결</span><p>가격 차트는 공급원별 수집 일봉입니다. 리뷰 전일까지의 관측값을 표시합니다. 경제지표는 FRED 저장값입니다. 뉴스는 ChatGPT가 직접 선별한 사건과 근거 링크입니다.</p></div></div>
+      <div className={styles.demoNotice}><div><span className={styles.demoBadge}>KIS 일봉 연결</span><p>가격 차트는 공급원별 수집 일봉입니다. 리뷰 전일까지의 관측값을 표시합니다. 경제지표는 FRED·미국 재무부 저장값입니다. 뉴스는 ChatGPT가 직접 선별한 사건과 근거 링크입니다.</p></div></div>
 
       <div className={styles.workspace}>
         <aside className={styles.sidebar} aria-label="리뷰 순서">
@@ -98,7 +97,7 @@ function ReviewDay({ date, setDate, mobilePreview }: { date: string; setDate: (d
 
           {section('economy', <EconomicPanel date={date} />)}
 
-          {section('macro', <><div className={styles.filters} aria-label="매크로 자산 분류">{['금리', '환율', '원자재'].map(group => <button type="button" key={group} aria-pressed={group === macroGroup} onClick={() => setMacroGroup(group)}>{group}</button>)}</div><MarketPanel key={macroGroup} instruments={demoInstruments.filter(item => item.group === macroGroup)} date={date} /></>)}
+          {section('macro', <MarketPanel instruments={demoInstruments.filter(item => ['금리', '환율', '원자재'].includes(item.group))} date={date} />)}
           {section('sentiment', <MarketPanel instruments={demoInstruments.filter(item => item.group === '위험 심리')} date={date} />)}
           {section('indices', <MarketPanel instruments={demoInstruments.filter(item => item.group === '지수')} date={date} />)}
 

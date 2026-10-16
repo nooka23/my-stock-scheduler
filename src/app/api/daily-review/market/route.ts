@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { reviewMarketCodes, koreanDate, yahooReviewAssets, opinetReviewAssets, reviewSourceLabel } from '@/lib/daily-review-market';
+import { reviewMarketCodes, koreanDate, yahooReviewAssets, opinetReviewAssets, reviewSourceLabel, treasuryReviewCodes, observationStatus } from '@/lib/daily-review-market';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   latestClosed.setUTCDate(latestClosed.getUTCDate() - 1);
   const btcThrough = latestClosed.toISOString().slice(0,10);
   const cutoff = btc && btcThrough < through ? btcThrough : through;
-  const source = opinet ? 'OPINET_CRUDE_DAILY' : yahoo ? 'YAHOO_CHART_DAILY' : btc ? 'COINBASE_EXCHANGE_DAILY' : derived ? 'KIS_DERIVED_DAILY_CROSS' : 'KIS_OVERSEAS_DAILY_CHARTPRICE';
+  const source = instrument === 'vkospi' ? 'KIS_DOMESTIC_INDEX_DAILY' : opinet ? 'OPINET_CRUDE_DAILY' : yahoo ? 'YAHOO_CHART_DAILY' : btc ? 'COINBASE_EXCHANGE_DAILY' : derived ? 'KIS_DERIVED_DAILY_CROSS' : 'KIS_OVERSEAS_DAILY_CHARTPRICE';
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -44,11 +44,22 @@ export async function GET(req: NextRequest) {
       if (ownerError || owner !== true) return NextResponse.json({ error: '이 차트의 개인 사용 권한이 없습니다.' }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } });
     }
     const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }).schema('market_data');
+    const treasuryCode = treasuryReviewCodes[instrument];
+    if (treasuryCode) {
+      const { data, error } = await db.from('economic_observations').select('observation_date,value').eq('series_code', treasuryCode).gte('observation_date', start).lte('observation_date', cutoff).order('observation_date').limit(400);
+      if (error) throw error;
+      if (data?.length) {
+        const { data: state, error: stateError } = await db.from('economic_series').select('last_error').eq('code', treasuryCode).maybeSingle();
+        if (stateError) throw stateError;
+        const rows = data.map(row => ({ time: row.observation_date, value: Number(row.value) }));
+        return NextResponse.json({ rows, source: 'US_TREASURY', through: cutoff, sourceLabel: reviewSourceLabel(instrument), freshness: observationStatus(rows.at(-1)?.time, cutoff, Boolean(state?.last_error)), dayBoundary: '미국 재무부 관측일 · 공식 일별 파 수익률(%) · 거래 종가와 다릅니다. FRED 비교 이력은 별도로 보관합니다.' }, { headers: { 'Cache-Control': 'private, no-store' } });
+      }
+    }
     if (fred) {
       const { data, error } = await db.from('economic_observations').select('observation_date,value').eq('series_code', code).gte('observation_date', start).lte('observation_date', cutoff).order('observation_date', { ascending: true }).limit(400);
       if (error) throw error;
       const rows = (data ?? []).filter(row => row.value !== null && Number.isFinite(Number(row.value))).map(row => ({ time: row.observation_date, value: Number(row.value) }));
-      return NextResponse.json({ rows, source: 'FRED_DGS2', through: cutoff, sourceLabel: reviewSourceLabel(instrument), dayBoundary: '미국 국채 2년 수익률 · 일별 관측 · 단위 %' }, { headers: { 'Cache-Control': 'private, no-store' } });
+      return NextResponse.json({ rows, source: 'FRED_DGS2', through: cutoff, sourceLabel: 'FRED · DGS2 (재무부 자료 미수신)', freshness: observationStatus(rows.at(-1)?.time, cutoff), dayBoundary: '미국 국채 2년 수익률 · 일별 관측 · 단위 %' }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
     const { data: asset, error: assetError } = await db.from('market_instruments').select('id').eq('internal_code', code).eq('provider', opinet ? 'OPINET' : yahoo ? 'YAHOO' : btc ? 'COINBASE' : derived ? 'CALCULATED' : 'KIS').eq('is_enabled', true).maybeSingle();
     if (assetError) throw assetError;
@@ -56,7 +67,23 @@ export async function GET(req: NextRequest) {
     const { data, error } = await db.from('global_daily_prices').select('trade_date,close').eq('instrument_id', asset.id).eq('source', source).gte('trade_date', start).lte('trade_date', cutoff).order('trade_date', { ascending: true }).limit(400);
     if (error) throw error;
     const rows = (data ?? []).filter(row => row.close !== null && Number.isFinite(Number(row.close))).map(row => ({ time: row.trade_date, value: Number(row.close) * (instrument === 'jpykrw' ? 100 : 1) }));
-    return NextResponse.json({ rows, source, through: cutoff, sourceLabel: reviewSourceLabel(instrument), dayBoundary: btc ? 'UTC 일봉 · 한국시간 오전 9시 종료' : opinet ? '오피넷 공표 관측일 · 현물 추정가/선물 공표가 · 종가만 저장' : yahoo ? '거래소 현지 날짜 · 종료된 세션 일봉' : undefined }, { headers: { 'Cache-Control': 'private, no-store' } });
+    let failed = false;
+    {
+      const pipeline = yahoo ? 'yahoo_review_daily' : opinet ? 'opinet_crude_daily' : btc ? 'coinbase_btc_daily' : 'global_market_daily_chart_prices';
+      let query = db.from('data_ingestion_runs').select('status,metadata').eq('pipeline_key', pipeline).order('started_at', { ascending: false }).limit(1);
+      if (yahoo) {
+        const symbols: Record<string, string> = { gold: 'GC=F', copper: 'HG=F', dxy: 'DX-Y.NYB', russell: '^RUT' };
+        query = query.contains('metadata', { symbol: symbols[instrument] });
+      }
+      const { data: runs, error: runError } = await query;
+      if (runError) throw runError;
+      const run = runs?.[0];
+      failed = run?.status === 'FAILED';
+      if (run?.status === 'PARTIAL' && Array.isArray(run.metadata?.failed_instruments)) {
+        failed = run.metadata.failed_instruments.some((entry: { instrument?: string }) => entry.instrument === code || entry.instrument?.startsWith(`${code} (`));
+      }
+    }
+    return NextResponse.json({ rows, source, through: cutoff, freshness: observationStatus(rows.at(-1)?.time, through, failed, !btc), sourceLabel: treasuryCode ? 'KIS 일봉 (재무부 자료 미수신)' : reviewSourceLabel(instrument), dayBoundary: instrument === 'vkospi' ? '한국 거래일 · KOSPI 200 옵션 기반 기대 변동성 · 일별 종가 · 실현 변동성과 구분' : btc ? 'UTC 일봉 · 한국시간 오전 9시 종료' : opinet ? '오피넷 공표 관측일 · 현물 추정가/선물 공표가 · 종가만 저장' : yahoo ? '거래소 현지 날짜 · 종료된 세션 일봉' : undefined }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch {
     return NextResponse.json({ error: '시장 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' }, { status: 503 });
   }

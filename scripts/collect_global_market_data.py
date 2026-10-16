@@ -37,6 +37,7 @@ from collect_us_market_data import (
 from daily_review_kis_instruments import EXTRA_INSTRUMENTS, DERIVED_SOURCE
 
 SOURCE = "KIS_OVERSEAS_DAILY_CHARTPRICE"
+DOMESTIC_SOURCE = "KIS_DOMESTIC_INDEX_DAILY"
 PIPELINE_KEY = "global_market_daily_chart_prices"
 VERIFIED_CODES = [
     "US_INDEX_SP500", "US_INDEX_NASDAQ", "US_INDEX_DOW", "US_INDEX_SOX",
@@ -74,12 +75,19 @@ def fetch_daily_chart_history(
     collected: dict[date, dict[str, Any]] = {}
     while cursor <= end_date:
         chunk_end = min(cursor + timedelta(days=90), end_date)
-        payload = client.get_daily_chart_page(
-            market_code,
-            symbol,
-            cursor.strftime("%Y%m%d"),
-            chunk_end.strftime("%Y%m%d"),
-        )
+        if market_code == 'U':
+            # output1 is a live snapshot, even for a historical request.
+            # Only dated output2 rows are eligible for storage.
+            payload, _ = client.get_ranking_page(
+                '/uapi/domestic-stock/v1/quotations/inquire-index-daily-price',
+                'FHPUP02120000',
+                {'FID_PERIOD_DIV_CODE': 'D', 'FID_COND_MRKT_DIV_CODE': 'U',
+                 'FID_INPUT_ISCD': symbol, 'FID_INPUT_DATE_1': chunk_end.strftime('%Y%m%d')},
+            )
+        else:
+            payload = client.get_daily_chart_page(
+                market_code, symbol, cursor.strftime('%Y%m%d'), chunk_end.strftime('%Y%m%d'),
+            )
         rows = payload.get("output2") or []
         if isinstance(rows, dict):
             rows = [rows]
@@ -90,23 +98,31 @@ def fetch_daily_chart_history(
                 collected[trade_date] = raw
         cursor = chunk_end + timedelta(days=1)
 
+    prefix = 'bstp_nmix_' if market_code == 'U' else 'ovrs_nmix_'
     normalized: list[dict[str, Any]] = []
     for trade_date, raw in sorted(collected.items()):
-        close = as_number(raw.get("ovrs_nmix_prpr"))
+        close = as_number(raw.get(prefix + "prpr"))
         if close is None or not math.isfinite(close):
             raise KisApiError(f"Invalid close for {instrument['internal_code']} on {trade_date}")
+        if market_code == 'U':
+            points = [as_number(raw.get(prefix + field)) for field in ('oprc', 'hgpr', 'lwpr')]
+            if close <= 0 or any(value is not None and (not math.isfinite(value) or value <= 0) for value in points):
+                raise KisApiError('Invalid domestic index OHLC')
+            opening, high, low = points
+            if high is not None and low is not None and (not low <= close <= high or (opening is not None and not low <= opening <= high)):
+                raise KisApiError('Inconsistent domestic index OHLC')
         normalized.append(
             {
                 "instrument_id": instrument["id"],
                 "trade_date": trade_date.isoformat(),
-                "open": as_number(raw.get("ovrs_nmix_oprc")),
-                "high": as_number(raw.get("ovrs_nmix_hgpr")),
-                "low": as_number(raw.get("ovrs_nmix_lwpr")),
+                "open": as_number(raw.get(prefix + "oprc")),
+                "high": as_number(raw.get(prefix + "hgpr")),
+                "low": as_number(raw.get(prefix + "lwpr")),
                 "close": close,
                 "volume": as_number(raw.get("acml_vol")),
                 "trading_value": None,
                 "currency": instrument.get("currency") or "USD",
-                "source": SOURCE,
+                "source": DOMESTIC_SOURCE if market_code == "U" else SOURCE,
                 "source_updated_at": None,
                 "raw_payload": raw,
             }
@@ -204,6 +220,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=datetime.now(ZoneInfo("Asia/Seoul")).date() - timedelta(days=1),
         help="Last calendar date to request, YYYY-MM-DD (default: previous Korean date).",
     )
+    parser.add_argument("--instrument", action="append", choices=VERIFIED_CODES, help="Collect only these instruments; repeatable")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -219,6 +236,8 @@ def main() -> int:
     require_environment()
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
     instruments = load_enabled_instruments(supabase, args.limit)
+    if args.instrument:
+        instruments = [item for item in instruments if item["internal_code"] in args.instrument]
     if not instruments:
         print("No enabled KIS global market instruments found.")
         return 1

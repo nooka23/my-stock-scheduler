@@ -27,7 +27,10 @@ def fetch(symbol, days, now):
         except (requests.RequestException, ValueError, KeyError):
             if attempt == 2: raise
             time.sleep(2**attempt)
-    result = payload['result'][0]
+    return parse_chart(payload['result'][0], symbol, now)
+
+
+def parse_chart(result, symbol, now):
     meta = result['meta']
     if meta.get('symbol') != symbol or meta.get('currency') != 'USD': raise ValueError('Unexpected instrument identity')
     zone = ZoneInfo(meta['exchangeTimezoneName'])
@@ -36,7 +39,12 @@ def fetch(symbol, days, now):
     quotes = result['indicators']['quote'][0]
     rows = {}
     for index, timestamp in enumerate(result.get('timestamp',[])):
-        day = datetime.fromtimestamp(timestamp,zone).date()
+        bucket = datetime.fromtimestamp(timestamp,zone)
+        day = bucket.date()
+        # Futures feeds append a live quote with a non-midnight timestamp,
+        # sometimes carrying the SAME local date as a historical daily bar.
+        # Never let that quote overwrite the canonical daily bucket.
+        if symbol != '^RUT' and (bucket.hour, bucket.minute, bucket.second) != (0, 0, 0): continue
         # A current local-day bar is accepted only after the provider's session end + 30 minutes.
         if day > today or (day == today and (not session_end or now.timestamp() < session_end+1800)): continue
         values = {field:quotes.get(field,[])[index] for field in ['open','high','low','close','volume']}

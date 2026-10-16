@@ -1,0 +1,23 @@
+/** Regression checks for date/return semantics, not presentation markup. */
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const ts = require('typescript');
+const context = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/lib/daily-review-table.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, context);
+const { marketChanges, sortEconomic } = context.exports;
+const rows = [{ time: '2026-09-15', value: 80 }, { time: '2026-10-08', value: 100 }, { time: '2026-10-14', value: 110 }, { time: '2026-10-15', value: 120 }];
+assert.ok(Math.abs(marketChanges(rows)[0] - 9.090909) < .00001);
+assert.ok(Math.abs(marketChanges(rows)[1] - 20) < .00001);
+assert.equal(marketChanges(rows)[2], 50);
+assert.equal(marketChanges(rows, true)[1], 2000);
+assert.equal(marketChanges([{ time: '2026-01-01', value: 5 }, { time: '2026-10-15', value: 10 }])[1], null);
+assert.equal(marketChanges([{ time: '2026-02-28', value: 100 }, { time: '2026-03-31', value: 110 }])[2].toFixed(2), '10.00');
+assert.equal(marketChanges([{ time: '2026-10-14', value: 0 }, { time: '2026-10-15', value: 1 }])[0], null);
+assert.equal(marketChanges([{ time: '2026-09-30', value: 100 }, { time: '2026-10-16', value: 110 }])[1], null);
+const releases = [{ code: 'old', detected_at: '2026-10-14', rows: [{ time: '2026-10-01', value: 1 }] }, { code: 'new', detected_at: '2026-10-15', rows: [{ time: '2026-09-01', value: 1 }] }];
+assert.equal(sortEconomic(releases)[0].code, 'new');
+assert.equal(releases[0].code, 'old');
+assert.equal(sortEconomic([{ code: 'a', rows: [{ time: '2026-08-01', value: 1 }] }, { code: 'b', rows: [{ time: '2026-09-01', value: 1 }] }])[0].code, 'b');
+console.log('Daily review table checks passed (11)');

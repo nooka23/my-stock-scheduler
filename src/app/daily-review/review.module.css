@@ -1298,3 +1298,64 @@
 }
 .newsExplanation > strong { display: block; margin-bottom: 8px; }
 .newsExplanation p + p { margin-top: 10px; }
+
+/* Compact financial ledger: scan the numbers first, open context on demand. */
+.tablePanel { min-width: 0; }
+.tableIntro { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 14px; }
+.tableIntro > span { color: var(--green); font-family: var(--font-geist-mono), monospace; font-size: 10px; letter-spacing: .12em; font-weight: 600; }
+.tableIntro p { margin: 0; color: #718077; font-size: 11px; }
+.tableIntro p span { margin-left: 7px; color: var(--green); }
+.tableScroll { max-width: 100%; overflow-x: auto; border-top: 2px solid #284f3d; scrollbar-width: thin; }
+.tableScroll:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+.dataTable { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; font-size: 12px; }
+.dataTable thead th { padding: 13px 10px; text-align: right; color: #6b7e70; background: #f2f5ef; font-size: 10px; font-weight: 600; white-space: nowrap; }
+.dataTable thead th:first-child { width: 43%; text-align: left; }
+.dataTable tbody th, .dataTable tbody td { border-bottom: 1px solid var(--line); }
+.dataTable tbody tr:not(.chartRow):not(.tableGroup) { cursor: pointer; transition: background .15s; }
+.dataTable tbody tr:not(.chartRow):not(.tableGroup):hover { background: #f2f6ef; }
+.dataTable td { padding: 12px 10px; text-align: right; vertical-align: middle; white-space: nowrap; }
+.dataTable td strong { font-weight: 600; }
+.dataTable tbody th { padding: 0; text-align: left; font-weight: 400; }
+.rowToggle { display: block; width: 100%; padding: 15px 10px; border: 0; background: transparent; text-align: left; color: inherit; cursor: pointer; }
+.rowToggle:focus-visible { outline: 2px solid var(--green); outline-offset: -3px; }
+.rowName { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 600; line-height: 1.5; word-break: keep-all; }
+.rowName > span { color: #81977e; font-family: var(--font-geist-mono), monospace; font-size: 13px; font-weight: 400; }
+.rowValue { display: block; margin-top: 4px; color: #244132; font-size: 13px; font-weight: 500; }
+.rowValue small { margin-left: 5px; font-size: 10px; color: #83917e; font-weight: 400; }
+.rowMeta, .cellMeta { display: block; color: #81907e; font-size: 9px; font-weight: 400; line-height: 1.65; margin-top: 4px; }
+.neutral { color: #899286; }
+.dataTable .expandedRow { background: #edf3e9; }
+.dataTable .tableGroup th { padding: 14px 10px 8px; font-size: 11px; font-weight: 700; color: #31513d; background: #f8faf5; }
+.tableGroup th span { margin-left: 12px; color: #87937f; font-size: 9px; font-weight: 400; }
+.dataTable .chartRow > td { padding: 0; white-space: normal; text-align: left; }
+.inlineChart { padding: 23px 18px 18px; border-left: 2px solid #557c47; background: #f8faf5; min-width: 0; }
+.inlineChart .chartHeader h3 { font-size: 18px; }
+.inlineChart .chartHeader a { color: var(--green); font-size: 11px; white-space: nowrap; }
+.inlineChart .chart { width: 100%; }
+.tableNote { color: #798775; font-size: 10px; line-height: 1.8; margin: 12px 0; word-break: keep-all; overflow-wrap: anywhere; }
+.economyTable thead th:first-child { width: 39%; }
+.economyTable thead th:last-child { width: 23%; }
+.changeLog { margin-top: 18px; color: #60745d; font-size: 11px; line-height: 1.8; }
+.changeLog summary { cursor: pointer; padding: 10px 0; }
+
+@container daily-review (max-width:760px) {
+  .tableIntro { gap: 8px; margin-bottom: 12px; }
+  .tableIntro > span { font-size: 9px; }
+  .tableIntro p { font-size: 10px; }
+  .dataTable { font-size: 10px; }
+  .dataTable thead th { padding: 11px 4px; font-size: 9px; }
+  .dataTable thead th:first-child { width: 43%; }
+  .dataTable td { padding: 12px 4px; font-size: 10px; letter-spacing: -.025em; }
+  .rowToggle { padding: 13px 4px; min-height: 72px; }
+  .rowName { font-size: 11px; gap: 5px; }
+  .rowValue { font-size: 11px; }
+  .rowValue small { font-size: 8px; margin-left: 3px; }
+  .rowMeta, .cellMeta { font-size: 8px; }
+  .economyTable thead th:first-child { width: 37%; }
+  .economyTable thead th:last-child { width: 24%; }
+  .economyTable td { white-space: normal; overflow-wrap: anywhere; }
+  .inlineChart { padding: 18px 8px 12px; }
+  .inlineChart .chartHeader { gap: 8px; }
+  .inlineChart .chartHeader h3 { font-size: 16px; }
+  .tableNote { font-size: 10px; }
+}

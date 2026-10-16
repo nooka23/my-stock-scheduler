@@ -1,5 +1,6 @@
-"""KIS codes verified with daily-chart responses on 2026-10-14."""
+"""KIS codes verified with daily-chart responses; see per-record verification dates."""
 EXTRA_INSTRUMENTS = [
+    ('KR_INDEX_VKOSPI', 'KOSPI 200 Volatility Index (VKOSPI)', 'INDEX', 'POINT', '0503', 'U'),
     ('FX_GBPUSD', 'GBP/USD', 'FX', 'USD', 'FX@GBP', 'X'),
     ('FX_EURUSD', 'EUR/USD', 'FX', 'USD', 'FX@EUR', 'X'),
     ('FX_USDCNY', 'USD/CNY', 'FX', 'CNY', 'FX@CNY', 'X'),
@@ -24,7 +25,7 @@ def configure(db):
                  currency=currency, provider='KIS', provider_symbol=symbol,
                  provider_params={'collector': 'daily_chart', 'fid_cond_mrkt_div_code': market},
                  is_enabled=True, display_order=300+i,
-                 metadata={'verified_at': '2026-10-14'})
+                 metadata={'verified_at': '2026-10-16' if code == 'KR_INDEX_VKOSPI' else '2026-10-14'})
             for i, (code, name, asset, currency, symbol, market) in enumerate(EXTRA_INSTRUMENTS)]
     rows.append(dict(internal_code='FX_CNYKRW', display_name='KRW per CNY (derived)',
                      asset_class='FX', currency='KRW', provider='CALCULATED',

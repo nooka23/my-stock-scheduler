@@ -113,7 +113,15 @@
   },
   {
     "code": "PCECC96",
-    "name": "실질 개인소비지출",
+    "name": "실질 개인소비지출 · 분기",
+    "group": "소비·생산",
+    "frequency": "quarterly",
+    "unit": "십억 연율 USD",
+    "transform": "level"
+  },
+  {
+    "code": "PCEC96",
+    "name": "실질 개인소비지출 · 월간",
     "group": "소비·생산",
     "frequency": "monthly",
     "unit": "십억 연율 USD",
@@ -421,6 +429,38 @@
     "group": "시장 보조",
     "frequency": "daily",
     "unit": "USD/bbl",
+    "transform": "level"
+  },
+  {
+    "code": "DGORDER",
+    "name": "내구재 주문",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "백만 USD",
+    "transform": "level"
+  },
+  {
+    "code": "NEWORDER",
+    "name": "핵심 자본재 주문 · 비국방·항공기 제외",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "백만 USD",
+    "transform": "level"
+  },
+  {
+    "code": "PI",
+    "name": "개인소득 · 연율",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "십억 USD · 연율",
+    "transform": "level"
+  },
+  {
+    "code": "PSAVERT",
+    "name": "개인저축률",
+    "group": "소비·생산",
+    "frequency": "monthly",
+    "unit": "%",
     "transform": "level"
   }
 ]
