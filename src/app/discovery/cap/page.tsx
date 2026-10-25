@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClientComponentClient } from '@/lib/supabase-browser';
 import StockChartDiscovery from '@/components/StockChartDiscovery';
 
@@ -31,6 +31,7 @@ type FavItem = {
 
 type SortField = 'rsRating' | 'marcap' | 'volume';
 type SortDirection = 'desc' | 'asc';
+type Market = 'KR' | 'US';
 
 type CompanyRow = {
   code: string;
@@ -77,6 +78,7 @@ const normalizeMarketCapToWon = (value: number | string | null | undefined) => {
 export default function CapDiscoveryPage() {
   const supabase = createClientComponentClient();
 
+  const [market, setMarket] = useState<Market>('KR');
   const [stocks, setStocks] = useState<CapStock[]>([]);
   const [displayedStocks, setDisplayedStocks] = useState<CapStock[]>([]);
   const [selectedStock, setSelectedStock] = useState<{ code: string; name: string } | null>(null);
@@ -97,6 +99,9 @@ export default function CapDiscoveryPage() {
   const [industries, setIndustries] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
   const [showAllThemes, setShowAllThemes] = useState(false);
+
+  const marketCapLoadIdRef = useRef(0);
+  const chartLoadIdRef = useRef(0);
 
   useEffect(() => {
     const getUserAndFavs = async () => {
@@ -169,10 +174,38 @@ export default function CapDiscoveryPage() {
   };
 
   const fetchTopMarketCapStocks = useCallback(async () => {
+    const requestId = ++marketCapLoadIdRef.current;
     setLoading(true);
     setError(null);
 
     try {
+      if (market === 'US') {
+        const response = await fetch('/api/us-equities/market-cap');
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || '미국 시총 데이터를 불러오는데 실패했습니다.');
+        }
+        if (requestId !== marketCapLoadIdRef.current) return;
+
+        setReferenceDate(payload.referenceDate || '');
+        setStocks(
+          (payload.rows || []).map((item: {
+            code: string;
+            name: string;
+            rsRating: number | string | null;
+            marketCap: number | string | null;
+            volume: number | string | null;
+          }) => ({
+            code: item.code,
+            rsRating: item.rsRating === null ? null : Number(item.rsRating),
+            marcap: Number(item.marketCap) || 0,
+            volume: item.volume === null ? null : Number(item.volume),
+            companies: { name: item.name || item.code },
+          })),
+        );
+        return;
+      }
+
       const { data: dateData, error: dateError } = await supabase
         .from('daily_prices_v2')
         .select('date')
@@ -181,8 +214,10 @@ export default function CapDiscoveryPage() {
         .single();
 
       if (dateError) throw dateError;
+      if (requestId !== marketCapLoadIdRef.current) return;
       if (!dateData?.date) {
         setStocks([]);
+        setReferenceDate('');
         return;
       }
 
@@ -205,6 +240,7 @@ export default function CapDiscoveryPage() {
 
       if (marketCapError) throw marketCapError;
       if (companyError) throw companyError;
+      if (requestId !== marketCapLoadIdRef.current) return;
 
       const companyMap = new Map<string, string | null>();
       ((companyData || []) as CompanyRow[]).forEach((item) => {
@@ -254,18 +290,49 @@ export default function CapDiscoveryPage() {
 
       setStocks(mergedStocks);
     } catch (err: unknown) {
+      if (requestId !== marketCapLoadIdRef.current) return;
       const message = err instanceof Error ? err.message : '데이터를 불러오는데 실패했습니다.';
       console.error('Cap discovery load error:', message);
       setError(message);
       setStocks([]);
     } finally {
-      setLoading(false);
+      if (requestId === marketCapLoadIdRef.current) setLoading(false);
     }
-  }, [supabase]);
+  }, [market, supabase]);
 
-  const fetchChartData = async (code: string) => {
+  const fetchChartData = useCallback(async (code: string) => {
+    const requestId = ++chartLoadIdRef.current;
     setIsChartLoading(true);
     try {
+      if (market === 'US') {
+        const response = await fetch(`/api/us-equities/chart?ticker=${encodeURIComponent(code)}`);
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || '미국 종목 차트를 불러오는데 실패했습니다.');
+        }
+        if (requestId !== chartLoadIdRef.current) return;
+
+        const usChartData: ChartData[] = (payload.rows || []).map((row: {
+          trade_date: string;
+          open: number | string | null;
+          high: number | string | null;
+          low: number | string | null;
+          close: number | string | null;
+          volume: number | string | null;
+          rs: number | string | null;
+        }) => ({
+          time: row.trade_date,
+          open: Number(row.open ?? row.close) || 0,
+          high: Number(row.high ?? row.close) || 0,
+          low: Number(row.low ?? row.close) || 0,
+          close: Number(row.close) || 0,
+          volume: Number(row.volume) || 0,
+          rs: row.rs === null ? undefined : Number(row.rs),
+        })).sort((a: ChartData, b: ChartData) => a.time.localeCompare(b.time));
+        setChartData(usChartData);
+        return;
+      }
+
       const dbPromise = supabase
         .from('daily_prices_v2')
         .select('date, open, high, low, close, volume')
@@ -280,6 +347,7 @@ export default function CapDiscoveryPage() {
         .limit(1000);
 
       const [dbResult, rsResult] = await Promise.all([dbPromise, rsPromise]);
+      if (requestId !== chartLoadIdRef.current) return;
       const dataMap = new Map<string, ChartData>();
 
       dbResult.data?.forEach((row) => {
@@ -325,14 +393,15 @@ export default function CapDiscoveryPage() {
       );
       setChartData(sortedData);
     } catch (e) {
+      if (requestId !== chartLoadIdRef.current) return;
       console.error('Chart fetch error:', e);
       setChartData([]);
     } finally {
-      setIsChartLoading(false);
+      if (requestId === chartLoadIdRef.current) setIsChartLoading(false);
     }
-  };
+  }, [market, supabase]);
 
-  const fetchIndustriesAndThemes = async (code: string) => {
+  const fetchIndustriesAndThemes = useCallback(async (code: string) => {
     try {
       const { data: industryData } = await supabase
         .from('company_industries')
@@ -368,17 +437,22 @@ export default function CapDiscoveryPage() {
       setIndustries([]);
       setThemes([]);
     }
-  };
+  }, [supabase]);
 
-  const handleStockClick = (stock: CapStock) => {
+  const handleStockClick = useCallback((stock: CapStock) => {
     setSelectedStock({
       code: stock.code,
       name: stock.companies?.name || '알 수 없음',
     });
     fetchChartData(stock.code);
-    fetchIndustriesAndThemes(stock.code);
+    if (market === 'KR') {
+      fetchIndustriesAndThemes(stock.code);
+    } else {
+      setIndustries([]);
+      setThemes([]);
+    }
     setShowAllThemes(false);
-  };
+  }, [fetchChartData, fetchIndustriesAndThemes, market]);
 
   useEffect(() => {
     fetchTopMarketCapStocks();
@@ -386,28 +460,57 @@ export default function CapDiscoveryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [stocks.length, sortField, sortDirection]);
+  }, [stocks.length, sortField, sortDirection, market]);
+
+  const sortedStocks = useMemo(() => [...stocks].sort((a, b) => {
+    const aValue = a[sortField] ?? -1;
+    const bValue = b[sortField] ?? -1;
+
+    if (aValue === bValue) {
+      return a.code.localeCompare(b.code);
+    }
+
+    if (sortDirection === 'desc') {
+      return Number(bValue) - Number(aValue);
+    }
+
+    return Number(aValue) - Number(bValue);
+  }), [stocks, sortField, sortDirection]);
 
   useEffect(() => {
-    const sortedStocks = [...stocks].sort((a, b) => {
-      const aValue = a[sortField] ?? -1;
-      const bValue = b[sortField] ?? -1;
-
-      if (aValue === bValue) {
-        return a.code.localeCompare(b.code);
-      }
-
-      if (sortDirection === 'desc') {
-        return Number(bValue) - Number(aValue);
-      }
-
-      return Number(aValue) - Number(bValue);
-    });
-
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     setDisplayedStocks(sortedStocks.slice(startIndex, endIndex));
-  }, [stocks, currentPage, sortField, sortDirection]);
+  }, [sortedStocks, currentPage]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      ) {
+        return;
+      }
+
+      if (sortedStocks.length === 0) return;
+
+      event.preventDefault();
+      const selectedIndex = sortedStocks.findIndex((stock) => stock.code === selectedStock?.code);
+      const nextIndex = selectedIndex < 0
+        ? 0
+        : selectedIndex + (event.key === 'ArrowDown' ? 1 : -1);
+      if (nextIndex < 0 || nextIndex >= sortedStocks.length) return;
+
+      setCurrentPage(Math.floor(nextIndex / ITEMS_PER_PAGE) + 1);
+      handleStockClick(sortedStocks[nextIndex]);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [sortedStocks, selectedStock?.code, handleStockClick]);
 
   const totalPages = Math.ceil(stocks.length / ITEMS_PER_PAGE);
   const handlePageChange = (page: number) => {
@@ -430,7 +533,7 @@ export default function CapDiscoveryPage() {
   };
 
   const isFavorite = selectedStock
-    ? favorites.some((f) => f.code === selectedStock.code && f.group === targetGroup)
+    ? market === 'KR' && favorites.some((f) => f.code === selectedStock.code && f.group === targetGroup)
     : false;
 
   const formatMarcap = (amount: number) => {
@@ -445,13 +548,56 @@ export default function CapDiscoveryPage() {
     return Math.round(amount).toLocaleString();
   };
 
+  const formatUsdMarketCap = (amount: number) => new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    maximumFractionDigits: 2,
+  }).format(amount);
+
   return (
     <div className="flex h-full flex-col overflow-hidden px-4 py-4 lg:px-8 lg:py-6">
       <main className="flex-1 flex gap-4 overflow-hidden">
         <div className="w-[30%] app-card-strong flex flex-col overflow-hidden">
           <div className="border-b border-[var(--border)] bg-[var(--surface-muted)] p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-subtle)]">Discovery</p>
-            <h2 className="mb-3 mt-2 text-xl font-semibold text-slate-950">시총 TOP 100</h2>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <h2 className="text-xl font-semibold text-slate-950">
+                {market === 'KR' ? '국내 시총 TOP 100' : '미국 시총 TOP 100'}
+              </h2>
+              <div className="flex shrink-0 rounded-xl border border-[var(--border)] bg-white p-1 text-[11px] font-semibold">
+                {(['KR', 'US'] as const).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => {
+                      if (item === market) return;
+                      marketCapLoadIdRef.current += 1;
+                      chartLoadIdRef.current += 1;
+                      setMarket(item);
+                      setStocks([]);
+                      setDisplayedStocks([]);
+                      setSelectedStock(null);
+                      setChartData([]);
+                      setIsChartLoading(false);
+                      setReferenceDate('');
+                      setLoading(true);
+                      setError(null);
+                      setIndustries([]);
+                      setThemes([]);
+                      setCurrentPage(1);
+                      setSortField('marcap');
+                      setSortDirection('desc');
+                    }}
+                    className={`rounded-lg px-2 py-1 transition-colors ${
+                      market === item ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--surface-muted)]'
+                    }`}
+                  >
+                    {item === 'KR' ? '한국' : '미국'}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="text-[11px] text-[var(--text-muted)] flex justify-between">
               <span>기준: {referenceDate || '-'}</span>
               <span>총 {stocks.length}개</span>
@@ -519,7 +665,7 @@ export default function CapDiscoveryPage() {
                         {stock.rsRating === null || stock.rsRating === undefined ? '-' : stock.rsRating.toFixed(2)}
                       </td>
                       <td className="px-2 py-2 text-right text-[var(--text-muted)] whitespace-nowrap">
-                        {formatMarcap(stock.marcap)}
+                        {market === 'KR' ? formatMarcap(stock.marcap) : formatUsdMarketCap(stock.marcap)}
                       </td>
                       <td className="px-2 py-2 text-right font-mono text-[var(--text-muted)]">
                         {formatVolume(stock.volume)}
@@ -576,9 +722,12 @@ export default function CapDiscoveryPage() {
                     <div className="flex items-baseline gap-2">
                       <h2 className="text-2xl font-semibold text-slate-950">{selectedStock.name}</h2>
                       <span className="text-base text-[var(--text-muted)]">({selectedStock.code})</span>
+                      {market === 'US' && (
+                        <span className="text-xs font-medium text-[var(--text-subtle)]">미국 주식</span>
+                      )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2 text-xs">
+                    {market === 'KR' && <div className="flex flex-wrap gap-2 text-xs">
                       {industries.length > 0 && (
                         <div className="flex items-center gap-1">
                           <span className="text-[var(--text-muted)] font-medium">업종:</span>
@@ -610,17 +759,18 @@ export default function CapDiscoveryPage() {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </div>}
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <span className="hidden text-[11px] text-[var(--text-subtle)] md:inline">↑ / ↓ 이전·다음 종목</span>
                     {isChartLoading && (
                       <span className="text-xs font-semibold text-[var(--primary)] animate-pulse">
                         데이터 로딩 중...
                       </span>
                     )}
 
-                    <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-[var(--shadow-sm)]">
+                    {market === 'KR' && <div className="flex items-center gap-1 rounded-xl bg-white p-1 shadow-[var(--shadow-sm)]">
                       <select
                         value={targetGroup}
                         onChange={(e) => setTargetGroup(e.target.value)}
@@ -638,14 +788,14 @@ export default function CapDiscoveryPage() {
                       >
                         {isFavorite ? '⭐' : '☆'}
                       </button>
-                    </div>
+                    </div>}
                   </div>
                 </div>
               </div>
 
               <div className="relative min-h-0 h-full w-full flex-1 bg-white">
                 {chartData.length > 0 ? (
-                  <StockChartDiscovery data={chartData} />
+                  <StockChartDiscovery data={chartData} pricePrecision={market === 'US' ? 2 : 0} />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-[var(--text-subtle)]">
                     {isChartLoading ? '차트 그리는 중...' : '데이터가 없습니다.'}
@@ -656,7 +806,7 @@ export default function CapDiscoveryPage() {
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--surface-muted)]/60 text-[var(--text-subtle)]">
               <p className="font-semibold">왼쪽 목록에서 종목을 선택하세요</p>
-              <p className="text-xs mt-1">캔들 차트와 RS 지수를 확인할 수 있습니다.</p>
+              <p className="text-xs mt-1">캔들 차트와 RS 지수를 확인하고 ↑ / ↓로 다음 종목을 볼 수 있습니다.</p>
             </div>
           )}
         </div>

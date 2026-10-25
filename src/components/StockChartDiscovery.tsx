@@ -27,6 +27,7 @@ type ChartData = {
 
 interface Props {
   data: ChartData[];
+  pricePrecision?: number;
   colors?: {
     backgroundColor?: string;
     textColor?: string;
@@ -55,13 +56,14 @@ function enrichChartData(data: ChartData[]) {
   }));
 }
 
-export default function StockChartDiscovery({ data = [], colors }: Props) {
+export default function StockChartDiscovery({ data = [], colors, pricePrecision = 0 }: Props) {
   const enrichedData = useMemo(() => enrichChartData(data), [data]);
   const hasRs = enrichedData.some((item) => typeof item.rs === 'number' && !Number.isNaN(item.rs));
 
   return (
     <StockChart
       data={enrichedData}
+      pricePrecision={pricePrecision}
       colors={colors}
       showLegend
       showOHLC

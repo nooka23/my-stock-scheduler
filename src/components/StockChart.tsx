@@ -39,6 +39,7 @@ interface Props {
   showOHLC?: boolean;
   showIndicatorsValues?: boolean;
   showMacd?: boolean;
+  pricePrecision?: number;
   visibleIndicators?: StockChartIndicatorVisibility;
   onLegendChange?: (item: ChartData | undefined) => void;
 }
@@ -480,6 +481,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
   showLegend = true,
   showOHLC = false,
   showIndicatorsValues = true,
+  pricePrecision = 0,
   visibleIndicators,
   onLegendChange,
 }: Props, ref) {
@@ -491,6 +493,8 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
     ...DEFAULT_VISIBLE_INDICATORS,
     ...visibleIndicators,
   }), [visibleIndicators]);
+  const indicatorVisibilityRef = useRef(indicatorVisibility);
+  indicatorVisibilityRef.current = indicatorVisibility;
   const chartData = useMemo<KLineData[]>(() => data.map(item => ({
     timestamp: toTimestamp(item.time),
     open: item.open,
@@ -620,7 +624,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
       chartRef.current = chart;
       chart.createIndicator(PRICE_OVERLAY_NAME, true, { id: 'candle_pane' });
       chart.setOffsetRightDistance(0);
-      chart.setPriceVolumePrecision(0, 0);
+      chart.setPriceVolumePrecision(pricePrecision, 0);
 
       applyChartData(chart, container, latestChartDataRef.current);
       const latestItem = latestDataRef.current[latestDataRef.current.length - 1];
@@ -630,7 +634,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
         legendRef.current.innerHTML = formatLegendHtml(latestItem, {
           showOHLC,
           showIndicatorsValues,
-          visibleIndicators: indicatorVisibility,
+          visibleIndicators: indicatorVisibilityRef.current,
         });
       }
 
@@ -653,7 +657,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
           legendRef.current.innerHTML = formatLegendHtml(item, {
             showOHLC,
             showIndicatorsValues,
-            visibleIndicators: indicatorVisibility,
+            visibleIndicators: indicatorVisibilityRef.current,
           });
         }
       };
@@ -712,6 +716,7 @@ const StockChart = forwardRef<StockChartHandle, Props>(function StockChart({
     showLegend,
     showOHLC,
     showIndicatorsValues,
+    pricePrecision,
     indicatorVisibility.volume,
     indicatorVisibility.rs,
   ]);
