@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from supabase import create_client
 from collect_fred_market_data import SUPABASE_URL,SUPABASE_SERVICE_ROLE_KEY,require_environment
 from daily_review_news_evidence import inspect_articles
+from daily_review_news_updates import compare_candidates, content_hash, merge_events
 ROOT=Path(__file__).resolve().parents[1]
 RAW=ROOT/'scripts/output/daily-review-news/raw_articles.json'
 SCRAPER=Path('/Users/myunghoon/article-scrapper')
@@ -31,9 +32,10 @@ def snapshot():
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action',choices=['collect','register','prepare','publish','enrich'])
+    p.add_argument('action',choices=['collect','register','context','prepare','publish','enrich'])
     p.add_argument('--review-date',default=datetime.now(ZoneInfo('Asia/Seoul')).date().isoformat())
     p.add_argument('--selection',type=Path)
+    p.add_argument('--context-output',type=Path)
     args=p.parse_args();datetime.strptime(args.review_date,'%Y-%m-%d')
     if args.action != 'prepare':
         require_environment()
@@ -68,11 +70,36 @@ def main():
         db.table('daily_review_news_runs').upsert(row,on_conflict='run_id').execute()
         # Retain a reproducible candidate inventory, never RSS summaries/bodies.
         inventory={key:manifest[key] for key in ['run_id','output_sha256','window_start','window_end']}
-        inventory['articles']=[{key:a.get(key) for key in ['id','title','source','region','url','published_at']} for a in articles]
+        inventory['articles']=[{**{key:a.get(key) for key in ['id','title','source','region','url','published_at']}, 'content_hash':content_hash(a)} for a in articles]
         (RAW.parent / f"{manifest['run_id']}.candidates.json").write_text(json.dumps(inventory,ensure_ascii=False))
         print(json.dumps({'run_id':manifest['run_id'],'candidates':len(articles),'status':manifest['status']}))
         return
     if manifest['status']=='FAILED' or not articles: raise ValueError('No usable candidates; do not publish an empty failed collection')
+    if args.action == 'context':
+        if not args.context_output: p.error('--context-output is required')
+        previous = (db.table('daily_review_news_runs')
+                    .select('run_id,review_date,collected_at,review_status,events')
+                    .eq('review_status','REVIEWED')
+                    .lt('collected_at',manifest['completed_at'])
+                    .order('collected_at',desc=True).limit(1).execute().data)
+        prior = previous[0] if previous else None
+        prior_inventory = None
+        if prior:
+            inventory_path = RAW.parent / f"{prior['run_id']}.candidates.json"
+            if inventory_path.exists():
+                prior_inventory = json.loads(inventory_path.read_text())['articles']
+        hints = compare_candidates(articles, prior_inventory)
+        context = {'run_id': manifest['run_id'], 'input_sha256': manifest['output_sha256'],
+                   'baseline_run_id': prior['run_id'] if prior else None,
+                   'baseline_date': prior['review_date'] if prior else None,
+                   'baseline_events': prior['events'] if prior else [],
+                   'candidate_hints': hints,
+                   'inventory_available': prior_inventory is not None}
+        args.context_output.write_text(json.dumps(context,ensure_ascii=False,indent=2))
+        print(json.dumps({'context':str(args.context_output), 'baseline_run_id':context['baseline_run_id'],
+                          'counts':{status:sum(h['status']==status for h in hints)
+                                    for status in ('new','seen','title_changed','content_changed','unknown')}}))
+        return
     if not args.selection: p.error('--selection is required')
     selection=json.loads(args.selection.read_text())
     if selection['run_id']!=manifest['run_id'] or selection['input_sha256']!=manifest['output_sha256']: raise ValueError('Selection uses a different snapshot')
@@ -109,6 +136,9 @@ def main():
                         source['verification']['outside_window']=published<datetime.fromisoformat(manifest['window_start'].replace('Z','+00:00'))
             sources.append(source)
         event={k:e[k] for k in ['id','category','importance','title','summary','details','reason','market_scope','confidence']}|{'sources':sources}
+        if selection.get('update_mode') == 'incremental':
+            event['update_state'] = e.get('update_state')
+            event['update_note'] = e.get('update_note', '')
         if e['importance']=='핵심' and not set(e['article_ids']) & read_ids and e.get('verification_note','').strip():
             event['confidence']='추가 확인 필요 · '+e['verification_note'].strip()+' · '+event['confidence']
         events.append(event)
@@ -131,16 +161,28 @@ def main():
         if not result.data: raise ValueError('Review changed concurrently; reload before enriching')
         print(f'Enriched {len(events)} events; original summaries and sources preserved')
         return
-    if existing['review_status']=='REVIEWED':
-        if existing['events']!=events: raise ValueError('Published runs are immutable; collect a new run')
-        print('Already published; no change');return
-    if not evidence or not included <= set(evidence_records): raise ValueError('Run prepare for every selected article before publishing')
+    if included and (not evidence or not included <= set(evidence_records)): raise ValueError('Run prepare for every selected article before publishing')
     for original,event in zip(selection['events'],events):
         if original['importance']=='핵심' and not set(original['article_ids']) & read_ids:
             note=original.get('verification_note','').strip()
             if not note: raise ValueError('Core event needs read evidence or a specific verification_note')
+    reviewed_at = existing.get('reviewed_at') or datetime.now(timezone.utc).isoformat()
+    if selection.get('update_mode') == 'incremental':
+        previous = (db.table('daily_review_news_runs')
+                    .select('run_id,review_date,collected_at,events')
+                    .eq('review_status','REVIEWED').lt('collected_at',manifest['completed_at'])
+                    .order('collected_at',desc=True).limit(1).execute().data)
+        prior = previous[0] if previous else None
+        if selection.get('baseline_run_id') != (prior['run_id'] if prior else None):
+            raise ValueError('Review baseline changed; refresh context and review again')
+        recent_events = prior['events'] if prior else []
+        same_day = recent_events if prior and prior['review_date'] == args.review_date else []
+        events = merge_events(same_day, events, recent_events, reviewed_at)
+    if existing['review_status']=='REVIEWED':
+        if existing['events']!=events: raise ValueError('Published runs are immutable; collect a new run')
+        print('Already published; no change');return
     quality={'fetch_status_counts':{status:sum(evidence_records[aid]['status']==status for aid in included) for status in ['text_available','metadata_only','unavailable']},'editor_read_count':len(read_ids & included),'short_details':[e['id'] for e in events if len(e['details'])<800],'core_without_read_evidence':[e['id'] for e in selection['events'] if e['importance']=='핵심' and not set(e['article_ids']) & read_ids]}
-    payload=dict(events=events,review_status='REVIEWED',reviewed_at=datetime.now(timezone.utc).isoformat(),audit={'method':'ChatGPT direct judgment','prompt_version':'daily-review-news-v2-evidence','reviewed_count':len(by_id),'included_count':len(included),'excluded_count':len(excluded),'exclusion_reasons':selection['exclusion_reasons'],'quality':quality})
+    payload=dict(events=events,review_status='REVIEWED',reviewed_at=reviewed_at,audit={'method':'ChatGPT direct judgment','prompt_version':'daily-review-news-v3-incremental' if selection.get('update_mode') == 'incremental' else 'daily-review-news-v2-evidence','reviewed_count':len(by_id),'included_count':len(included),'excluded_count':len(excluded),'exclusion_reasons':selection['exclusion_reasons'],'quality':quality})
     result=db.table('daily_review_news_runs').update(payload).eq('run_id',manifest['run_id']).eq('review_status','PENDING').execute()
     if not result.data: raise ValueError('Publish did not update a pending run')
     print(f'Published {len(events)} events with {len(included)} evidence articles')

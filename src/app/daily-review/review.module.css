@@ -1359,3 +1359,14 @@
   .inlineChart .chartHeader h3 { font-size: 16px; }
   .tableNote { font-size: 10px; }
 }
+
+/* The status is an editorial update, not a second copy of the story. */
+.newsMeta { flex-wrap: wrap; }
+.newsUpdated,.newsNew,.newsPrevious { padding:2px 6px; border-radius:3px; font-weight:700; }
+.newsUpdated { background:#fff0d5; color:#8a5415; }
+.newsNew { background:#e0edf5; color:#315d77; }
+.newsPrevious { background:#eef0ec; color:#7d867d; }
+.newsChange { display:flex; gap:10px; align-items:baseline; border-left:2px solid #bd8a43; padding:7px 10px; margin-top:10px; background:#fbf5ea; color:#5f4b32; font-size:12px; line-height:1.7; }
+.newsChange strong { flex:none; font-size:10px; color:#865b23; }
+.moreSources { margin-top:9px; }
+.moreSources summary { font-size:11px; font-weight:600; }
